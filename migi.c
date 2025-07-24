@@ -33,8 +33,11 @@
 
 #define todo() todof("%s: not yet implemented!", __func__)
 
-#define unreachable() todof("%s: unreachable!", __func__)
-#define unreachablef todof
+#define UNREACHABLE() todof("%s: unreachable!", __func__)
+#define UNREACHABLEF todof
+
+// Incrementally shift command line arguments
+#define shift_args(argc, argv) ((argc--), *(argv)++)
 
 #define min(a, b) ((a) < (b)? (a): (b))
 #define max(a, b) ((a) > (b)? (a): (b))

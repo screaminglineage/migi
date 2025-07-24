@@ -1,3 +1,6 @@
+#ifndef MIGI_RANDOM_C
+#define MIGI_RANDOM_C
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -85,7 +88,7 @@ static void seed(uint64_t seed) {
 }
 
 // Return a random unsigned 64 bit integer
-static uint64_t random() {
+static uint64_t migi_random() {
 #if AUTO_SEED_RNG
     if (!rng.is_seeded) seed(time(NULL));
 #endif
@@ -139,7 +142,7 @@ static float random_range_float(float min, float max) {
 static void random_bytes(void *buf, size_t size) {
     uint8_t *dest = (uint8_t *)buf;
     for (size_t i = 0; i < size; i+=8) {
-        uint64_t rand = random();
+        uint64_t rand = migi_random();
         for (size_t j = 0; i+j < size && j < 8; j++) {
             dest[i + j] = (rand >> (56 - 8*j)) & 0xFF;
         }
@@ -156,3 +159,4 @@ static void random_bytes(void *buf, size_t size) {
     }
 }
 
+#endif // MIGI_RANDOM_C

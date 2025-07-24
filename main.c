@@ -1,6 +1,7 @@
-#include "migi.c"
 #include <stddef.h>
 #include <stdio.h>
+
+#include "migi.c"
 
 typedef struct {
     int *data;
