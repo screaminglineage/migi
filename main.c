@@ -196,7 +196,7 @@ void test_string_split_print(Strings s) {
 void test_string_split() {
     Strings s1[] = {
         string_split(SV("Mary had a little lamb"), SV(" ")),
-        string_split_ex(SV(" Mary    had   a   little   lamb"), SV(" "), SPLIT_SKIP_EMPTY),
+        string_split_ex(SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY),
         string_split(SV(" Mary    had   a   little   lamb"), SV(" ")),
         string_split(SV("Mary--had--a--little--lamb--"), SV("--")),
         string_split(SV("Mary had a little lamb"), SV("")),
@@ -211,9 +211,12 @@ void test_string_split() {
     char delims[] = {'-', ' ', ':', '@'};
     Strings s2 = string_split_chars(SV("2020-11-03 23:59@"), delims, array_len(delims));
     test_string_split_print(s2);
+    s2 = string_split_chars_ex(SV("2020-11-03 23:59@"), delims, array_len(delims), SPLIT_SKIP_EMPTY);
+    test_string_split_print(s2);
 }
 
 int main() {
+    test_string_split();
     printf("\nExiting successfully\n");
     return 0;
 }

@@ -214,26 +214,25 @@ static Strings string_split_ex(String str, String delimiter, int flags) {
             .data = str.data,
             .length = substr_start
         };
-        if (flags & SPLIT_SKIP_EMPTY) {
-            if (substr.length != 0) array_add(&strings, substr);
-        } else {
+
+        if (!(flags & SPLIT_SKIP_EMPTY) || substr.length != 0) {
             array_add(&strings, substr);
         }
         str = string_skip(str, substr_start + delimiter.length);
         substr_start = string_find(str, delimiter);
     }
-    array_add(&strings, ((String){
+    String remaining_part = (String){
         .data = str.data,
         .length = str.length
-    }));
+    };
+    if (!(flags & SPLIT_SKIP_EMPTY) || remaining_part.length != 0) {
+        array_add(&strings, remaining_part);
+    }
     return strings;
 }
 
-#define string_split(str, delimiter) \
-    (string_split_ex(str, (delimiter), 0))
 
-
-static Strings string_split_chars(String str, char *delims, size_t delims_len) {
+static Strings string_split_chars_ex(String str, char *delims, size_t delims_len, int flags) {
     Strings strings = {0};
     size_t start = 0;
     size_t length = 0;
@@ -245,7 +244,9 @@ static Strings string_split_chars(String str, char *delims, size_t delims_len) {
                     .data = str.data + start,
                     .length = length
                 };
-                array_add(&strings, substr);
+                if (!(flags & SPLIT_SKIP_EMPTY) || substr.length != 0) {
+                    array_add(&strings, substr);
+                }
                 length = 0;
                 start = i + 1;
                 delim_found = true;
@@ -258,9 +259,20 @@ static Strings string_split_chars(String str, char *delims, size_t delims_len) {
         .data = str.data + start,
         .length = length
     };
-    array_add(&strings, remaining_part);
+    if (!(flags & SPLIT_SKIP_EMPTY) || remaining_part.length != 0) {
+        array_add(&strings, remaining_part);
+    }
     return strings;
 }
+
+// Convenience macros which set flags to 0
+#define string_split(str, delimiter) \
+    (string_split_ex((str), (delimiter), 0))
+
+#define string_split_chars(str, delims, delims_len) \
+    (string_split_chars_ex((str), (delims), (delims_len), 0))
+
+
 
 // TODO: use linux syscalls instead of C stdlib
 static bool read_file(StringBuilder *builder, String filepath) {
