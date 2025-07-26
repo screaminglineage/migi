@@ -2,6 +2,7 @@
 #define MIGI_RANDOM_H
 
 #include <stddef.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -16,14 +17,15 @@
 
 #ifndef MIGI_DONT_AUTO_SEED_RNG
 #include <time.h>
+#include <stdbool.h>
 #endif
 
 #define MIGI_RNG_STATE_LEN 4
 typedef struct {
-#ifndef MIGI_DONT_AUTO_SEED_RNG
-    _Bool is_seeded;
-#endif
     uint64_t state[MIGI_RNG_STATE_LEN];
+#ifndef MIGI_DONT_AUTO_SEED_RNG
+    bool is_seeded;
+#endif
 } Rng;
 
 static Rng rng;
@@ -84,7 +86,7 @@ static void migi_seed(uint64_t seed) {
         rng.state[i] = splitmix64(seed);
     }
 #ifndef MIGI_DONT_AUTO_SEED_RNG
-    rng.is_seeded = 1;
+    rng.is_seeded = true;
 #endif
 }
 
@@ -149,5 +151,9 @@ static void random_bytes(void *buf, size_t size) {
         }
     }
 }
+
+// Convenience macro to get a random array of n bytes of any type
+#define random_array(buf, type, size) \
+    (random_bytes((buf), sizeof(type)*(size)))
 
 #endif // MIGI_RANDOM_H

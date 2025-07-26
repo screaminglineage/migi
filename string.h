@@ -97,7 +97,7 @@ static String string_from_cstr(const char *cstr) {
 
 static bool string_eq(String a, String b) {
     if (a.length != b.length) return false;
-    return memcmp(a.data, b.data, a.length) == 0;
+    return migi_mem_eq(a.data, b.data, a.length);
 }
 
 static int string_find_char(String haystack, char needle) {
@@ -163,12 +163,12 @@ static String string_skip(String str, size_t index) {
 static int string_find_suffix(String str, String suffix) {
     if (suffix.length > str.length) return -1;
     int start = str.length - suffix.length;
-    return (memcmp(str.data + start, suffix.data, suffix.length) == 0)? start: -1;
+    return (migi_mem_eq(str.data + start, suffix.data, suffix.length))? start: -1;
 }
 
 static bool string_starts_with(String str, String prefix) {
     if (prefix.length > str.length) return false;
-    return memcmp(str.data, prefix.data, prefix.length) == 0;
+    return migi_mem_eq(str.data, prefix.data, prefix.length);
 }
 
 static bool string_ends_with(String str, String suffix) {
@@ -194,18 +194,20 @@ static String string_cut_suffix(String str, String suffix) {
     return string_slice(str, 0, suffix_start);
 }
 
-
-static bool read_to_string(StringBuilder *builder, String filepath) {
+// TODO: use linux syscalls instead of C stdlib
+static bool read_file(StringBuilder *builder, String filepath) {
     StringBuilder filepath_builder = sb_from_string(filepath);
     FILE *file = fopen(sb_to_cstr(&filepath_builder), "r");
     if (!file) {
-        fprintf(stderr, "%s: failed to open source file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
+        fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
         return false;
     }
+
     fseek(file, 0, SEEK_END);
     int64_t file_pos = ftell(file);
     if (file_pos == -1) {
         fprintf(stderr, "%s: couldnt read file position in `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
+        fclose(file);
         return false;
     }
 
@@ -213,8 +215,32 @@ static bool read_to_string(StringBuilder *builder, String filepath) {
     size_t size = file_pos;
     rewind(file);
 
-    fread(array_reserve(builder, size), size, 1, file);
+    int n = fread(array_reserve(builder, size), sizeof(*builder->data), size, file);
+    if (n != file_pos || ferror(file)) {
+        fprintf(stderr, "%s: failed to read from file `%.*s`: \n", __func__, SV_FMT(filepath));
+        fclose(file);
+        return false;
+    }
     builder->length += size;
+
+    fclose(file);
+    return true;
+}
+
+// TODO: use linux syscalls instead of C stdlib
+static bool write_file(StringBuilder *sb, String filepath) {
+    StringBuilder filepath_builder = sb_from_string(filepath);
+    FILE *file = fopen(sb_to_cstr(&filepath_builder), "w");
+    if (!file) {
+        fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
+        return false;
+    }
+    size_t n = fwrite(sb->data, sizeof(*sb->data), sb->length, file);
+    if (n != sb->length) {
+        fprintf(stderr, "%s: failed to write to file `%.*s`: \n", __func__, SV_FMT(filepath));
+        fclose(file);
+        return false;
+    }
 
     fclose(file);
     return true;

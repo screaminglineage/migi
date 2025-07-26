@@ -1,3 +1,10 @@
-@PHONY=all
-all:
+main: main.c
 	gcc -Wall -Wextra -Wno-unused-function -ggdb main.c -o main
+
+@PHONY=release
+release: main.c
+	gcc -Wall -Wextra -Wno-unused-function -O3 -DMIGI_DISABLE_ASSERTS main.c -o main
+
+@PHONY=run
+run: main
+	./main
