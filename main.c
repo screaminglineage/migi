@@ -57,6 +57,7 @@ void test_linear_arena() {
     random_array(a, int, count);
 
     byte *x = lnr_arena_push_bytes(&arena, getpagesize());
+    (void)x;
     int *c = lnr_arena_realloc(&arena, int, a, count, 2*count);
 
     assertf(migi_mem_eq(a, c, count), "a and c are equal upto count");
@@ -178,13 +179,41 @@ void test_tester() {
     free(buf);
 }
 
-
-
-int main() {
+void profile_linear_array() {
     begin_profiling();
     test_linear_arena();
     end_profiling_and_print_stats();
+}
 
-    printf("Exiting successfully\n");
+void test_string_split_print(Strings s) {
+    printf("Length = %zu\n", s.length);
+    array_foreach(&s, String, str) {
+        printf("`%.*s` ", SV_FMT(*str));
+    }
+    printf("\n");
+}
+
+void test_string_split() {
+    Strings s1[] = {
+        string_split(SV("Mary had a little lamb"), SV(" ")),
+        string_split_ex(SV(" Mary    had   a   little   lamb"), SV(" "), SPLIT_SKIP_EMPTY),
+        string_split(SV(" Mary    had   a   little   lamb"), SV(" ")),
+        string_split(SV("Mary--had--a--little--lamb--"), SV("--")),
+        string_split(SV("Mary had a little lamb"), SV("")),
+        string_split(SV(" Mary had a little lamb"), SV(" ")),
+        string_split(SV("010"), SV("0")),
+    };
+
+    for (size_t i = 0; i < array_len(s1); i++) {
+        test_string_split_print(s1[i]);
+    }
+
+    char delims[] = {'-', ' ', ':', '@'};
+    Strings s2 = string_split_chars(SV("2020-11-03 23:59@"), delims, array_len(delims));
+    test_string_split_print(s2);
+}
+
+int main() {
+    printf("\nExiting successfully\n");
     return 0;
 }

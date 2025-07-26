@@ -100,21 +100,21 @@ static bool string_eq(String a, String b) {
     return migi_mem_eq(a.data, b.data, a.length);
 }
 
-static int string_find_char(String haystack, char needle) {
+static int64_t string_find_char(String haystack, char needle) {
     for (size_t i = 0; i < haystack.length; i++) {
         if (haystack.data[i] == needle) return i;
     }
     return -1;
 }
 
-static int string_find_char_rev(String haystack, char needle) {
+static int64_t string_find_char_rev(String haystack, char needle) {
     for (int i = haystack.length - 1; i >= 0; i--) {
         if (haystack.data[i] == needle) return i;
     }
     return -1;
 }
 
-static int string_find(String haystack, String needle) {
+static int64_t string_find(String haystack, String needle) {
     if (needle.length > haystack.length) return -1;
     if (needle.length == 0 && haystack.length == 0) return 0;
 
@@ -128,7 +128,7 @@ static int string_find(String haystack, String needle) {
     return -1;
 }
 
-static int string_find_rev(String haystack, String needle) {
+static int64_t string_find_rev(String haystack, String needle) {
     if (needle.length > haystack.length) return -1;
     if (needle.length == 0 && haystack.length == 0) return 0;
 
@@ -151,11 +151,13 @@ static String string_slice(String str, size_t start, size_t end) {
     };
 }
 
-static String string_skip(String str, size_t index) {
-    assertf(index < str.length, "string_skip: index out of bounds");
+// Skip `amount` characters from beginning of string
+// If `amount` == `str.length`, then returns an empty string
+static String string_skip(String str, size_t amount) {
+    assertf(amount <= str.length, "string_skip: index out of bounds");
     return (String){
-        .data = str.data + index,
-        .length = str.length - index,
+        .data = str.data + amount,
+        .length = str.length - amount,
     };
 }
 
@@ -187,11 +189,77 @@ static String string_cut_prefix(String str, String prefix) {
 // Slice off the suffix from the string
 // Returns the original string if the suffix was not found
 static String string_cut_suffix(String str, String suffix) {
-    int suffix_start = string_find_suffix(str, suffix);
+    int64_t suffix_start = string_find_suffix(str, suffix);
     if (suffix_start == -1) {
         return str;
     }
     return string_slice(str, 0, suffix_start);
+}
+
+typedef struct {
+    String *data;
+    size_t length;
+    size_t capacity;
+} Strings;
+
+#define SPLIT_SKIP_EMPTY 0x1
+
+static Strings string_split_ex(String str, String delimiter, int flags) {
+    Strings strings = {0};
+    if (delimiter.length == 0) return strings;
+
+    int64_t substr_start = string_find(str, delimiter);
+    while (substr_start != -1 && str.length > 0) {
+        String substr = (String){
+            .data = str.data,
+            .length = substr_start
+        };
+        if (flags & SPLIT_SKIP_EMPTY) {
+            if (substr.length != 0) array_add(&strings, substr);
+        } else {
+            array_add(&strings, substr);
+        }
+        str = string_skip(str, substr_start + delimiter.length);
+        substr_start = string_find(str, delimiter);
+    }
+    array_add(&strings, ((String){
+        .data = str.data,
+        .length = str.length
+    }));
+    return strings;
+}
+
+#define string_split(str, delimiter) \
+    (string_split_ex(str, (delimiter), 0))
+
+
+static Strings string_split_chars(String str, char *delims, size_t delims_len) {
+    Strings strings = {0};
+    size_t start = 0;
+    size_t length = 0;
+    for (size_t i = 0; i < str.length; i++) {
+        bool delim_found = false;
+        for (size_t j = 0; j < delims_len; j++) {
+            if (delims[j] == str.data[i]) {
+                String substr = (String){
+                    .data = str.data + start,
+                    .length = length
+                };
+                array_add(&strings, substr);
+                length = 0;
+                start = i + 1;
+                delim_found = true;
+                break;
+            }
+        }
+        if (!delim_found) length++;
+    }
+    String remaining_part = (String){
+        .data = str.data + start,
+        .length = length
+    };
+    array_add(&strings, remaining_part);
+    return strings;
 }
 
 // TODO: use linux syscalls instead of C stdlib

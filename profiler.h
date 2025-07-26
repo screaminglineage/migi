@@ -134,7 +134,7 @@ static void end_profiling_and_print_stats() {
     global_profiler.end_time = read_cpu_timer();
     u64 total = global_profiler.end_time - global_profiler.start_time;
 
-    u64 cpu_freq = EstimateCPUTimerFreq();
+    u64 cpu_freq = estimate_cpu_timer_freq();
     if (cpu_freq) {
         double total_time = (double)total/(double)cpu_freq;
         if (total_time < 1) {
