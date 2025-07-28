@@ -29,9 +29,10 @@
 
 #include <sys/mman.h>
 
-#define OS_PAGE_SIZE 64*KB
+#define OS_PAGE_SIZE 4*KB
 
 static byte *memory_reserve(size_t size) {
+    TIME_FUNCTION;
     byte *mem = mmap(0, size, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     assertf(mem != MAP_FAILED, "%s: failed to map memory: %s", __func__, strerror(errno));
     return mem;
@@ -71,8 +72,7 @@ typedef struct {
 } LinearArena;
 
 
-// TODO: ensure that align_page_size(n) when n is already aligned returns n
-#define align_page_size(n) (((n) + OS_PAGE_SIZE) & OS_PAGE_SIZE)
+#define align_page_size(n) (((n) & (OS_PAGE_SIZE - 1))? ((n + OS_PAGE_SIZE) & ~(OS_PAGE_SIZE - 1)) :(n))
 // #define align_down_page_size(n) ((n) & OS_PAGE_SIZE)
 
 static byte *lnr_arena_push_bytes(LinearArena *arena, size_t size) {
@@ -88,7 +88,7 @@ static byte *lnr_arena_push_bytes(LinearArena *arena, size_t size) {
         assertf(new_capacity <= arena->total, "arena_push: virtual address space mapping of %zu bytes exhausted", arena->total);
 
         size_t extra_length = new_capacity - arena->capacity; 
-        arena->data = memory_commit(arena->data + arena->capacity, extra_length);
+        memory_commit(arena->data + arena->capacity, extra_length);
         arena->capacity = new_capacity;
     }
     byte *mem = arena->data + arena->length;
@@ -121,8 +121,7 @@ static byte *lnr_arena_memdup_bytes(LinearArena *arena, byte *source, size_t siz
     return memcpy(lnr_arena_push_bytes(arena, size), source, size);
 }
 
-// TODO: check if this works
-byte *lnr_arena_realloc_bytes(LinearArena *arena, void *old, size_t old_size, size_t new_size) {
+byte *lnr_arena_realloc_bytes(LinearArena *arena, byte *old, size_t old_size, size_t new_size) {
     TIME_FUNCTION;
     if (old == NULL || old_size == 0) return lnr_arena_push_bytes(arena, new_size);
     if (new_size < old_size) return old;
@@ -141,6 +140,8 @@ void lnr_arena_free(LinearArena *arena) {
     if (arena->total > 0) memory_release(arena->data, arena->total);
     memset(arena, 0, sizeof(*arena));
 }
+
+// Convenience macros which multiply size with the sizeof(type)
 
 #define lnr_arena_push(arena, type, size) \
     ((type *)lnr_arena_push_bytes((arena), sizeof(type)*(size)))

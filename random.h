@@ -1,6 +1,10 @@
 #ifndef MIGI_RANDOM_H
 #define MIGI_RANDOM_H
 
+// TODO: add a function that shuffles an existing array
+// TODO: maybe add a weighted random chooser which take an array 
+// and weights and returns a random value based on them
+
 #include <stddef.h>
 #include <stddef.h>
 #include <stdint.h>
