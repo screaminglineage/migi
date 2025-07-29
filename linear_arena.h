@@ -72,8 +72,7 @@ typedef struct {
 } LinearArena;
 
 
-#define align_page_size(n) (((n) & (OS_PAGE_SIZE - 1))? ((n + OS_PAGE_SIZE) & ~(OS_PAGE_SIZE - 1)) :(n))
-// #define align_down_page_size(n) ((n) & OS_PAGE_SIZE)
+#define align_page_size(n) (align_up((n), OS_PAGE_SIZE))
 
 static byte *lnr_arena_push_bytes(LinearArena *arena, size_t size) {
     if (size == 0) return arena->data;

@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "migi.h"
+
 // MIGI_DONT_AUTO_SEED_RNG can be defined to allow the user manually seed the
 // RNG before calling it for the first time.
 // This is helpful when the user wants to control the seed, or if checking
@@ -146,7 +148,7 @@ static float random_range_float(float min, float max) {
 }
 
 // Fill passed in buffer with random bytes
-static void random_bytes(void *buf, size_t size) {
+static void random_bytes(byte *buf, size_t size) {
     uint8_t *dest = (uint8_t *)buf;
     for (size_t i = 0; i < size; i+=8) {
         uint64_t rand = migi_random();
@@ -156,8 +158,22 @@ static void random_bytes(void *buf, size_t size) {
     }
 }
 
-// Convenience macro to get a random array of n bytes of any type
-#define random_array(buf, type, size) \
-    (random_bytes((buf), sizeof(type)*(size)))
+static void array_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        int64_t index =  random_range_exclusive(0, size);
+        byte temp[elem_size];
+        memcpy(temp, &buf[elem_size*index], elem_size);
+        memcpy(&buf[elem_size*index], buf, elem_size);
+        memcpy(buf, temp, elem_size);
+    }
+}
+
+// Convenience macro to get a random array of any type
+#define random_array(array, type, size) \
+    (random_bytes((byte *)(array), sizeof(type)*(size)))
+
+// Convenience macro to shuffle an array of any type
+#define array_shuffle(array, type, size) \
+    (array_shuffle_bytes((byte *)(array), sizeof(type), (size)))
 
 #endif // MIGI_RANDOM_H

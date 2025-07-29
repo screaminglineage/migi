@@ -1,10 +1,10 @@
 #ifndef MIGI_H
 #define MIGI_H
 
-#include <stdio.h>
+#include <stdio.h>     // needed for asserts
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
+#include <string.h>    // needed for array_extend
 #include <stdlib.h>
 
 typedef uint8_t byte;
@@ -13,10 +13,13 @@ typedef uint8_t byte;
 #define MB (1024ull*KB)
 #define GB (1024ull*MB)
 #define TB (1024ull*GB)
+#define PB (1024ull*TB)
 
 #define MS (1000ull)
 #define US (1000ull*MS)
 #define NS (1000ull*US)
+#define PS (1000ull*NS)
+#define FS (1000ull*PS)
 
 #define min(a, b) ((a) < (b)? (a): (b))
 #define max(a, b) ((a) > (b)? (a): (b))
@@ -31,6 +34,7 @@ typedef uint8_t byte;
 // modulo that wraps-around to b - 1 if result is negative
 #define modulo(a, b) ((a) - (b) * ((a) / (b)))
 
+// NOTE: Returns `n` if its already a power of two
 static uint64_t next_power_of_two(uint64_t n) {
     n--;
     n |= n >> 1;
@@ -43,26 +47,41 @@ static uint64_t next_power_of_two(uint64_t n) {
     return n;
 }
 
-#ifndef MIGI_DISABLE_ASSERTS
-#define assert(expr)                                                            \
-    (!(expr))?                                                                  \
-        (printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr),   \
-        fflush(NULL),                                                           \
-        __builtin_trap())                                                       \
-    : (void)0
+// Aligns `value` to `align_to`
+static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
+    return (value & (align_to - 1))? (value + align_to) & ~(align_to - 1): value;
+}
 
-#define assertf(expr, ...)                                                        \
-    (!(expr))?                                                                    \
-        (printf("%s:%d: assertion `%s` failed: \"", __FILE__, __LINE__, #expr),   \
-        printf(__VA_ARGS__),                                                      \
-        putchar('"'),                                                             \
-        putchar('\n'),                                                            \
-        fflush(NULL),                                                             \
-        __builtin_trap())                                                         \
-    : (void)0
+#ifndef MIGI_DISABLE_ASSERTS
+
+#ifdef __GNUC__
+#   define migi_crash() __builtin_trap()
+#elif _MSC_VER
+#   define migi_crash() __debugbreak()
 #else
-#define assert(expr) ((void)(expr))
-#define assertf(expr, ...) ((void)(expr))
+#   define migi_crash() (*(volatile int *)0 = 0)
+#endif
+
+#   define assert(expr)                                                           \
+        (!(expr))?                                                                \
+            (printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
+            fflush(NULL),                                                         \
+            migi_crash())                                                         \
+        : (void)0
+
+#   define assertf(expr, ...)                                                       \
+        (!(expr))?                                                                  \
+            (printf("%s:%d: assertion `%s` failed: \"", __FILE__, __LINE__, #expr), \
+            printf(__VA_ARGS__),                                                    \
+            putchar('"'),                                                           \
+            putchar('\n'),                                                          \
+            fflush(NULL),                                                           \
+            migi_crash())                                                           \
+        : (void)0
+
+#else
+#   define assert(expr) ((void)(expr))
+#   define assertf(expr, ...) ((void)(expr))
 #endif
 
 #define static_assert _Static_assert
@@ -72,7 +91,7 @@ static uint64_t next_power_of_two(uint64_t n) {
     printf(__VA_ARGS__),                    \
     putchar('\n'),                          \
     fflush(NULL),                           \
-    __builtin_trap())
+    migi_crash())
 
 #define todo() crash_with_message("%s: not yet implemented!", __func__)
 #define todof crash_with_message
@@ -85,6 +104,8 @@ static uint64_t next_power_of_two(uint64_t n) {
 
 #define migi_unreachable() crash_with_message("%s: unreachable!", __func__)
 #define migi_unreachablef crash_with_message
+
+#define unused(a) ((void)a)
 
 // Incrementally shift command line arguments
 #define shift_args(argc, argv) ((argc--), *(argv)++)
@@ -145,18 +166,19 @@ static uint64_t next_power_of_two(uint64_t n) {
 
 
 
+
+
 // Slightly cursed macros that probably shouldn't be used much
 
 // Defers execution of the passed in expression until the
 // end of the block. 
-// NOTE: Using `break` will return early from the block,
-// skipping execution of the deferred expression. Using
+// NOTE: Using `break` in this version of defer will return early
+// from the block, skipping execution of the deferred expression. Using
 // `return` will also have a similar effect, so use with care.
-#define defer_block(expr)          \
-    for (int _DEFER##__LINE__ = 0; \
-        _DEFER##__LINE__ != 1;     \
-        _DEFER##__LINE__++, expr)  \
-
+#define defer_block(expr)              \
+    for (int _DEFER##__LINE__ = 0;     \
+            _DEFER##__LINE__ != 1;     \
+            _DEFER##__LINE__++, expr)
 
 // Return false if the expression passed is false
 // Also takes variable arguments that are run before returning

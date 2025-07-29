@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 
 #include "timing.h"
 
@@ -18,8 +22,9 @@
 #include "random.h"
 #include "string.h"
 #include "migi.h"
-#include "random.h"
 #include "linear_arena.h"
+
+#pragma GCC diagnostic pop
 
 typedef struct {
     int *data;
@@ -63,11 +68,13 @@ void test_linear_arena() {
     assertf(migi_mem_eq(a, c, count), "a and c are equal upto count");
     assertf(a != c, "a and c are separate allocations!");
 
+    assertf(arena.length == arena.capacity && arena.capacity == (size_t)(4*getpagesize()), "4 allocations are left");
     int *b = lnr_arena_pop(&arena, int, count);
-    printf("len: %zu, cap: %zu\n", arena.length, arena.capacity);
+    unused(b);
     // b[0] = 100; // This will segfault since the memory has been decommitted
-    assertf(c[0] == a[0], "b took the place of (c + count)");
+    assertf(arena.length == arena.capacity && arena.capacity == (size_t)(3*getpagesize()), "3 allocations are left");
     lnr_arena_free(&arena);
+    assertf(arena.length == arena.capacity && arena.capacity == 0, "0 allocations are left");
 }
 
 int *return_array(LinearArena *arena, size_t *size) {
@@ -131,14 +138,33 @@ void test_string_builder_formatted() {
 void test_random() {
     size_t size = 1*MB;
     time_t seed = time(NULL);
-    char *buf1 = malloc(size);
-    char *buf2 = malloc(size);
+    byte *buf1 = malloc(size);
+    byte *buf2 = malloc(size);
 
     migi_seed(seed);
     random_bytes(buf1, size);
 
     migi_seed(seed);
     random_bytes(buf2, size);
+
+    // int a[] = {1,2,3,4,5,6,7,8,9,0};
+    // array_shuffle(a, int, array_len(a));
+    // array_print(a, array_len(a), "%d");
+    typedef struct {
+        int a, b;
+        char *foo;
+    } Foo;
+    Foo a[] = {
+        (Foo){1, 2, "12"},
+        (Foo){2, 3, "23"},
+        (Foo){3, 4, "34"},
+        (Foo){4, 5, "45"},
+        (Foo){5, 6, "56"},
+    };
+    array_shuffle(a, Foo, array_len(a));
+    for (size_t i = 0; i < array_len(a); i++) {
+        printf("%d %d %s\n", a[i].a, a[i].b, a[i].foo);
+    }
 
     assertf(migi_mem_eq(buf1, buf2, size), "random with same seed must have same data");
 }
@@ -168,7 +194,7 @@ void test_tester() {
     size_t size = 1*MB;
     int time = 60;
 
-    char *buf = malloc(1*MB);
+    byte *buf = malloc(1*MB);
     Tester tester = tester_init_with_name("random_bytes", time, estimate_cpu_timer_freq(), size);
     while (!tester.finished) {
         tester_begin(&tester);
@@ -216,6 +242,7 @@ void test_string_split() {
 }
 
 int main() {
+    test_random();
 
     printf("\nExiting successfully\n");
     return 0;
