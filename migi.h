@@ -34,6 +34,8 @@ typedef uint8_t byte;
 // modulo that wraps-around to b - 1 if result is negative
 #define modulo(a, b) ((a) - (b) * ((a) / (b)))
 
+#define abs_difference(a, b) ((a) > (b)? (a) - (b): (b) - (a))
+
 // NOTE: Returns `n` if its already a power of two
 static uint64_t next_power_of_two(uint64_t n) {
     n--;

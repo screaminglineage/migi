@@ -149,7 +149,7 @@ static float random_range_float(float min, float max) {
 
 // Fill passed in buffer with random bytes
 static void random_bytes(byte *buf, size_t size) {
-    uint8_t *dest = (uint8_t *)buf;
+    byte *dest = (uint8_t *)buf;
     for (size_t i = 0; i < size; i+=8) {
         uint64_t rand = migi_random();
         for (size_t j = 0; i+j < size && j < 8; j++) {
@@ -160,11 +160,12 @@ static void random_bytes(byte *buf, size_t size) {
 
 static void array_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
     for (size_t i = 0; i < size; i++) {
-        int64_t index =  random_range_exclusive(0, size);
+        int64_t index_a = random_range_exclusive(0, size);
+        int64_t index_b = random_range_exclusive(0, size);
         byte temp[elem_size];
-        memcpy(temp, &buf[elem_size*index], elem_size);
-        memcpy(&buf[elem_size*index], buf, elem_size);
-        memcpy(buf, temp, elem_size);
+        memcpy(temp, &buf[elem_size*index_a], elem_size);
+        memcpy(&buf[elem_size*index_a], &buf[elem_size*index_b], elem_size);
+        memcpy(&buf[elem_size*index_b], temp, elem_size);
     }
 }
 

@@ -65,7 +65,7 @@ static void memory_decommit(byte *mem, size_t size) {
 #define LINEAR_ARENA_DEFAULT_CAP 32*GB
 
 typedef struct {
-    uint8_t *data;
+    byte *data;
     size_t length;
     size_t capacity;
     size_t total;

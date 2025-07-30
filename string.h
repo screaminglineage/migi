@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "migi.h"
+#include "linear_arena.h"
 
 typedef struct {
     const char *data;
@@ -22,29 +23,25 @@ typedef struct {
 #define SV(cstr) (String){(cstr), (sizeof(cstr) - 1)}
 
 typedef struct {
-    char *data;
-    size_t length;
-    size_t capacity;
+    LinearArena arena;
 } StringBuilder;
 
 #define STRING_BUILDER_INIT_CAPACITY 4
 
 static void sb_push(StringBuilder *sb, char to_push) {
-    *array_reserve(sb, 1) = to_push;
-    sb->length += 1;
+    *lnr_arena_push(&sb->arena, char, 1) = to_push;
 }
 
-static void sb_push_str(StringBuilder *sb, String string) {
-    memcpy(array_reserve(sb, string.length), string.data, string.length);
-    sb->length += string.length;
+static void sb_push_string(StringBuilder *sb, String string) {
+    memcpy(lnr_arena_push(&sb->arena, char, string.length), string.data, string.length);
 }
 
 static void sb_push_buffer(StringBuilder *sb, char *buf, size_t len) {
-    memcpy(array_reserve(sb, len), buf, len);
-    sb->length += len;
+    memcpy(lnr_arena_push(&sb->arena, char, len), buf, len);
 }
 
-// TODO: Try making a custom sprintf like function instead
+// NOTE: sb_pushf doesnt append a null terminator at the end
+// of the format string unlike regular sprintf
 static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
     va_list args1;
     va_start(args1, fmt);
@@ -52,19 +49,19 @@ static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
     va_list args2;
     va_copy(args2, args1);
 
-    int reserved = 64;
-    int actual = vsnprintf(array_reserve(sb, reserved), reserved, fmt, args1);
+    int reserved = 1024;
+    int actual = vsnprintf(lnr_arena_push(&sb->arena, char, reserved), reserved, fmt, args1);
+    // vsnprintf doesnt count the null terminator
+    actual += 1;
 
     if (actual > reserved) {
-        // array_reserve doesnt increment length, so its fine to reserve again
-        // the previous space will simply be reused
-
-        // TODO: resize allocation to what is actually needed
-        vsnprintf(array_reserve(sb, actual), actual, fmt, args2);
+        lnr_arena_pop(&sb->arena, char, reserved);
+        vsnprintf(lnr_arena_push(&sb->arena, char, actual), actual, fmt, args2);
+    } else if (actual < reserved) {
+        lnr_arena_pop(&sb->arena, char, abs_difference(actual, reserved));
     }
-
-    // TODO: resize allocation to what is actually needed
-    sb->length += actual;
+    // pop off the null terminator
+    lnr_arena_pop(&sb->arena, char, 1);
 
     va_end(args2);
     va_end(args1);
@@ -72,20 +69,20 @@ static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
 
 static StringBuilder sb_from_string(String string) {
     StringBuilder sb = {0};
-    sb_push_str(&sb, string);
+    sb_push_string(&sb, string);
     return sb;
 }
 
 static String sb_to_string(StringBuilder *sb) {
     return (String){
-        .data = sb->data,
-        .length = sb->length
+        .data = (char *)sb->arena.data,
+        .length = sb->arena.length
     };
 }
 
-static const char *sb_to_cstr(StringBuilder *sb) {
+static char *sb_to_cstr(StringBuilder *sb) {
     sb_push(sb, 0);
-    return sb->data;
+    return (char *)sb->arena.data;
 }
 
 static String string_from_cstr(const char *cstr) {
@@ -295,13 +292,12 @@ static bool read_file(StringBuilder *builder, String filepath) {
     size_t size = file_pos;
     rewind(file);
 
-    int n = fread(array_reserve(builder, size), sizeof(*builder->data), size, file);
+    int n = fread(lnr_arena_push(&builder->arena, char, size), sizeof(char), size, file);
     if (n != file_pos || ferror(file)) {
         fprintf(stderr, "%s: failed to read from file `%.*s`: \n", __func__, SV_FMT(filepath));
         fclose(file);
         return false;
     }
-    builder->length += size;
 
     fclose(file);
     return true;
@@ -315,8 +311,8 @@ static bool write_file(StringBuilder *sb, String filepath) {
         fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
         return false;
     }
-    size_t n = fwrite(sb->data, sizeof(*sb->data), sb->length, file);
-    if (n != sb->length) {
+    size_t n = fwrite(sb->arena.data, sizeof(char), sb->arena.length, file);
+    if (n != sb->arena.length) {
         fprintf(stderr, "%s: failed to write to file `%.*s`: \n", __func__, SV_FMT(filepath));
         fclose(file);
         return false;

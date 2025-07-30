@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -104,35 +105,35 @@ void test_string_builder() {
     assert(read_file(&sb, SV("string.h")));
     assert(write_file(&sb, SV("main-string.c")));
 
-    sb.length = 0;
-    defer_block(sb.length = 0) {
-        sb_push_str(&sb, SV("hello"));
-        sb_push_str(&sb, SV("foo"));
-        sb_push_str(&sb, SV("bar"));
-        sb_push_str(&sb, SV("baz"));
+    sb.arena.length = 0;
+    defer_block(sb.arena.length = 0) {
+        sb_push_string(&sb, SV("hello"));
+        sb_push_string(&sb, SV("foo"));
+        sb_push_string(&sb, SV("bar"));
+        sb_push_string(&sb, SV("baz"));
 
-        array_foreach(&sb, char, elem) {
+        array_foreach(&sb.arena, byte, elem) {
             printf("%c ", *elem);
         }
-        printf("len: %zu\n", sb.length);
+        printf("len: %zu\n", sb.arena.length);
     }
-    printf("len: %zu\n", sb.length);
-    array_foreach(&sb, char, elem) {
-        printf("%c ", *elem);
-    }
+    printf("len: %zu\n", sb.arena.length);
 }
 
 void test_string_builder_formatted() {
     StringBuilder sb = {0};
     sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99), "what is this even doing????");
+    assert(sb.arena.length == 67);
     sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99), "what is this even doing????");
+    assert(sb.arena.length == 67 + 67);
 
     StringBuilder new_sb = {0};
-    read_file(&new_sb, SV("migi_string.c"));
+    read_file(&new_sb, SV("string.h"));
     const char *str = sb_to_cstr(&new_sb);
 
     sb_pushf(&sb, "%s\n", str);
     printf("%s", sb_to_cstr(&sb));
+    assert(sb.arena.length == 67 + 67 + new_sb.arena.length + 1);
 }
 
 void test_random() {
@@ -147,23 +148,24 @@ void test_random() {
     migi_seed(seed);
     random_bytes(buf2, size);
 
-    // int a[] = {1,2,3,4,5,6,7,8,9,0};
-    // array_shuffle(a, int, array_len(a));
-    // array_print(a, array_len(a), "%d");
+    int a[] = {1,2,3,4,5,6,7,8,9,0};
+    array_shuffle(a, int, array_len(a));
+    array_print(a, array_len(a), "%d");
+
     typedef struct {
         int a, b;
         char *foo;
     } Foo;
-    Foo a[] = {
+    Foo b[] = {
         (Foo){1, 2, "12"},
         (Foo){2, 3, "23"},
         (Foo){3, 4, "34"},
         (Foo){4, 5, "45"},
         (Foo){5, 6, "56"},
     };
-    array_shuffle(a, Foo, array_len(a));
-    for (size_t i = 0; i < array_len(a); i++) {
-        printf("%d %d %s\n", a[i].a, a[i].b, a[i].foo);
+    array_shuffle(b, Foo, array_len(b));
+    for (size_t i = 0; i < array_len(b); i++) {
+        printf("%d %d %s\n", b[i].a, b[i].b, b[i].foo);
     }
 
     assertf(migi_mem_eq(buf1, buf2, size), "random with same seed must have same data");
