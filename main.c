@@ -76,6 +76,22 @@ void test_linear_arena() {
     assertf(arena.length == arena.capacity && arena.capacity == (size_t)(3*getpagesize()), "3 allocations are left");
     lnr_arena_free(&arena);
     assertf(arena.length == arena.capacity && arena.capacity == 0, "0 allocations are left");
+
+    LinearArena arena1 = {0};
+    size_t size = getpagesize()*4;
+
+    byte *mem = lnr_arena_push_bytes(&arena1, size);
+    random_bytes(mem, size);
+
+    LinearArena arena2 = {0};
+    lnr_arena_memdup_bytes(&arena2, arena1.data, arena1.length);
+    uint64_t checkpoint = lnr_arena_save(&arena1);
+    uint64_t old_capacity = arena1.capacity;
+
+    mem = lnr_arena_push_bytes(&arena1, size);
+    random_bytes(mem, size);
+    lnr_arena_rewind(&arena1, checkpoint);
+    assertf(old_capacity == arena1.capacity && migi_mem_eq(arena1.data, arena2.data, arena1.length), "rewinded arena is equivalent to old one");
 }
 
 int *return_array(LinearArena *arena, size_t *size) {
@@ -243,9 +259,15 @@ void test_string_split() {
     test_string_split_print(s2);
 }
 
-int main() {
-    test_repetition_tester();
+void linear_arena_stress_test() {
+    LinearArena arenas[100] = {0};
+    for (size_t i = 0; i < 100; i++) {
+        arenas[i] = (LinearArena){0};
+        lnr_arena_push_bytes(&arenas[i], 1*GB);
+    }
+}
 
+int main() {
     printf("\nExiting successfully\n");
     return 0;
 }

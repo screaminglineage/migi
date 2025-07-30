@@ -1,12 +1,22 @@
 #ifndef MIGI_LINEAR_ARENA_H
 #define MIGI_LINEAR_ARENA_H
 
-// Linear Arena using virtual address space mapping
+// Fully contiguous Linear Arena using virtual address space mapping
+//
+// This works by reserving an extremely large part of the virtual address space
+// without any permissions to either read or write. This effectively reserves the
+// area for the current allocation without consuming any actual memory.
+// When required, the memory is committed, by adding read/write permissions to the
+// necessary pages. Similarly popping off allocations decommits the memory and removes
+// these permissions.
+//
 //
 // | => page boundary
 // * => already allocated
 // # => new allocation
 // x => "non-comitted"
+// - => unused
+// x => uncomitted (no permissions)
 //
 // |*********|***********|#######-------|xxxxxxxxxxx|xxxxxxxxx|xxxxxxxxxx|
 // ^data                 ^new   ^length ^capacity                        ^total
@@ -76,6 +86,7 @@ typedef struct {
 
 static byte *lnr_arena_push_bytes(LinearArena *arena, size_t size) {
     if (size == 0) return arena->data;
+    if (size == 0) return arena->data + arena->length;
 
     size_t alloc_end = arena->length + size;
     if (alloc_end > arena->capacity) {
@@ -138,6 +149,15 @@ byte *lnr_arena_realloc_bytes(LinearArena *arena, byte *old, size_t old_size, si
 void lnr_arena_free(LinearArena *arena) {
     if (arena->total > 0) memory_release(arena->data, arena->total);
     memset(arena, 0, sizeof(*arena));
+}
+
+uint64_t lnr_arena_save(LinearArena *arena) {
+    return arena->length;
+}
+
+void lnr_arena_rewind(LinearArena *arena, uint64_t length) {
+    lnr_arena_pop_bytes(arena, abs_difference(arena->length, length));
+    arena->length = length;
 }
 
 // Convenience macros which multiply size with the sizeof(type)
