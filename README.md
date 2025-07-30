@@ -1,3 +1,3 @@
 # Migi
 
-A collection of libraries for C for ease of use. Still in progress. Directly include the `.c` file to use. 
+A collection of libraries for C for ease of use. Still in progress. Simply include the `.h` file to use. 
