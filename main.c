@@ -20,8 +20,8 @@
 // #define ENABLE_PROFILING
 #include "profiler.h"
 
-#include "random.h"
-#include "string.h"
+#include "migi_random.h"
+#include "migi_string.h"
 #include "migi.h"
 #include "linear_arena.h"
 
@@ -192,9 +192,9 @@ void test_dynamic_array() {
     }
 }
 
-void test_tester() {
+void test_repetition_tester() {
     size_t size = 1*MB;
-    int time = 60;
+    int time = 10;
 
     byte *buf = malloc(1*MB);
     Tester tester = tester_init_with_name("random_bytes", time, estimate_cpu_timer_freq(), size);
@@ -244,7 +244,7 @@ void test_string_split() {
 }
 
 int main() {
-    test_random();
+    test_repetition_tester();
 
     printf("\nExiting successfully\n");
     return 0;
