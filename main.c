@@ -25,6 +25,7 @@
 #include "migi.h"
 #include "linear_arena.h"
 #include "arena.h"
+#include "migi_lists.h"
 
 #pragma GCC diagnostic pop
 
@@ -275,23 +276,23 @@ void profile_linear_arena() {
     end_profiling_and_print_stats();
 }
 
-void test_string_split_print(Strings s) {
-    printf("Length = %zu\n", s.length);
-    array_foreach(&s, String, str) {
-        printf("`%.*s` ", SV_FMT(*str));
+void test_string_split_print(StringList s) {
+    list_foreach(s.head, StringNode, node) {
+        printf("`%.*s` ", SV_FMT(node->str));
     }
     printf("\n");
 }
 
 void test_string_split() {
-    Strings s1[] = {
-        string_split(SV("Mary had a little lamb"), SV(" ")),
-        string_split_ex(SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY),
-        string_split(SV(" Mary    had   a   little   lamb"), SV(" ")),
-        string_split(SV("Mary--had--a--little--lamb--"), SV("--")),
-        string_split(SV("Mary had a little lamb"), SV("")),
-        string_split(SV(" Mary had a little lamb"), SV(" ")),
-        string_split(SV("010"), SV("0")),
+    Arena a = {0};
+    StringList s1[] = {
+        string_split(&a, SV("Mary had a little lamb"), SV(" ")),
+        string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY),
+        string_split(&a, SV(" Mary    had   a   little   lamb"), SV(" ")),
+        string_split(&a, SV("Mary--had--a--little--lamb--"), SV("--")),
+        string_split(&a, SV("Mary had a little lamb"), SV("")),
+        string_split(&a, SV(" Mary had a little lamb"), SV(" ")),
+        string_split(&a, SV("010"), SV("0")),
     };
 
     for (size_t i = 0; i < array_len(s1); i++) {
@@ -299,9 +300,9 @@ void test_string_split() {
     }
 
     char delims[] = {'-', ' ', ':', '@'};
-    Strings s2 = string_split_chars(SV("2020-11-03 23:59@"), delims, array_len(delims));
+    StringList s2 = string_split_chars(&a, SV("2020-11-03 23:59@"), delims, array_len(delims));
     test_string_split_print(s2);
-    s2 = string_split_chars_ex(SV("2020-11-03 23:59@"), delims, array_len(delims), SPLIT_SKIP_EMPTY);
+    s2 = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), delims, array_len(delims), SPLIT_SKIP_EMPTY);
     test_string_split_print(s2);
 }
 
@@ -313,7 +314,25 @@ void linear_arena_stress_test() {
     }
 }
 
+void test_string_list() {
+    Arena a = {0};
+    StringList sl = {0};
+
+    strlist_push_string(&a, &sl, SV("This is a "));
+    strlist_push_string(&a, &sl, SV("string being built "));
+    strlist_push_cstr(&a, &sl, "over time");
+    strlist_push(&a, &sl, '!');
+
+    char *s = "\nMore Stuff Here\n";
+    size_t len = strlen(s);
+    strlist_push_buffer(&a, &sl, s, len);
+    strlist_pushf(&a, &sl, "%s:%d:%s: %.15f ... and more stuff... blah blah blah", __FILE__, __LINE__, __func__, M_PI);
+    String final_str = strlist_to_string(&a, &sl);
+    printf("%.*s", SV_FMT(final_str));
+}
+
 int main() {
+    test_string_list();
     printf("\nExiting successfully\n");
     return 0;
 }

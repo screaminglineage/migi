@@ -12,6 +12,8 @@
 #   define ARENA_DEFAULT_CAP 16*KB
 #endif
 
+// TODO: define functions as static
+
 typedef struct Zone ArenaZone;
 struct Zone {
     ArenaZone *next;
@@ -31,24 +33,29 @@ typedef struct {
 } ArenaCheckpoint;
 
 
+void *arena_push_bytes(Arena *arena, size_t size);
+
 #define arena_new(arena, type) \
     ((type *)arena_push_bytes((arena), sizeof(type)))
 
 #define arena_push(arena, type, size) \
     ((type *)arena_push_bytes((arena), sizeof(type)*(size)))
 
+void *arena_pop_current_bytes(Arena *arena, size_t size);
+#define arena_pop_current(arena, type, size) \
+    ((type *)arena_pop_current_bytes((arena), sizeof(type)*(size)))
+
+void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_t new_size);
 #define arena_realloc(arena, type, old, old_size, new_size) \
     ((type *)arena_realloc_bytes((arena), (void *)(old), sizeof(type)*(old_size), sizeof(type)*(new_size)))
+
+void *arena_memdup_bytes(Arena *arena, void *old, size_t size);
 
 #define arena_memdup(arena, type, old, size) \
     ((type *)arena_memdup_bytes((arena), (void *)(old), sizeof(type)*(size)))
 
 #define arena_strdup(arena, old, size) \
     ((char *)arena_memdup_bytes((arena), (void *)(old), (size)))
-
-void *arena_push_bytes(Arena *arena, size_t size);
-void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_t new_size);
-void *arena_memdup_bytes(Arena *arena, void *old, size_t size);
 
 #define arena_reset(arena) (arena_reset_ex((arena), false))
 void arena_reset_ex(Arena *arena, bool clear_all);
@@ -118,6 +125,17 @@ void *arena_push_bytes(Arena *a, size_t size) {
     void *mem = a->tail->data + a->tail->length;
     a->tail->length += size;
     return mem;
+}
+
+
+// Remove and return a pointer to the last `size` bytes of arena
+// Returns NULL if the size of the last alloation was less than size
+// WARNING: The returned pointer will be invalidated 
+// after a subsequent allocation to the arena
+void *arena_pop_current_bytes(Arena *arena, size_t size) {
+    if (!arena->tail || arena->tail->length < size) return NULL;
+    arena->tail->length -= size;
+    return arena->tail->data + arena->tail->length;
 }
 
 

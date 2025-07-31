@@ -133,9 +133,18 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 #define array_print(arr, length, fmt)           \
     printf("[");                                \
     for (size_t i = 0; i < (length) - 1; i++) { \
-        printf(fmt", ", ((arr)[i]));            \
+        printf(fmt", ", (arr)[i]);            \
     }                                           \
     printf(fmt"]\n", (arr)[(length) - 1]);
+
+#define list_print(list, type, item, fmt)                      \
+    printf("[");                                               \
+    for (type *node = (list); node->next; node = node->next) { \
+        printf(fmt", ", (node)->(item));                       \
+    }                                                          \
+    node = node->next;                                         \
+    printf(fmt"]\n", (list)->(item));
+
 
 
 #define ARRAY_INIT_CAPACITY 4
@@ -171,15 +180,16 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 
 
 // Iterate over a dynamic array *by reference*
-// Should be called like array_foreach(&array, int, i) { ... }
+// Should be used like array_foreach(&array, int, i) { ... }
 #define array_foreach(array, type, item)        \
     for (type *(item) = (array)->data;          \
         item < (array)->data + (array)->length; \
         item++)
 
 
-
-
+// Iterate over a linked list
+#define list_foreach(list, type, item) \
+    for (type *(item) = (list); (item); (item) = (item)->next)
 
 
 // Slightly cursed macros that probably shouldn't be used much

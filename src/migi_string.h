@@ -36,8 +36,13 @@ static void sb_push_string(StringBuilder *sb, String string) {
     memcpy(lnr_arena_push(&sb->arena, char, string.length), string.data, string.length);
 }
 
-static void sb_push_buffer(StringBuilder *sb, char *buf, size_t len) {
-    memcpy(lnr_arena_push(&sb->arena, char, len), buf, len);
+static void sb_push_cstr(StringBuilder *sb, char *cstr) {
+    size_t length = strlen(cstr);
+    lnr_arena_strdup(&sb->arena, cstr, length);
+}
+
+static void sb_push_buffer(StringBuilder *sb, char *buf, size_t length) {
+    lnr_arena_strdup(&sb->arena, buf, length);
 }
 
 // NOTE: sb_pushf doesnt append a null terminator at the end
@@ -85,7 +90,7 @@ static char *sb_to_cstr(StringBuilder *sb) {
     return (char *)sb->arena.data;
 }
 
-static String string_from_cstr(const char *cstr) {
+static String string_from_cstr(char *cstr) {
     return (String){
         .data = cstr,
         .length = (cstr == NULL)? 0: strlen(cstr)
@@ -192,83 +197,6 @@ static String string_cut_suffix(String str, String suffix) {
     }
     return string_slice(str, 0, suffix_start);
 }
-
-typedef struct {
-    String *data;
-    size_t length;
-    size_t capacity;
-} Strings;
-
-#define SPLIT_SKIP_EMPTY 0x1
-
-static Strings string_split_ex(String str, String delimiter, int flags) {
-    Strings strings = {0};
-    if (delimiter.length == 0) return strings;
-
-    int64_t substr_start = string_find(str, delimiter);
-    while (substr_start != -1 && str.length > 0) {
-        String substr = (String){
-            .data = str.data,
-            .length = substr_start
-        };
-
-        if (!(flags & SPLIT_SKIP_EMPTY) || substr.length != 0) {
-            array_add(&strings, substr);
-        }
-        str = string_skip(str, substr_start + delimiter.length);
-        substr_start = string_find(str, delimiter);
-    }
-    String remaining_part = (String){
-        .data = str.data,
-        .length = str.length
-    };
-    if (!(flags & SPLIT_SKIP_EMPTY) || remaining_part.length != 0) {
-        array_add(&strings, remaining_part);
-    }
-    return strings;
-}
-
-
-static Strings string_split_chars_ex(String str, char *delims, size_t delims_len, int flags) {
-    Strings strings = {0};
-    size_t start = 0;
-    size_t length = 0;
-    for (size_t i = 0; i < str.length; i++) {
-        bool delim_found = false;
-        for (size_t j = 0; j < delims_len; j++) {
-            if (delims[j] == str.data[i]) {
-                String substr = (String){
-                    .data = str.data + start,
-                    .length = length
-                };
-                if (!(flags & SPLIT_SKIP_EMPTY) || substr.length != 0) {
-                    array_add(&strings, substr);
-                }
-                length = 0;
-                start = i + 1;
-                delim_found = true;
-                break;
-            }
-        }
-        if (!delim_found) length++;
-    }
-    String remaining_part = (String){
-        .data = str.data + start,
-        .length = length
-    };
-    if (!(flags & SPLIT_SKIP_EMPTY) || remaining_part.length != 0) {
-        array_add(&strings, remaining_part);
-    }
-    return strings;
-}
-
-// Convenience macros which set flags to 0
-#define string_split(str, delimiter) \
-    (string_split_ex((str), (delimiter), 0))
-
-#define string_split_chars(str, delims, delims_len) \
-    (string_split_chars_ex((str), (delims), (delims_len), 0))
-
 
 
 // TODO: use linux syscalls instead of C stdlib
