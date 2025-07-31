@@ -24,6 +24,7 @@
 #include "migi_string.h"
 #include "migi.h"
 #include "linear_arena.h"
+#include "arena.h"
 
 #pragma GCC diagnostic pop
 
@@ -55,28 +56,50 @@ int test_error_propagation() {
     return 0;
 }
 
-void test_linear_arena() {
-    LinearArena arena = {0};
+int *return_array(LinearArena *arena, size_t *size) {
+    int a[] = {1,2,3,4,5,6,7};
+    *size = array_len(a);
+    return lnr_arena_memdup(arena, int, a, *size);
+}
 
+char *return_string(LinearArena *arena, size_t *size) {
+    const char *s = "This is a string that will be returned from the function by an arena.\n";
+    *size = strlen(s);
+    return lnr_arena_strdup(arena, s, *size);
+}
+
+void test_linear_arena_dup() {
+    LinearArena arena = {0};
+    size_t size = 0;
+    int *a = return_array(&arena, &size);
+    array_print(a, size, "%d");
+    char *s = return_string(&arena, &size);
+    printf("%s", s);
+}
+
+void test_linear_arena_regular(LinearArena *arena) {
     size_t count = getpagesize()/sizeof(int);
-    int *a = lnr_arena_push(&arena, int, count);
+    int *a = lnr_arena_push(arena, int, count);
     random_array(a, int, count);
 
-    byte *x = lnr_arena_push_bytes(&arena, getpagesize());
-    (void)x;
-    int *c = lnr_arena_realloc(&arena, int, a, count, 2*count);
+    byte *x = lnr_arena_push_bytes(arena, getpagesize());
+    unused(x);
+    int *c = lnr_arena_realloc(arena, int, a, count, 2*count);
 
     assertf(migi_mem_eq(a, c, count), "a and c are equal upto count");
     assertf(a != c, "a and c are separate allocations!");
 
-    assertf(arena.length == arena.capacity && arena.capacity == (size_t)(4*getpagesize()), "4 allocations are left");
-    int *b = lnr_arena_pop(&arena, int, count);
+    assertf(arena->length == arena->capacity && arena->capacity == (size_t)(4*getpagesize()), "4 allocations are left");
+    int *b = lnr_arena_pop(arena, int, count);
     unused(b);
     // b[0] = 100; // This will segfault since the memory has been decommitted
-    assertf(arena.length == arena.capacity && arena.capacity == (size_t)(3*getpagesize()), "3 allocations are left");
-    lnr_arena_free(&arena);
-    assertf(arena.length == arena.capacity && arena.capacity == 0, "0 allocations are left");
 
+    assertf(arena->length == arena->capacity && arena->capacity == (size_t)(3*getpagesize()), "3 allocations are left");
+    lnr_arena_free(arena);
+    assertf(arena->length == arena->capacity && arena->capacity == 0, "0 allocations are left");
+}
+
+void test_linear_arena_rewind() {
     LinearArena arena1 = {0};
     size_t size = getpagesize()*4;
 
@@ -94,26 +117,49 @@ void test_linear_arena() {
     assertf(old_capacity == arena1.capacity && migi_mem_eq(arena1.data, arena2.data, arena1.length), "rewinded arena is equivalent to old one");
 }
 
-int *return_array(LinearArena *arena, size_t *size) {
-    int a[] = {1,2,3,4,5,6,7};
-    *size = array_len(a);
-    return lnr_arena_memdup(arena, int, a, *size);
-}
-
-char *return_string(LinearArena *arena, size_t *size) {
-    const char *s = "This is a string that will be returned from the function by an arena.\n";
-    *size = strlen(s);
-    return lnr_arena_strdup(arena, s, *size);
-}
-
-void test_dup() {
+void test_linear_arena() {
     LinearArena arena = {0};
-    size_t size = 0;
-    int *a = return_array(&arena, &size);
-    array_print(a, size, "%d");
-    char *s = return_string(&arena, &size);
-    printf("%s", s);
+    LinearArena small = { .total = 16*MB };
+    test_linear_arena_regular(&arena);
+    test_linear_arena_regular(&small);
+    test_linear_arena_rewind();
+    test_linear_arena_dup();
 }
+
+void test_arena() {
+    Arena arena = {0};
+    char *a = arena_push(&arena, char, ARENA_DEFAULT_CAP);
+    a[0] = 1;
+
+    char *b = arena_push(&arena, char, ARENA_DEFAULT_CAP);
+    b[256] = 124;
+    printf("%d %d\n", a[0], b[256]);
+
+    arena_reset(&arena);
+    char *c = arena_push(&arena, char, ARENA_DEFAULT_CAP*1.25);
+    c[26] = 14;
+    int *d = arena_realloc(&arena, int, NULL, 0, ARENA_DEFAULT_CAP);
+    d[30] = 14;
+    printf("%d %d\n", c[26], d[30]);
+
+    ArenaZone *saved_tail = arena.tail;
+    size_t saved_tail_length = arena.tail->length;
+    ArenaCheckpoint checkpoint = arena_checkpoint(&arena);
+
+    int *e = arena_realloc(&arena, int, d, ARENA_DEFAULT_CAP, ARENA_DEFAULT_CAP*2);
+    assertf(e != d, "new zone created since size of e was greater than the default arena capacity");
+
+    double *f = arena_push(&arena, double, 100);
+    random_array(f, double, 100);
+    double *g = arena_realloc(&arena, double, f, 100, 500);
+    assertf(f == g && migi_mem_eq(f, g, 100), "previous allocation was reused");
+
+    arena_rewind(&arena, checkpoint);
+    assertf(arena.tail == saved_tail && arena.tail->length == saved_tail_length, "rewind goes to the correct checkpoint");
+
+    arena_free(&arena);
+}
+
 
 void test_string_builder() {
     StringBuilder sb = {0};
@@ -223,7 +269,7 @@ void test_repetition_tester() {
     free(buf);
 }
 
-void profile_linear_array() {
+void profile_linear_arena() {
     begin_profiling();
     test_linear_arena();
     end_profiling_and_print_stats();

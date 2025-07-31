@@ -54,8 +54,6 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
     return (value & (align_to - 1))? (value + align_to) & ~(align_to - 1): value;
 }
 
-#ifndef MIGI_DISABLE_ASSERTS
-
 #ifdef __GNUC__
 #   define migi_crash() __builtin_trap()
 #elif _MSC_VER
@@ -64,6 +62,7 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 #   define migi_crash() (*(volatile int *)0 = 0)
 #endif
 
+#ifndef MIGI_DISABLE_ASSERTS
 #   define assert(expr)                                                           \
         (!(expr))?                                                                \
             (printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
@@ -81,9 +80,22 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
             migi_crash())                                                           \
         : (void)0
 
+// NOTE: Use avow when the application should fail even if asserts are disabled
+// For example, if the memory allocator fails for some reason.
+#   define avow assertf
+
 #else
+// assert can be used in expressions and so it must be
+// replaced by a valid (but useless) expression
 #   define assert(expr) ((void)(expr))
 #   define assertf(expr, ...) ((void)(expr))
+
+// fallback to slightly simpler implementation when asserts are disabled
+#   define avow(expr, ...)                                                      \
+        (!(expr)                                                                \
+         ? printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
+           migi_crash()                                                         \
+         : (void)0)
 #endif
 
 #define static_assert _Static_assert
@@ -102,7 +114,7 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 // Eg.: `int x = todo_expr(x);` will compile but crash at runtime
 // Eg.: `int x = todo_exprf(x, "`%s` doesnt have a value!", "x");` is also the same
 #define todo_expr(x) (todo(), (x))
-#define todo_exprf(x, ...) (todof(__VA_ARGS__), (x))
+#define todof_expr(x, ...) (todof(__VA_ARGS__), (x))
 
 #define migi_unreachable() crash_with_message("%s: unreachable!", __func__)
 #define migi_unreachablef crash_with_message
