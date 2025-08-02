@@ -1,14 +1,11 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 #include "arena.h"
 #include "migi.h"
 #include "hashmap.h"
 #include "migi_string.h"
 
-
-// -------------------------------------------------- 
 
 typedef struct {
     int x, y;
@@ -28,18 +25,19 @@ typedef struct {
 } MapStrPoint;
 
 
-int main() {
+void test_basic() {
     Arena a = {0};
     MapStrPoint hm = {0};
 
     hms_put(&a, &hm, SV("foo"), ((Point){1, 2}));
     hms_put(&a, &hm, SV("bar"), ((Point){3, 4}));
     hms_put(&a, &hm, SV("baz"), ((Point){5, 6}));
+    hms_put(&a, &hm, SV("bla"), ((Point){7, 8}));
 
-    Point *p = hms_get(&hm, Point, SV("foo"));
+    Point *p = hms_entry(&hm, Point, SV("foo"));
     printf("%d %d\n", p->x, p->y);
 
-    p = hms_get(&hm, Point, SV("abcd"));
+    p = hms_entry(&hm, Point, SV("abcd"));
     if (!p) printf("key not present!\n");
 
     ptrdiff_t i = hms_index(&hm, SV("bar"));
@@ -48,21 +46,38 @@ int main() {
         printf("%d %d\n", p.x, p.y);
     }
 
-    KVStrPoint *pair = hms_get_pair(&hm, KVStrPoint, SV("baz"));
+    KVStrPoint *pair = hms_entry_pair(&hm, KVStrPoint, SV("baz"));
     printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
 
-    printf("\n\niteration:\n");
+    KVStrPoint pair1 = hms_get_pair(&hm, KVStrPoint, SV("bazz"));
+    printf("`%.*s`: (Point){%d %d}\n", SV_FMT(pair1.key), pair1.value.x, pair1.value.y);
+
+    Point p1 = hms_get(&hm, Point, SV("bla"));
+    printf("bla: (Point){%d %d}\n", p1.x, p1.y);
+
+    Point p2 = hms_get(&hm, Point, SV("blah"));
+    printf("EMPTY: (Point){%d %d}\n", p2.x, p2.y);
+
+    printf("\niteration:\n");
     hm_foreach(&hm, KVStrPoint, pair) {
-        printf("%.*s: (point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+        printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
     }
 
-    KVStrPoint *deleted = hms_del(&hm, KVStrPoint, SV("bar"));
-    printf("Deleted: %.*s: (point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+    KVStrPoint deleted = hms_pop(&hm, KVStrPoint, SV("bar"));
+    printf("Deleted: %.*s: (Point){%d %d}\n", SV_FMT(deleted.key), deleted.value.x, deleted.value.y);
 
-    printf("\n\niteration:\n");
+    printf("\niteration:\n");
     hm_foreach(&hm, KVStrPoint, pair) {
-        printf("%.*s: (point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+        printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
     }
+
+    hms_del(&hm, SV("aaaaa"));
+}
+
+
+int main() {
+    test_basic();
+
 
 
     return 0;

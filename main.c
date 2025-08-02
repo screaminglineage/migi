@@ -345,32 +345,7 @@ void test_string_list() {
     printf("%.*s", SV_FMT(final_str));
 }
 
-void test_hashmap() {
-    Arena a = {0};
-    HashMap hm = {0};
-
-    hm_entry(&a, &hm, &(HashEntry){SV("foo"), 1235});
-    hm_entry(&a, &hm, &(HashEntry){SV("bar"), 1341});
-    hm_entry(&a, &hm, &(HashEntry){SV("baz"), 5762});
-    hm_entry(&a, &hm, &(HashEntry){SV("baz"), 6541});
-
-    printf("%.*s = %d, index = %zu\n",
-           SV_FMT(hm.entries[hm_index_of(&hm, SV("foo"))].key),
-           hm.entries[hm_index_of(&hm, SV("foo"))].value,
-           hm_index_of(&hm, SV("foo")));
-    printf("%.*s = %d, index = %zu\n",
-           SV_FMT(hm.entries[hm_index_of(&hm, SV("bar"))].key),
-           hm.entries[hm_index_of(&hm, SV("bar"))].value,
-           hm_index_of(&hm, SV("bar")));
-    printf("%.*s = %d, index = %zu\n",
-           SV_FMT(hm.entries[hm_index_of(&hm, SV("baz"))].key),
-           hm.entries[hm_index_of(&hm, SV("baz"))].value,
-           hm_index_of(&hm, SV("baz")));
-}
-
 int main() {
-    test_hashmap();
-
     printf("\nExiting successfully\n");
     return 0;
 }
