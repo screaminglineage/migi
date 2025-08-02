@@ -110,11 +110,11 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 #define todo() crash_with_message("%s: not yet implemented!", __func__)
 #define todof crash_with_message
 
-// todo() which can return any expression instead of the regular void expression
-// Eg.: `int x = todo_expr(x);` will compile but crash at runtime
-// Eg.: `int x = todo_exprf(x, "`%s` doesnt have a value!", "x");` is also the same
-#define todo_expr(x) (todo(), (x))
-#define todof_expr(x, ...) (todof(__VA_ARGS__), (x))
+// todo() which returns an expression of any type instead of the regular void expression
+// Eg.: `int x = todo_expr(int);` will compile but crash at runtime
+// Eg.: `int x = todo_exprf(int, "`%s` doesnt have a value!", "x");` is also the same
+#define todo_expr(type) (todo(), (type){0})
+#define todof_expr(type, ...) (todof(__VA_ARGS__), (type){0})
 
 #define migi_unreachable() crash_with_message("%s: unreachable!", __func__)
 #define migi_unreachablef crash_with_message
@@ -177,6 +177,9 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 
 #define migi_mem_eq(a, b, length) \
     (memcmp((a), (b), (length)) == 0)
+
+#define migi_mem_clear(mem, type, length) \
+    (memset((mem), 0, sizeof(type)*(length)))
 
 
 // Iterate over a dynamic array *by reference*

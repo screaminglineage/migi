@@ -162,6 +162,8 @@ static void array_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
     for (size_t i = 0; i < size; i++) {
         int64_t index_a = random_range_exclusive(0, size);
         int64_t index_b = random_range_exclusive(0, size);
+
+        // TODO: maybe use a temporary arena instead of a VLA
         byte temp[elem_size];
         memcpy(temp, &buf[elem_size*index_a], elem_size);
         memcpy(&buf[elem_size*index_a], &buf[elem_size*index_b], elem_size);

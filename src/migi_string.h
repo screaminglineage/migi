@@ -99,7 +99,7 @@ static String string_from_cstr(char *cstr) {
 
 static bool string_eq(String a, String b) {
     if (a.length != b.length) return false;
-    return migi_mem_eq(a.data, b.data, a.length);
+    return !a.length || migi_mem_eq(a.data, b.data, a.length);
 }
 
 static int64_t string_find_char(String haystack, char needle) {
@@ -166,12 +166,20 @@ static String string_skip(String str, size_t amount) {
 // Get index of suffix or -1 if not found
 static int string_find_suffix(String str, String suffix) {
     if (suffix.length > str.length) return -1;
+    // memcmp forbids NULL pointers even if the size is 0
+    if (!suffix.data) return 0;
+    if (!str.data) return -1;
+
     int start = str.length - suffix.length;
     return (migi_mem_eq(str.data + start, suffix.data, suffix.length))? start: -1;
 }
 
 static bool string_starts_with(String str, String prefix) {
     if (prefix.length > str.length) return false;
+    // memcmp forbids NULL pointers even if the size is 0
+    if (!prefix.data) return true;
+    if (!str.data) return false;
+
     return migi_mem_eq(str.data, prefix.data, prefix.length);
 }
 

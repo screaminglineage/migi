@@ -20,12 +20,13 @@
 // #define ENABLE_PROFILING
 #include "profiler.h"
 
+#include "arena.h"
+#include "hashmap.h"
+#include "linear_arena.h"
+#include "migi.h"
+#include "migi_lists.h"
 #include "migi_random.h"
 #include "migi_string.h"
-#include "migi.h"
-#include "linear_arena.h"
-#include "arena.h"
-#include "migi_lists.h"
 
 #pragma GCC diagnostic pop
 
@@ -34,7 +35,6 @@ typedef struct {
     size_t length;
     size_t capacity;
 } Ints;
-
 
 bool baz_error(int x) {
     return_if_false(x != 0, printf("%s: failed\n", __func__));
@@ -58,13 +58,14 @@ int test_error_propagation() {
 }
 
 int *return_array(LinearArena *arena, size_t *size) {
-    int a[] = {1,2,3,4,5,6,7};
+    int a[] = {1, 2, 3, 4, 5, 6, 7};
     *size = array_len(a);
     return lnr_arena_memdup(arena, int, a, *size);
 }
 
 char *return_string(LinearArena *arena, size_t *size) {
-    const char *s = "This is a string that will be returned from the function by an arena.\n";
+    const char *s = "This is a string that will be returned from the function "
+                    "by an arena.\n";
     *size = strlen(s);
     return lnr_arena_strdup(arena, s, *size);
 }
@@ -79,30 +80,35 @@ void test_linear_arena_dup() {
 }
 
 void test_linear_arena_regular(LinearArena *arena) {
-    size_t count = getpagesize()/sizeof(int);
+    size_t count = getpagesize() / sizeof(int);
     int *a = lnr_arena_push(arena, int, count);
     random_array(a, int, count);
 
     byte *x = lnr_arena_push_bytes(arena, getpagesize());
     unused(x);
-    int *c = lnr_arena_realloc(arena, int, a, count, 2*count);
+    int *c = lnr_arena_realloc(arena, int, a, count, 2 * count);
 
     assertf(migi_mem_eq(a, c, count), "a and c are equal upto count");
     assertf(a != c, "a and c are separate allocations!");
 
-    assertf(arena->length == arena->capacity && arena->capacity == (size_t)(4*getpagesize()), "4 allocations are left");
+    assertf(arena->length == arena->capacity &&
+                arena->capacity == (size_t)(4 * getpagesize()),
+            "4 allocations are left");
     int *b = lnr_arena_pop(arena, int, count);
     unused(b);
     // b[0] = 100; // This will segfault since the memory has been decommitted
 
-    assertf(arena->length == arena->capacity && arena->capacity == (size_t)(3*getpagesize()), "3 allocations are left");
+    assertf(arena->length == arena->capacity &&
+                arena->capacity == (size_t)(3 * getpagesize()),
+            "3 allocations are left");
     lnr_arena_free(arena);
-    assertf(arena->length == arena->capacity && arena->capacity == 0, "0 allocations are left");
+    assertf(arena->length == arena->capacity && arena->capacity == 0,
+            "0 allocations are left");
 }
 
 void test_linear_arena_rewind() {
     LinearArena arena1 = {0};
-    size_t size = getpagesize()*4;
+    size_t size = getpagesize() * 4;
 
     byte *mem = lnr_arena_push_bytes(&arena1, size);
     random_bytes(mem, size);
@@ -115,12 +121,14 @@ void test_linear_arena_rewind() {
     mem = lnr_arena_push_bytes(&arena1, size);
     random_bytes(mem, size);
     lnr_arena_rewind(&arena1, checkpoint);
-    assertf(old_capacity == arena1.capacity && migi_mem_eq(arena1.data, arena2.data, arena1.length), "rewinded arena is equivalent to old one");
+    assertf(old_capacity == arena1.capacity &&
+                migi_mem_eq(arena1.data, arena2.data, arena1.length),
+            "rewinded arena is equivalent to old one");
 }
 
 void test_linear_arena() {
     LinearArena arena = {0};
-    LinearArena small = { .total = 16*MB };
+    LinearArena small = {.total = 16 * MB};
     test_linear_arena_regular(&arena);
     test_linear_arena_regular(&small);
     test_linear_arena_rewind();
@@ -137,7 +145,7 @@ void test_arena() {
     printf("%d %d\n", a[0], b[256]);
 
     arena_reset(&arena);
-    char *c = arena_push(&arena, char, ARENA_DEFAULT_CAP*1.25);
+    char *c = arena_push(&arena, char, ARENA_DEFAULT_CAP * 1.25);
     c[26] = 14;
     int *d = arena_realloc(&arena, int, NULL, 0, ARENA_DEFAULT_CAP);
     d[30] = 14;
@@ -147,8 +155,10 @@ void test_arena() {
     size_t saved_tail_length = arena.tail->length;
     ArenaCheckpoint checkpoint = arena_checkpoint(&arena);
 
-    int *e = arena_realloc(&arena, int, d, ARENA_DEFAULT_CAP, ARENA_DEFAULT_CAP*2);
-    assertf(e != d, "new zone created since size of e was greater than the default arena capacity");
+    int *e =
+        arena_realloc(&arena, int, d, ARENA_DEFAULT_CAP, ARENA_DEFAULT_CAP * 2);
+    assertf(e != d, "new zone created since size of e was greater than the "
+                    "default arena capacity");
 
     double *f = arena_push(&arena, double, 100);
     random_array(f, double, 100);
@@ -156,11 +166,11 @@ void test_arena() {
     assertf(f == g && migi_mem_eq(f, g, 100), "previous allocation was reused");
 
     arena_rewind(&arena, checkpoint);
-    assertf(arena.tail == saved_tail && arena.tail->length == saved_tail_length, "rewind goes to the correct checkpoint");
+    assertf(arena.tail == saved_tail && arena.tail->length == saved_tail_length,
+            "rewind goes to the correct checkpoint");
 
     arena_free(&arena);
 }
-
 
 void test_string_builder() {
     StringBuilder sb = {0};
@@ -175,9 +185,7 @@ void test_string_builder() {
         sb_push_string(&sb, SV("bar"));
         sb_push_string(&sb, SV("baz"));
 
-        array_foreach(&sb.arena, byte, elem) {
-            printf("%c ", *elem);
-        }
+        array_foreach(&sb.arena, byte, elem) { printf("%c ", *elem); }
         printf("len: %zu\n", sb.arena.length);
     }
     printf("len: %zu\n", sb.arena.length);
@@ -185,9 +193,11 @@ void test_string_builder() {
 
 void test_string_builder_formatted() {
     StringBuilder sb = {0};
-    sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99), "what is this even doing????");
+    sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99),
+             "what is this even doing????");
     assert(sb.arena.length == 67);
-    sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99), "what is this even doing????");
+    sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99),
+             "what is this even doing????");
     assert(sb.arena.length == 67 + 67);
 
     StringBuilder new_sb = {0};
@@ -200,7 +210,7 @@ void test_string_builder_formatted() {
 }
 
 void test_random() {
-    size_t size = 1*MB;
+    size_t size = 1 * MB;
     time_t seed = time(NULL);
     byte *buf1 = malloc(size);
     byte *buf2 = malloc(size);
@@ -211,7 +221,7 @@ void test_random() {
     migi_seed(seed);
     random_bytes(buf2, size);
 
-    int a[] = {1,2,3,4,5,6,7,8,9,0};
+    int a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
     array_shuffle(a, int, array_len(a));
     array_print(a, array_len(a), "%d");
 
@@ -220,18 +230,16 @@ void test_random() {
         char *foo;
     } Foo;
     Foo b[] = {
-        (Foo){1, 2, "12"},
-        (Foo){2, 3, "23"},
-        (Foo){3, 4, "34"},
-        (Foo){4, 5, "45"},
-        (Foo){5, 6, "56"},
+        (Foo){1, 2, "12"}, (Foo){2, 3, "23"}, (Foo){3, 4, "34"},
+        (Foo){4, 5, "45"}, (Foo){5, 6, "56"},
     };
     array_shuffle(b, Foo, array_len(b));
     for (size_t i = 0; i < array_len(b); i++) {
         printf("%d %d %s\n", b[i].a, b[i].b, b[i].foo);
     }
 
-    assertf(migi_mem_eq(buf1, buf2, size), "random with same seed must have same data");
+    assertf(migi_mem_eq(buf1, buf2, size),
+            "random with same seed must have same data");
 }
 
 void test_dynamic_array() {
@@ -243,7 +251,7 @@ void test_dynamic_array() {
     Ints ints_new = {0};
     array_reserve(&ints_new, 100);
     for (size_t i = 0; i < 100; i++) {
-        array_add(&ints, 2*i);
+        array_add(&ints, 2 * i);
     }
 
     array_extend(&ints_new, &ints);
@@ -256,11 +264,12 @@ void test_dynamic_array() {
 }
 
 void test_repetition_tester() {
-    size_t size = 1*MB;
+    size_t size = 1 * MB;
     int time = 10;
 
-    byte *buf = malloc(1*MB);
-    Tester tester = tester_init_with_name("random_bytes", time, estimate_cpu_timer_freq(), size);
+    byte *buf = malloc(1 * MB);
+    Tester tester = tester_init_with_name("random_bytes", time,
+                                          estimate_cpu_timer_freq(), size);
     while (!tester.finished) {
         tester_begin(&tester);
         random_bytes(buf, size);
@@ -287,7 +296,8 @@ void test_string_split() {
     Arena a = {0};
     StringList s1[] = {
         string_split(&a, SV("Mary had a little lamb"), SV(" ")),
-        string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY),
+        string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "),
+                        SPLIT_SKIP_EMPTY),
         string_split(&a, SV(" Mary    had   a   little   lamb"), SV(" ")),
         string_split(&a, SV("Mary--had--a--little--lamb--"), SV("--")),
         string_split(&a, SV("Mary had a little lamb"), SV("")),
@@ -300,9 +310,11 @@ void test_string_split() {
     }
 
     char delims[] = {'-', ' ', ':', '@'};
-    StringList s2 = string_split_chars(&a, SV("2020-11-03 23:59@"), delims, array_len(delims));
+    StringList s2 = string_split_chars(&a, SV("2020-11-03 23:59@"), delims,
+                                       array_len(delims));
     test_string_split_print(s2);
-    s2 = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), delims, array_len(delims), SPLIT_SKIP_EMPTY);
+    s2 = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), delims,
+                               array_len(delims), SPLIT_SKIP_EMPTY);
     test_string_split_print(s2);
 }
 
@@ -310,7 +322,7 @@ void linear_arena_stress_test() {
     LinearArena arenas[100] = {0};
     for (size_t i = 0; i < 100; i++) {
         arenas[i] = (LinearArena){0};
-        lnr_arena_push_bytes(&arenas[i], 1*GB);
+        lnr_arena_push_bytes(&arenas[i], 1 * GB);
     }
 }
 
@@ -326,13 +338,39 @@ void test_string_list() {
     char *s = "\nMore Stuff Here\n";
     size_t len = strlen(s);
     strlist_push_buffer(&a, &sl, s, len);
-    strlist_pushf(&a, &sl, "%s:%d:%s: %.15f ... and more stuff... blah blah blah", __FILE__, __LINE__, __func__, M_PI);
+    strlist_pushf(&a, &sl,
+                  "%s:%d:%s: %.15f ... and more stuff... blah blah blah",
+                  __FILE__, __LINE__, __func__, M_PI);
     String final_str = strlist_to_string(&a, &sl);
     printf("%.*s", SV_FMT(final_str));
 }
 
+void test_hashmap() {
+    Arena a = {0};
+    HashMap hm = {0};
+
+    hm_entry(&a, &hm, &(HashEntry){SV("foo"), 1235});
+    hm_entry(&a, &hm, &(HashEntry){SV("bar"), 1341});
+    hm_entry(&a, &hm, &(HashEntry){SV("baz"), 5762});
+    hm_entry(&a, &hm, &(HashEntry){SV("baz"), 6541});
+
+    printf("%.*s = %d, index = %zu\n",
+           SV_FMT(hm.entries[hm_index_of(&hm, SV("foo"))].key),
+           hm.entries[hm_index_of(&hm, SV("foo"))].value,
+           hm_index_of(&hm, SV("foo")));
+    printf("%.*s = %d, index = %zu\n",
+           SV_FMT(hm.entries[hm_index_of(&hm, SV("bar"))].key),
+           hm.entries[hm_index_of(&hm, SV("bar"))].value,
+           hm_index_of(&hm, SV("bar")));
+    printf("%.*s = %d, index = %zu\n",
+           SV_FMT(hm.entries[hm_index_of(&hm, SV("baz"))].key),
+           hm.entries[hm_index_of(&hm, SV("baz"))].value,
+           hm_index_of(&hm, SV("baz")));
+}
+
 int main() {
-    test_string_list();
+    test_hashmap();
+
     printf("\nExiting successfully\n");
     return 0;
 }
