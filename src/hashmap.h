@@ -230,12 +230,6 @@ static void hms_set_default_value(HashmapHeader_ *header, void *value, size_t va
     ((void)hms_del_impl((HashmapHeader_ *)(hashmap),         \
         (hashmap)->data, sizeof (*(hashmap)->data), (key)))
 
-// Set the default value that is stored in the 0th index
-// NOTE: This must be called only after atleast 1 insertion into the hashmap
-#define hms_set_default(hashmap, default)        \
-    (memcpy(((byte *)(hashmap)->data) + sizeof(String), \
-            &(default), sizeof(default)))
-
 // Iterate over the hashmap by reference
 // Use in a similar manner to array_foreach
 #define hm_foreach(hashmap, pair_type, pair)       \

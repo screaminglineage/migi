@@ -84,7 +84,10 @@ int main() {
     hms_put(&a, &hm, SV("foo"), ((Point){1, 2}));
     hms_put(&a, &hm, SV("bar"), ((Point){3, 4}));
 
-    hms_set_default(&hm, ((Point){100, 100}));
+    // Setting default key and value
+    // NOTE: This can only be done after atleast 1 insertion into the hashmap
+    hm.data->key = SV("default");
+    hm.data->value = (Point){100, 100};
 
     Point p1 = hms_get(&hm, Point, SV("foo"));
     printf("foo: (Point){%d %d}\n", p1.x, p1.y);
