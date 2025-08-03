@@ -68,7 +68,6 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
             i = (i + 1) & (header->capacity - 1);
         }
         new_entries[i] = header->entries[j];
-        // memcpy(&new_entries[i], &header->entries[j], sizeof(HashEntry_));
     }
     header->entries = new_entries;
 }
@@ -126,6 +125,11 @@ static void *hms_del_impl(HashmapHeader_ *header, void *data, size_t entry_size,
     byte *table = data;
     byte *item = table + (header->entries[i].index * entry_size);
     byte *last = table + (header->size * entry_size);
+
+    // Set the new index of the swapped value
+    String last_str = *(String *)last;
+    size_t last_i = hms_internal_index_of(header, data, entry_size, last_str, &hash_);
+    header->entries[last_i].index = header->entries[i].index;
 
     // TODO: maybe use a temporary arena instead of a VLA
     byte temp[entry_size];

@@ -66,6 +66,11 @@ void test_basic() {
     KVStrPoint deleted = hms_pop(&hm, KVStrPoint, SV("bar"));
     printf("Deleted: %.*s: (Point){%d %d}\n", SV_FMT(deleted.key), deleted.value.x, deleted.value.y);
 
+    assertf(migi_mem_eq(&hms_get_pair(&hm, KVStrPoint, SV("bar")), &(KVStrPoint){0}, sizeof(KVStrPoint)), "empty returned for deleted keys");
+
+    KVStrPoint bla = hms_get_pair(&hm, KVStrPoint, SV("bla"));
+    printf("%.*s: (Point){%d %d}\n", SV_FMT(bla.key), bla.value.x, bla.value.y);
+
     printf("\niteration:\n");
     hm_foreach(&hm, KVStrPoint, pair) {
         printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
@@ -75,9 +80,7 @@ void test_basic() {
 }
 
 
-int main() {
-    // test_basic();
-
+void test_default_values() {
     Arena a = {0};
     MapStrPoint hm = {0};
 
@@ -97,6 +100,10 @@ int main() {
 
     KVStrPoint p3 = hms_get_pair(&hm, KVStrPoint, SV("aaaaa"));
     printf("%.*s: (Point){%d %d}\n", SV_FMT(p3.key), p3.value.x, p3.value.y);
+}
+
+int main() {
+    test_basic();
 
 
 
