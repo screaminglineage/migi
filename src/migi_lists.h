@@ -122,15 +122,14 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, int fl
     return strings;
 }
 
-
-static StringList string_split_chars_ex(Arena *a, String str, char *delims, size_t delims_len, int flags) {
+static StringList string_split_chars_ex(Arena *a, String str, String delims, int flags) {
     StringList strings = {0};
     size_t start = 0;
     size_t length = 0;
     for (size_t i = 0; i < str.length; i++) {
         bool delim_found = false;
-        for (size_t j = 0; j < delims_len; j++) {
-            if (delims[j] == str.data[i]) {
+        for (size_t j = 0; j < delims.length; j++) {
+            if (delims.data[j] == str.data[i]) {
                 String substr = (String){
                     .data = str.data + start,
                     .length = length
@@ -160,8 +159,8 @@ static StringList string_split_chars_ex(Arena *a, String str, char *delims, size
 #define string_split(arena, str, delimiter) \
     (string_split_ex((arena), (str), (delimiter), 0))
 
-#define string_split_chars(arena, str, delims, delims_len) \
-    (string_split_chars_ex((arena), (str), (delims), (delims_len), 0))
+#define string_split_chars(arena, str, delims) \
+    (string_split_chars_ex((arena), (str), (delims), 0))
 
 
 

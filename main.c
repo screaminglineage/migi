@@ -326,12 +326,11 @@ void test_string_split() {
         test_string_split_print(s1[i]);
     }
 
-    char delims[] = {'-', ' ', ':', '@'};
-    StringList s2 = string_split_chars(&a, SV("2020-11-03 23:59@"), delims,
-                                       array_len(delims));
+    String delims = SV("- :@");
+    StringList s2 = string_split_chars(&a, SV("2020-11-03 23:59@"), delims);
+
     test_string_split_print(s2);
-    s2 = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), delims,
-                               array_len(delims), SPLIT_SKIP_EMPTY);
+    s2 = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), delims, SPLIT_SKIP_EMPTY);
     test_string_split_print(s2);
 }
 
@@ -362,12 +361,7 @@ void test_string_list() {
     printf("%.*s", SV_FMT(final_str));
 }
 
-int main() {
-    // LinearArena a = {0};
-    // char *c = lnr_arena_push(&a, char, 10);
-    // uint64_t *u = lnr_arena_realloc(&a, uint64_t, c + 1, 1, 20);
-    // *u = 12;
-
+void profile_arenas() {
     {
         LinearArena a = {0};
         begin_profiling();
@@ -387,6 +381,23 @@ int main() {
         }
         end_profiling_and_print_stats();
     }
+
+}
+
+void test_string() {
+    Arena a = {0};
+    assert(string_eq(
+        string_to_lower(&a, SV("HELLO world!!!")),
+        SV("hello world!!!")));
+    assert(string_eq(
+        string_to_upper(&a, SV("FOO bar baz!")),
+        SV("FOO BAR BAZ!")));
+
+    todof("Add tests for other string functions");
+}
+
+int main() {
+    test_string_split();
 
     printf("\nExiting successfully\n");
     return 0;

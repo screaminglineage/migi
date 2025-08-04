@@ -1,11 +1,12 @@
+#include "arena.h"
+#include "hashmap.h"
+#include "migi.h"
+#include "migi_lists.h"
+#include "migi_string.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include "arena.h"
-#include "migi.h"
-#include "hashmap.h"
-#include "migi_string.h"
-
+#include <stdlib.h>
 
 typedef struct {
     int x, y;
@@ -24,7 +25,6 @@ typedef struct {
     KVStrPoint *data;
 } MapStrPoint;
 
-
 void test_basic() {
     Arena a = {0};
     MapStrPoint hm = {0};
@@ -34,23 +34,26 @@ void test_basic() {
     hms_put(&a, &hm, SV("baz"), ((Point){5, 6}));
     hms_put(&a, &hm, SV("bla"), ((Point){7, 8}));
 
-    Point *p = hms_entry(&hm, Point, SV("foo"));
+    Point *p = hms_get_ptr(&hm, Point, SV("foo"));
     printf("%d %d\n", p->x, p->y);
 
-    p = hms_entry(&hm, Point, SV("abcd"));
-    if (!p) printf("key not present!\n");
+    p = hms_get_ptr(&hm, Point, SV("abcd"));
+    if (!p)
+        printf("key not present!\n");
 
-    ptrdiff_t i = hms_index(&hm, SV("bar"));
+    ptrdiff_t i = hms_get_index(&hm, SV("bar"));
     if (i != -1) {
         Point p = hm.data[i].value;
         printf("%d %d\n", p.x, p.y);
     }
 
-    KVStrPoint *pair = hms_entry_pair(&hm, KVStrPoint, SV("baz"));
-    printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+    KVStrPoint *pair = hms_get_pair_ptr(&hm, KVStrPoint, SV("baz"));
+    printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
+           pair->value.y);
 
     KVStrPoint pair1 = hms_get_pair(&hm, KVStrPoint, SV("bazz"));
-    printf("`%.*s`: (Point){%d %d}\n", SV_FMT(pair1.key), pair1.value.x, pair1.value.y);
+    printf("`%.*s`: (Point){%d %d}\n", SV_FMT(pair1.key), pair1.value.x,
+           pair1.value.y);
 
     Point p1 = hms_get(&hm, Point, SV("bla"));
     printf("bla: (Point){%d %d}\n", p1.x, p1.y);
@@ -60,25 +63,29 @@ void test_basic() {
 
     printf("\niteration:\n");
     hm_foreach(&hm, KVStrPoint, pair) {
-        printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+        printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
+               pair->value.y);
     }
 
     KVStrPoint deleted = hms_pop(&hm, KVStrPoint, SV("bar"));
-    printf("Deleted: %.*s: (Point){%d %d}\n", SV_FMT(deleted.key), deleted.value.x, deleted.value.y);
+    printf("Deleted: %.*s: (Point){%d %d}\n", SV_FMT(deleted.key),
+           deleted.value.x, deleted.value.y);
 
-    assertf(migi_mem_eq(&hms_get_pair(&hm, KVStrPoint, SV("bar")), &(KVStrPoint){0}, sizeof(KVStrPoint)), "empty returned for deleted keys");
+    assertf(migi_mem_eq(&hms_get_pair(&hm, KVStrPoint, SV("bar")),
+                        &(KVStrPoint){0}, sizeof(KVStrPoint)),
+            "empty returned for deleted keys");
 
     KVStrPoint bla = hms_get_pair(&hm, KVStrPoint, SV("bla"));
     printf("%.*s: (Point){%d %d}\n", SV_FMT(bla.key), bla.value.x, bla.value.y);
 
     printf("\niteration:\n");
     hm_foreach(&hm, KVStrPoint, pair) {
-        printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+        printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
+               pair->value.y);
     }
 
     hms_del(&hm, SV("aaaaa"));
 }
-
 
 void test_default_values() {
     Arena a = {0};
@@ -102,10 +109,49 @@ void test_default_values() {
     printf("%.*s: (Point){%d %d}\n", SV_FMT(p3.key), p3.value.x, p3.value.y);
 }
 
+typedef struct {
+    String key;
+    int64_t value;
+} KVStrInt;
+
+typedef struct {
+    HASHMAP_HEADER;
+
+    KVStrInt *data;
+} MapStrInt;
+
+int hash_entry_cmp(const void *a, const void *b) {
+    return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
+}
+
+void frequency_analysis() {
+    StringBuilder sb = {0};
+    read_file(&sb, SV("shakespeare.txt"));
+    // read_file(&sb, SV("gatsby.txt"));
+    // read_file(&sb, SV("test_hashmap.c"));
+    String contents = sb_to_string(&sb);
+
+    Arena a = {0};
+    StringList words = string_split_chars(&a, contents, SV(" \n"));
+
+    MapStrInt map = {0};
+
+    list_foreach(words.head, StringNode, word) {
+        String key = string_to_lower(&a, word->str);
+        *hms_entry(&a, &map, int, key) += 1;
+    }
+    printf("size = %zu, capacity = %zu\n", map.size, map.capacity);
+
+    KVStrInt *entries = arena_memdup(&a, KVStrInt, map.data + 1, map.size + 1);
+    qsort(entries, map.size, sizeof(*entries), hash_entry_cmp);
+
+    printf("Words sorted in descending order:\n");
+    for (size_t i = 0; i < map.size; i++) {
+        KVStrInt *pair = entries + i;
+        printf("%.*s => %ld\n", SV_FMT(pair->key), pair->value);
+    }
+}
+
 int main() {
-    test_basic();
-
-
-
-    return 0;
+    frequency_analysis();
 }

@@ -13,6 +13,7 @@
 
 #include "migi.h"
 #include "linear_arena.h"
+#include "arena.h"
 
 typedef struct {
     const char *data;
@@ -20,6 +21,7 @@ typedef struct {
 } String;
 
 #define SV_FMT(sv) (int)(sv).length, (sv).data
+#define SVP_FMT(sv) (int)(sv)->length, (sv)->data
 #define SV(cstr) (String){(cstr), (sizeof(cstr) - 1)}
 
 typedef struct {
@@ -206,6 +208,45 @@ static String string_cut_suffix(String str, String suffix) {
     return string_slice(str, 0, suffix_start);
 }
 
+
+// TODO: make this less dumb
+static String string_trim(String str) {
+    str = string_cut_suffix(str, SV(" "));
+    str = string_cut_suffix(str, SV("\n"));
+    str = string_cut_suffix(str, SV("\r"));
+    str = string_cut_suffix(str, SV("\t"));
+
+    str = string_cut_prefix(str, SV(" "));
+    str = string_cut_prefix(str, SV("\n"));
+    str = string_cut_prefix(str, SV("\r"));
+    str = string_cut_prefix(str, SV("\t"));
+    return str;
+}
+
+
+static String string_to_lower(Arena *arena, String str) {
+    char *lower = arena_push(arena, char, str.length);
+    for (size_t i = 0; i < str.length; i++) {
+        if (str.data[i] >= 'A' && str.data[i] <= 'Z') {
+            lower[i] = str.data[i] + 32;
+        } else {
+            lower[i] = str.data[i];
+        }
+    }
+    return (String){lower, str.length};
+}
+
+static String string_to_upper(Arena *arena, String str) {
+    char *upper = arena_push(arena, char, str.length);
+    for (size_t i = 0; i < str.length; i++) {
+        if (str.data[i] >= 'a' && str.data[i] <= 'z') {
+            upper[i] = str.data[i] - 32;
+        } else {
+            upper[i] = str.data[i];
+        }
+    }
+    return (String){upper, str.length};
+}
 
 // TODO: use linux syscalls instead of C stdlib
 static bool read_file(StringBuilder *builder, String filepath) {
