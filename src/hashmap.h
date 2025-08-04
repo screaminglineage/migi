@@ -50,7 +50,7 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
     HashEntry_ *new_entries = arena_push(a, HashEntry_, header->capacity);
 
     // allocating an extra item for index 0 being treated as the default index
-    byte *new_data = arena_push_bytes(a, entry_size * (header->capacity + 1));
+    byte *new_data = arena_push_bytes(a, entry_size * (header->capacity + 1), _Alignof(byte));
 
     migi_mem_clear(new_entries, HashEntry_, header->capacity);
     migi_mem_clear(new_data, byte, entry_size * (header->capacity + 1));

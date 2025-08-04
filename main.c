@@ -80,45 +80,50 @@ void test_linear_arena_dup() {
 }
 
 void test_linear_arena_regular(LinearArena *arena) {
+    // unaligned read check
+    {
+        uint64_t save = lnr_arena_save(arena);
+        lnr_arena_new(arena, char);
+        uint64_t *u = lnr_arena_new(arena, uint64_t);
+        *u = 12;
+        lnr_arena_pop(arena, uint64_t, 1);
+        lnr_arena_rewind(arena, save);
+    }
+
     size_t count = getpagesize() / sizeof(int);
     int *a = lnr_arena_push(arena, int, count);
     random_array(a, int, count);
 
-    byte *x = lnr_arena_push_bytes(arena, getpagesize());
+    byte *x = lnr_arena_push_bytes(arena, getpagesize(), 1);
     unused(x);
     int *c = lnr_arena_realloc(arena, int, a, count, 2 * count);
 
     assertf(migi_mem_eq(a, c, count), "a and c are equal upto count");
     assertf(a != c, "a and c are separate allocations!");
 
-    assertf(arena->length == arena->capacity &&
-                arena->capacity == (size_t)(4 * getpagesize()),
-            "4 allocations are left");
+    assertf(arena->length == (size_t)(4 * getpagesize()), "4 allocations are left");
     int *b = lnr_arena_pop(arena, int, count);
     unused(b);
     // b[0] = 100; // This will segfault since the memory has been decommitted
 
-    assertf(arena->length == arena->capacity &&
-                arena->capacity == (size_t)(3 * getpagesize()),
-            "3 allocations are left");
+    assertf(arena->length == (size_t)(3 * getpagesize()), "3 allocations are left");
     lnr_arena_free(arena);
-    assertf(arena->length == arena->capacity && arena->capacity == 0,
-            "0 allocations are left");
+    assertf(arena->length == arena->capacity && arena->capacity == 0, "0 allocations are left");
 }
 
 void test_linear_arena_rewind() {
     LinearArena arena1 = {0};
     size_t size = getpagesize() * 4;
 
-    byte *mem = lnr_arena_push_bytes(&arena1, size);
+    byte *mem = lnr_arena_push_bytes(&arena1, size, 1);
     random_bytes(mem, size);
 
     LinearArena arena2 = {0};
-    lnr_arena_memdup_bytes(&arena2, arena1.data, arena1.length);
+    lnr_arena_memdup_bytes(&arena2, arena1.data, arena1.length, 1);
     uint64_t checkpoint = lnr_arena_save(&arena1);
     uint64_t old_capacity = arena1.capacity;
 
-    mem = lnr_arena_push_bytes(&arena1, size);
+    mem = lnr_arena_push_bytes(&arena1, size, 1);
     random_bytes(mem, size);
     lnr_arena_rewind(&arena1, checkpoint);
     assertf(old_capacity == arena1.capacity &&
@@ -129,6 +134,7 @@ void test_linear_arena_rewind() {
 void test_linear_arena() {
     LinearArena arena = {0};
     LinearArena small = {.total = 16 * MB};
+
     test_linear_arena_regular(&arena);
     test_linear_arena_regular(&small);
     test_linear_arena_rewind();
@@ -137,6 +143,17 @@ void test_linear_arena() {
 
 void test_arena() {
     Arena arena = {0};
+
+    ArenaCheckpoint save = arena_save(&arena);
+    {
+        // unaligned read check
+        arena_new(&arena, char);
+        uint64_t *u = arena_new(&arena, uint64_t);
+        *u = 12;
+        arena_pop_current(&arena, uint64_t, 1);
+        arena_rewind(&arena, save);
+    }
+
     char *a = arena_push(&arena, char, ARENA_DEFAULT_CAP);
     a[0] = 1;
 
@@ -153,7 +170,7 @@ void test_arena() {
 
     ArenaZone *saved_tail = arena.tail;
     size_t saved_tail_length = arena.tail->length;
-    ArenaCheckpoint checkpoint = arena_checkpoint(&arena);
+    ArenaCheckpoint checkpoint = arena_save(&arena);
 
     int *e =
         arena_realloc(&arena, int, d, ARENA_DEFAULT_CAP, ARENA_DEFAULT_CAP * 2);
@@ -322,7 +339,7 @@ void linear_arena_stress_test() {
     LinearArena arenas[100] = {0};
     for (size_t i = 0; i < 100; i++) {
         arenas[i] = (LinearArena){0};
-        lnr_arena_push_bytes(&arenas[i], 1 * GB);
+        lnr_arena_push_bytes(&arenas[i], 1 * GB, 1);
     }
 }
 
@@ -346,6 +363,31 @@ void test_string_list() {
 }
 
 int main() {
+    // LinearArena a = {0};
+    // char *c = lnr_arena_push(&a, char, 10);
+    // uint64_t *u = lnr_arena_realloc(&a, uint64_t, c + 1, 1, 20);
+    // *u = 12;
+
+    {
+        LinearArena a = {0};
+        begin_profiling();
+        for (int i = 0; i < 10000; i++) {
+            lnr_arena_new(&a, char);
+            lnr_arena_pop(&a, char, 1);
+        }
+        end_profiling_and_print_stats();
+    }
+
+    {
+        Arena a = {0};
+        begin_profiling();
+        for (int i = 0; i < 10000; i++) {
+            arena_new(&a, char);
+            arena_pop_current(&a, char, 1);
+        }
+        end_profiling_and_print_stats();
+    }
+
     printf("\nExiting successfully\n");
     return 0;
 }

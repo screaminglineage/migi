@@ -49,10 +49,18 @@ static uint64_t next_power_of_two(uint64_t n) {
     return n;
 }
 
-// Aligns `value` to `align_to`
-static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
-    return (value & (align_to - 1))? (value + align_to) & ~(align_to - 1): value;
+// Return the number of bytes needed to align `value` to the next multiple of `align_to`
+static inline uint64_t align_up_padding(uint64_t value, uint64_t align_to) {
+    return -value & (align_to - 1);
 }
+
+// Align up `value` to the next multiple of `align_to`
+// Returns `value` if it is already aligned
+// align_up(9, 8) = 16 [next multiple of 8]
+static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
+    return value + align_up_padding(value, align_to);
+}
+
 
 #ifdef __GNUC__
 #   define migi_crash() __builtin_trap()
@@ -85,7 +93,7 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 #   define avow assertf
 
 #else
-// assert can be used in expressions and so it must be
+// assert is implemented as an expression and so it must be
 // replaced by a valid (but useless) expression
 #   define assert(expr) ((void)(expr))
 #   define assertf(expr, ...) ((void)(expr))

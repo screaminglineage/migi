@@ -1,5 +1,5 @@
 main: main.c src/*.h
-	gcc -Wall -Wextra -ggdb -I./src main.c -o main -lm
+	gcc -Wall -Wextra -ggdb -I./src main.c -o main -lm -fsanitize=undefined
 
 test_hashmap: test_hashmap.c src/*.h
 	gcc -Wall -Wextra -Wno-unused-function -ggdb -I./src test_hashmap.c -o test_hashmap
