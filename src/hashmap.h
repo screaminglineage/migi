@@ -68,6 +68,10 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
             i = (i + 1) & (header->capacity - 1);
         }
         new_entries[i] = header->entries[j];
+<<<<<<< HEAD
+=======
+        // memcpy(&new_entries[i], &header->entries[j], sizeof(HashEntry_));
+>>>>>>> 4f3e0867750f8ce91c0f7b37bfa521d7b2ffe92e
     }
     header->entries = new_entries;
 }
@@ -187,10 +191,13 @@ static void *hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_
     return table + (header->entries[i].index * entry_size);
 }
 
+<<<<<<< HEAD
 static void hms_set_default_value(HashmapHeader_ *header, void *value, size_t value_size) {
     memcpy(header->entries, value, value_size);
 }
 
+=======
+>>>>>>> 4f3e0867750f8ce91c0f7b37bfa521d7b2ffe92e
 
 // Insert a new key-value pair or update the value if it already exists
 #define hms_put(arena, hashmap, key, value)                   \
