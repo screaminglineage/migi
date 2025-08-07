@@ -396,10 +396,29 @@ void test_string() {
     todof("Add tests for other string functions");
 }
 
+void test_swap() {
+    int a = 1, b = 2;
+    migi_swap(a, b);
+    assertf(b == 1 && a == 2, "swapping things work");
+
+    typedef struct {
+        int a, b;
+        char c;
+    } Foo;
+
+    Foo f1 = {1, 2, 'a'}, f2 = {3, 4, 'b'};
+    migi_swap(f1, f2);
+    assertf(f1.a == 3 && f1.b == 4 && f1.c == 'b'
+            && f2.a == 1 && f2.b == 2 && f2.c == 'a',
+            "swapping things work");
+}
+
 int main() {
-    begin_profiling();
-    test_linear_arena();
-    end_profiling_and_print_stats();
+    // begin_profiling();
+    // test_linear_arena();
+    // end_profiling_and_print_stats();
+    test_swap();
+
 
     printf("\nExiting successfully\n");
     return 0;

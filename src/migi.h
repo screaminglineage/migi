@@ -130,6 +130,14 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 
 #define unused(a) ((void)a)
 
+
+#define migi_swap(a, b)     \
+do {                        \
+    __typeof__(a) temp = a; \
+    a = b;                  \
+    b = temp;               \
+} while(0)
+
 // Incrementally shift command line arguments
 #define shift_args(argc, argv) ((argc--), *(argv)++)
 
@@ -186,6 +194,9 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 
 #define migi_mem_eq(a, b, length) \
     (memcmp((a), (b), (length)) == 0)
+
+#define migi_mem_eq_type(a, b) \
+    (memcmp((&a), (&b), sizeof(__typeof__(a))) == 0)
 
 #define migi_mem_clear(mem, type, length) \
     (memset((mem), 0, sizeof(type)*(length)))

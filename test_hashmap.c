@@ -7,12 +7,12 @@
 // #define ENABLE_PROFILING
 #include "profiler.h"
 
-#include "hashmap.h"
 #include "arena.h"
+
+#include "hashmap.h"
 #include "migi.h"
 #include "migi_lists.h"
 #include "migi_string.h"
-
 
 typedef struct {
     int x, y;
@@ -23,6 +23,7 @@ typedef struct {
     Point value;
 } KVStrPoint;
 
+#if 0
 typedef struct {
     HASHMAP_HEADER;
 
@@ -30,6 +31,9 @@ typedef struct {
     // bool (*hm_key_eq)(Key a, Key b);
     KVStrPoint *data;
 } MapStrPoint;
+#endif
+
+typedef MapStr(Point, KVStrPoint) MapStrPoint;
 
 void test_basic() {
     Arena a = {0};
@@ -57,40 +61,41 @@ void test_basic() {
     printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
            pair->value.y);
 
-    KVStrPoint pair1 = hms_get_pair(&hm, SV("bazz"), KVStrPoint );
+    KVStrPoint pair1 = hms_get_pair(&hm, SV("bazz"));
     printf("`%.*s`: (Point){%d %d}\n", SV_FMT(pair1.key), pair1.value.x,
            pair1.value.y);
 
-    Point p1 = hms_get(&hm, SV("bla"), Point);
+    Point p1 = hms_get(&hm, SV("bla"));
     printf("bla: (Point){%d %d}\n", p1.x, p1.y);
 
-    Point p2 = hms_get(&hm, SV("blah"), Point);
+    Point p2 = hms_get(&hm, SV("blah"));
     printf("EMPTY: (Point){%d %d}\n", p2.x, p2.y);
 
     printf("\niteration:\n");
-    hm_foreach(&hm, KVStrPoint, pair) {
+    hm_foreach(&hm, pair) {
         printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
                pair->value.y);
     }
+    printf("\n");
 
-    KVStrPoint deleted = hms_pop(&hm, SV("bar"), KVStrPoint);
+    KVStrPoint deleted = hms_pop(&hm, SV("bar"));
     printf("Deleted: %.*s: (Point){%d %d}\n", SV_FMT(deleted.key),
            deleted.value.x, deleted.value.y);
 
-    assertf(migi_mem_eq(&hms_get_pair(&hm, SV("bar"), KVStrPoint),
-                        &(KVStrPoint){0}, sizeof(KVStrPoint)),
+    assertf(migi_mem_eq_type(hms_get_pair(&hm, SV("bar")),
+                             (KVStrPoint){0}),
             "empty returned for deleted keys");
 
-    KVStrPoint bla = hms_get_pair(&hm, SV("bla"), KVStrPoint);
+    KVStrPoint bla = hms_get_pair(&hm, SV("bla"));
     printf("%.*s: (Point){%d %d}\n", SV_FMT(bla.key), bla.value.x, bla.value.y);
 
     printf("\niteration:\n");
-    hm_foreach(&hm, KVStrPoint, pair) {
+    hm_foreach(&hm, pair) {
         printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
                pair->value.y);
     }
 
-    hms_del(&hm, SV("aaaaa"));
+    hms_delete(&hm, SV("aaaaa"));
 }
 
 void test_default_values() {
@@ -102,16 +107,18 @@ void test_default_values() {
 
     // Setting default key and value
     // NOTE: This can only be done after atleast 1 insertion into the hashmap
-    hm.data->key = SV("default");
-    hm.data->value = (Point){100, 100};
+    hm.data[HASHMAP_DEFAULT_PAIR] = (KVStrPoint){
+        .key   = SV("default"),
+        .value = (Point){100, 100}
+    };
 
-    Point p1 = hms_get(&hm, SV("foo"), Point);
+    Point p1 = hms_get(&hm, SV("foo"));
     printf("foo: (Point){%d %d}\n", p1.x, p1.y);
 
-    Point p2 = hms_get(&hm, SV("oof!"), Point);
+    Point p2 = hms_get(&hm, SV("oof!"));
     printf("oof!: (Point){%d %d}\n", p2.x, p2.y);
 
-    KVStrPoint p3 = hms_get_pair(&hm, SV("aaaaa"), KVStrPoint);
+    KVStrPoint p3 = hms_get_pair(&hm, SV("aaaaa"));
     printf("%.*s: (Point){%d %d}\n", SV_FMT(p3.key), p3.value.x, p3.value.y);
 }
 
@@ -120,11 +127,7 @@ typedef struct {
     int64_t value;
 } KVStrInt;
 
-typedef struct {
-    HASHMAP_HEADER;
-
-    KVStrInt *data;
-} MapStrInt;
+typedef MapStr(int, KVStrInt) MapStrInt;
 
 int hash_entry_cmp(const void *a, const void *b) {
     return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
@@ -139,13 +142,14 @@ void frequency_analysis() {
     String contents = sb_to_string(&sb);
 
     Arena a = {0};
-    StringList words = string_split_chars_ex(&a, contents, SV(" \n"), SPLIT_SKIP_EMPTY);
+    StringList words =
+        string_split_chars_ex(&a, contents, SV(" \n"), SPLIT_SKIP_EMPTY);
 
     MapStrInt map = {0};
 
     list_foreach(words.head, StringNode, word) {
         String key = string_to_lower(&a, word->str);
-        *hms_entry(&a, &map, key, int) += 1;
+        *hms_entry(&a, &map, key) += 1;
     }
     printf("size = %zu, capacity = %zu\n", map.size, map.capacity);
     end_profiling_and_print_stats();
@@ -157,7 +161,7 @@ void frequency_analysis() {
     begin_profiling();
     for (size_t i = 0; i < map.size; i++) {
         KVStrInt *pair = entries + i;
-        hms_del(&map, pair->key);
+        hms_delete(&map, pair->key);
     }
     end_profiling_and_print_stats();
 #else
@@ -167,26 +171,57 @@ void frequency_analysis() {
         printf("%.*s => %ld\n", SV_FMT(pair->key), pair->value);
     }
 #endif
-
 }
 
-// Set hashmap capacity to 4
+// `#define HASHMAP_INIT_CAP 4` before including hashmap.h
 // Should print 13 0
 void test_small_hashmap_collision() {
     MapStrInt hm = {0};
     Arena a = {0};
-    *hms_entry(&a, &hm, SV("abcd"), int) = 12;
-    *hms_entry(&a, &hm, SV("efgh"), int) = 13;
+    *hms_entry(&a, &hm, SV("abcd")) = 12;
+    *hms_entry(&a, &hm, SV("efgh")) = 13;
 
-    hms_del(&hm, SV("abcd"));
-    int n = hms_get(&hm, SV("efgh"), int);
+    hms_delete(&hm, SV("abcd"));
+    int n = hms_get(&hm, SV("efgh"));
     printf("%d\n", n);
-    n = hms_get(&hm, SV("efg"), int);
+    n = hms_get(&hm, SV("efg"));
     printf("%d\n", n);
 }
 
-int main() {
+void test_type_safety() {
+    Arena a = {0};
+    MapStrInt map = {0};
+    *hms_entry(&a, &map, SV("abcd")) = 12;
+
+    MapStrPoint map2 = {0};
+    *hms_entry(&a, &map2, SV("abcd")) = (Point){1, 2};
+
+    hms_put(&a, &map2, SV("efgh"), ((Point){3, 4}));
+    // hms_put(&a, &map2, SV("efgh"), SV("aaaaaaa"));
+
+    Point *p = hms_get_ptr(&map2, SV("abcd"));
+    // int *p1 = hms_get_ptr(&map2, SV("abcd"));
+
+    Point i = hms_get(&map2, SV("efgh"));
+    // Point ab = hms_get(&map, SV("a"));
+    // int i1 = hms_get(&map2, SV("efgh"));
+
+    KVStrInt pair = hms_get_pair(&map, SV("abcd"));
+    // KVStrPoint pair1 = hms_get_pair(&map, SV("abcd"));
+
+    KVStrInt *kv = hms_get_pair_ptr(&map, SV("abcd"));
+    // KVStrPoint *kv1 = hms_get_pair_ptr(&map, SV("abcd"));
+
+    KVStrInt del_int = hms_pop(&map, SV("abcd"));
+    // KVStrPoint del_point = hms_pop(&map, SV("abcd"));
+
+    hm_foreach(&map, pair) {
+        printf("%.*s: %ld", SV_FMT(pair->key), pair->value);
+    }
+}
+
+int main() { 
     frequency_analysis();
     return 0;
-}
 
+}
