@@ -94,7 +94,8 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 
 #else
 // assert is implemented as an expression and so it must be
-// replaced by a valid (but useless) expression
+// replaced by the expression passed in
+// this also keeps the expression even if asserts are disabled
 #   define assert(expr) ((void)(expr))
 #   define assertf(expr, ...) ((void)(expr))
 

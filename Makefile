@@ -8,6 +8,10 @@ test_hashmap: test_hashmap.c src/*.h
 release: main.c src/*.h
 	gcc -Wall -Wextra -O3 -I./src -DMIGI_DISABLE_ASSERTS main.c -o main
 
+@PHONY=hashmap-release
+hashmap-release: test_hashmap.c src/*.h
+	gcc -Wall -Wextra -O3 -Wno-unused-function -I./src -DMIGI_DISABLE_ASSERTS test_hashmap.c -o test_hashmap
+
 @PHONY=run
 run: main
 	./main

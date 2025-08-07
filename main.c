@@ -397,7 +397,9 @@ void test_string() {
 }
 
 int main() {
-    test_string_split();
+    begin_profiling();
+    test_linear_arena();
+    end_profiling_and_print_stats();
 
     printf("\nExiting successfully\n");
     return 0;
