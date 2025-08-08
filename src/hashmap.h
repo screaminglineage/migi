@@ -36,6 +36,7 @@ static inline uint64_t hash_fnv(byte *data, size_t length) {
 
 typedef struct {
     uint64_t hash;  // rehashing is not needed while growing if the hash is stored
+    uint64_t desired;  // desired index for robin hood linear probing
     uint64_t index; // index of 0 means its empty
 } HashEntry_;
 
@@ -85,51 +86,139 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
     header->entries = new_entries;
 }
 
-// Returns the index for key if it exists, or otherwise the next empty index for its insertion
-static size_t hms_internal_insert_index(HashmapHeader_ *header, void *data, size_t entry_size, String key, uint64_t *hash_out) {
+#if 0
+static bool hms_internal_insert_if_new(HashmapHeader_ *header, void *data, size_t entry_size, String key) {
     TIME_FUNCTION;
     uint64_t hash = hash_fnv((byte *)key.data, key.length);
+
     size_t i = hash & (header->capacity - 1);
+    size_t desired = i;
+    size_t dist = 0;
+    size_t actual_index = header->size + 1;
+
+    size_t first_insert_index = 0;
+    byte *table = data;
     while (header->entries[i].index != 0) {
-        byte *table = data;
         byte *item = table + (header->entries[i].index * entry_size);
-        String map_key = *(String *)item;
+        String cur_key = *(String *)item;
 
-        // return if key was found
-        if (string_eq(key, map_key)) break;
+        size_t cur_desired = header->entries[i].desired;
+        size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
+        if (cur_dist < dist) {
+            desired = cur_desired;
+            dist = cur_dist;
+            if (!first_insert_index) {
+                first_insert_index = i;
+                hash = header->entries[i].hash;
+                actual_index = header->entries[i].index;
+                desired = header->entries[i].desired;
+            } else {
+                migi_swap(hash, header->entries[i].hash);
+                migi_swap(actual_index, header->entries[i].index);
+                migi_swap(desired, header->entries[i].desired);
+                memcpy(item, &key, sizeof(key));
+                key = cur_key;
+            }
+       }
+
+        // return if key already exists
+        if (string_eq(key, cur_key)) {
+            break;
+        }
+
+        dist++;
         i = (i + 1) & (header->capacity - 1);
     }
-    *hash_out = hash;
-    return i;
+
+    // breaked cause of key already existing
+    if (header->entries[i].index != 0) {
+        header->entries[first_insert_index].index = 
+    }
+
+    // insert key if new
+    byte *item = table + (actual_index * entry_size);
+
+    header->size++;
+    header->entries[i].hash = hash;
+    header->entries[i].index = actual_index;
+    memcpy(item, &key, sizeof(key));
+
+    return true;
+}
+#endif
+
+
+// Inserts key assuming that it doesnt already exist
+// WARNING: Always call contains/get before calling this
+static void hms_internal_insert(HashmapHeader_ *header, void *data, size_t entry_size, String key) {
+    TIME_FUNCTION;
+
+    // inserting key in the table
+    size_t actual_index = header->size + 1;
+    byte *table = data;
+    byte *item = table + (actual_index * entry_size);
+    header->size++;
+    memcpy(item, &key, sizeof(key));
+
+    // use robin hood probing to adjust existing entries
+    uint64_t hash = hash_fnv((byte *)key.data, key.length);
+    size_t i = hash & (header->capacity - 1);
+    size_t desired = i;
+    size_t dist = 0;
+    while (header->entries[i].index != 0) {
+        size_t cur_desired = header->entries[i].desired;
+        size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
+
+        if (cur_dist < dist) {
+            desired = cur_desired;
+            dist = cur_dist;
+            migi_swap(hash, header->entries[i].hash);
+            migi_swap(actual_index, header->entries[i].index);
+            migi_swap(desired, header->entries[i].desired);
+       }
+
+        dist++;
+        i = (i + 1) & (header->capacity - 1);
+    }
+
+    header->entries[i].hash = hash;
+    header->entries[i].index = actual_index;
+    header->entries[i].desired = desired;
 }
 
-// Returns the next index of key in the hashmap
+
+
+// Returns the index of key in the hashmap entries
 // Returns false if key doesnt exist
 static bool hms_internal_index(HashmapHeader_ *header, void *data, size_t entry_size, String key, size_t *index) {
     TIME_FUNCTION;
     uint64_t hash = hash_fnv((byte *)key.data, key.length);
     size_t i = hash & (header->capacity - 1);
+    size_t dist = 0;
 
-    // if iteration ended back at the beginning, then key is absent
-    size_t start = i;
-    do {
-        // skip empty entries
-        if (header->entries[i].index != 0) {
-            byte *table = data;
-            byte *item = table + (header->entries[i].index * entry_size);
-            String map_key = *(String *)item;
+    while (true) {
+        if (header->entries[i].index == 0) return false;
 
-            // return if key was found
-            if (string_eq(key, map_key)) {
-                *index = i;
-                return true;
-            };
-        }
+        byte *table = data;
+        byte *item = table + (header->entries[i].index * entry_size);
+        String map_key = *(String *)item;
+
+        // return if key was found
+        if (string_eq(key, map_key)) {
+            // TODO: return header->entries[i].index instead
+            // requires changing a bunch of code that calls this function
+            *index = i;
+            return true;
+        };
+
+        size_t cur_desired = header->entries[i].desired;
+        size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
+        if (cur_dist < dist) return false;
+
+        dist++;
         i = (i + 1) & (header->capacity - 1);
-    } while(i != start);
-
-    return false;
+    }
 }
 
 static void hms_put_impl(Arena *a, HashmapHeader_ *header, void **data, size_t entry_size, String key, void *value) {
@@ -138,18 +227,15 @@ static void hms_put_impl(Arena *a, HashmapHeader_ *header, void **data, size_t e
         hms_grow(a, header, data, entry_size);
     }
 
-    uint64_t hash = 0;
-    size_t i = hms_internal_insert_index(header, *data, entry_size, key, &hash);
-    size_t actual_index = header->size + 1;
-    byte *table = *data;
-    byte *item = table + (actual_index * entry_size);
-
-    if (header->entries[i].index == 0) {
-        header->size++;
-        header->entries[i].hash = hash;
-        header->entries[i].index = actual_index;
-        memcpy(item, &key, sizeof(key));
+    size_t index_ = 0;
+    if (!hms_internal_index(header, *data, entry_size, key, &index_)) {
+        hms_internal_insert(header, *data, entry_size, key);
     }
+
+    // new items are always inserted at the end of the table
+    size_t inserted_index = header->size;
+    byte *table = *data;
+    byte *item = table + (inserted_index * entry_size);
     memcpy(item + sizeof(key), value, entry_size - sizeof(key));
 }
 
@@ -159,28 +245,23 @@ static void *hms_entry_impl(Arena *a, HashmapHeader_ *header, void **data, size_
         hms_grow(a, header, data, entry_size);
     }
 
-    uint64_t hash = 0;
-    size_t i = hms_internal_insert_index(header, *data, entry_size, key, &hash);
-
-    byte* item = NULL;
-    byte *table = *data;
-    // Insert the key if it is new
-    if (header->entries[i].index == 0) {
-        size_t actual_index = header->size + 1;
-        item = table + (actual_index * entry_size);
-
-        header->size++;
-        header->entries[i].hash = hash;
-        header->entries[i].index = actual_index;
-        memcpy(item, &key, sizeof(key));
-
-    // Return a pointer to the value otherwise
+    size_t index = 0;
+    size_t actual_index = 0;
+    if (!hms_internal_index(header, *data, entry_size, key, &index)) {
+        hms_internal_insert(header, *data, entry_size, key);
+        actual_index = header->size;
     } else {
-        item = table + (header->entries[i].index * entry_size);
+        actual_index = header->entries[index].index;
     }
+
+    // return a pointer to the value
+    byte *table = *data;
+    byte *item = table + (actual_index * entry_size);
     return item + sizeof(key);
 }
 
+// TODO: implement backshift erasure, currently this function is broken
+// see test_small_hashmap_collision() for the bug
 static void *hms_del_impl(HashmapHeader_ *header, void *data, size_t entry_size, String key) {
     TIME_FUNCTION;
     if (header->capacity == 0) return NULL;

@@ -4,11 +4,12 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-// #define ENABLE_PROFILING
+#define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
 
+// #define HASHMAP_INIT_CAP 4
 #include "hashmap.h"
 #include "migi.h"
 #include "migi_lists.h"
@@ -124,7 +125,7 @@ typedef struct {
     int64_t value;
 } KVStrInt;
 
-typedef MapStr(int, KVStrInt) MapStrInt;
+typedef MapStr(KVStrInt) MapStrInt;
 
 int hash_entry_cmp(const void *a, const void *b) {
     return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
@@ -218,6 +219,7 @@ void test_type_safety() {
 }
 
 int main() {
-    test_basic();
+    frequency_analysis();
+
     return 0;
 }
