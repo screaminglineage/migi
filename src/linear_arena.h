@@ -112,7 +112,7 @@ static void *lnr_arena_realloc_bytes(LinearArena *arena, void *old, size_t old_s
 
 static void lnr_arena_free(LinearArena *arena) {
     if (arena->total > 0) memory_release(arena->data, arena->total);
-    memset(arena, 0, sizeof(*arena));
+    migi_mem_clear(arena, 1);
 }
 
 static uint64_t lnr_arena_save(LinearArena *arena) {

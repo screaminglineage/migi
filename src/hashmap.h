@@ -65,8 +65,8 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
     // allocating an extra item for index 0 being treated as the default index
     byte *new_data = arena_push_bytes(a, entry_size * (header->capacity + 1), _Alignof(byte));
 
-    migi_mem_clear(new_entries, HashEntry_, header->capacity);
-    migi_mem_clear(new_data, byte, entry_size * (header->capacity + 1));
+    migi_mem_clear(new_entries, header->capacity);
+    migi_mem_clear(new_data, entry_size * (header->capacity + 1));
 
     if (*data) {
         memcpy(new_data, *data, entry_size * (header->size + 1));
@@ -253,15 +253,15 @@ static void *hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_
 }
 
 
-#define MapStr(value_type, pair_type) struct { \
-    union {                                    \
-        struct {                               \
-            HASHMAP_HEADER;                    \
-            pair_type *data;                   \
-        };                                     \
-        value_type *value_;                    \
-        pair_type  *pair_;                     \
-    };                                         \
+#define MapStr(pair_type) struct {                  \
+    union {                                         \
+        struct {                                    \
+            HASHMAP_HEADER;                         \
+            pair_type *data;                        \
+        };                                          \
+        __typeof__(((pair_type){0}).value) *value_; \
+        pair_type  *pair_;                          \
+    };                                              \
 }
 
 // Insert a new key-value pair or update the value if it already exists

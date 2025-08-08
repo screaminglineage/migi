@@ -208,21 +208,88 @@ static String string_cut_suffix(String str, String suffix) {
     return string_slice(str, 0, suffix_start);
 }
 
+// Function type for string_skip_while_ functions
+// Gets passed in a character of the string and an optional `void *data`
+typedef bool (string_skip_while_func) (char ch, void *data);
 
-// TODO: make this less dumb
-static String string_trim(String str) {
-    str = string_cut_suffix(str, SV(" "));
-    str = string_cut_suffix(str, SV("\n"));
-    str = string_cut_suffix(str, SV("\r"));
-    str = string_cut_suffix(str, SV("\t"));
+// Skips from start of string as long as the passed in function returns true
+// The `data` argument is passed into the `skip_char` function to emulate a closure
+static String string_skip_while(String str, string_skip_while_func *skip_char, void *data) {
+    if (str.length == 0) return str;
 
-    str = string_cut_prefix(str, SV(" "));
-    str = string_cut_prefix(str, SV("\n"));
-    str = string_cut_prefix(str, SV("\r"));
-    str = string_cut_prefix(str, SV("\t"));
+    while (true) {
+        if (!skip_char(str.data[0], data)) break;
+
+        str.data++;
+        str.length--;
+        if (str.length == 0) return str;
+    }
     return str;
 }
 
+// Skips from end of string as long as the passed in function returns true
+// The `data` argument is passed into the `skip_char` function to emulate a closure
+static String string_skip_while_rev(String str, string_skip_while_func *skip_char, void *data) {
+    if (str.length == 0) return str;
+
+    while (true) {
+        if (!skip_char(str.data[str.length - 1], data)) break;
+
+        str.length--;
+        if (str.length == 0) return str;
+    }
+    return str;
+}
+
+// Special case for `string_skip_while`
+// Probably the most common use for skipping in a string
+static bool is_equal_chars(char ch, const char *chars, size_t chars_len) {
+    for (size_t i = 0; i < chars_len; i++) {
+        if (ch == chars[i]) return true;
+    }
+    return false;
+}
+
+// Skips from start of string as long as one of the elements of `chars` are present
+static String string_skip_while_chars(String str, String chars) {
+    if (str.length == 0) return str;
+
+    while (true) {
+        if (!is_equal_chars(str.data[0], chars.data, chars.length)) break;
+
+        str.data++;
+        str.length--;
+        if (str.length == 0) return str;
+    }
+    return str;
+}
+
+// Skips from end of string as long as one of the elements of `chars` are present
+static String string_skip_while_rev_chars(String str, String chars) {
+    if (str.length == 0) return str;
+
+    while (true) {
+        if (!is_equal_chars(str.data[str.length - 1], chars.data, chars.length)) break;
+
+        str.length--;
+        if (str.length == 0) return str;
+    }
+    return str;
+}
+
+// TODO: check for other whitespace characters
+// https://stackoverflow.com/a/46637343
+static String string_trim_left(String str) {
+    return string_skip_while_chars(str, SV(" \n\r\t"));
+}
+
+static String string_trim_right(String str) {
+    return string_skip_while_rev_chars(str, SV(" \n\r\t"));
+}
+
+static String string_trim(String str) {
+    return string_trim_left(string_trim_right(str));
+}
 
 static String string_to_lower(Arena *arena, String str) {
     char *lower = arena_push(arena, char, str.length);

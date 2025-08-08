@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -132,6 +131,10 @@ void test_linear_arena_rewind() {
 }
 
 void test_linear_arena() {
+#ifdef ENABLE_PROFILING
+    begin_profiling();
+#endif
+
     LinearArena arena = {0};
     LinearArena small = {.total = 16 * MB};
 
@@ -139,6 +142,10 @@ void test_linear_arena() {
     test_linear_arena_regular(&small);
     test_linear_arena_rewind();
     test_linear_arena_dup();
+
+#ifdef ENABLE_PROFILING
+    end_profiling_and_print_stats();
+#endif
 }
 
 void test_arena() {
@@ -337,8 +344,7 @@ void test_string_split() {
 void linear_arena_stress_test() {
     LinearArena arenas[100] = {0};
     for (size_t i = 0; i < 100; i++) {
-        arenas[i] = (LinearArena){0};
-        lnr_arena_push_bytes(&arenas[i], 1 * GB, 1);
+        lnr_arena_push_bytes(&arenas[i], 10 * MB, 1);
     }
 }
 
@@ -386,12 +392,27 @@ void profile_arenas() {
 
 void test_string() {
     Arena a = {0};
-    assert(string_eq(
-        string_to_lower(&a, SV("HELLO world!!!")),
-        SV("hello world!!!")));
-    assert(string_eq(
-        string_to_upper(&a, SV("FOO bar baz!")),
-        SV("FOO BAR BAZ!")));
+    {
+        assert(string_eq(
+                    string_to_lower(&a, SV("HELLO world!!!")),
+                    SV("hello world!!!")));
+        assert(string_eq(
+                    string_to_upper(&a, SV("FOO bar baz!")),
+                    SV("FOO BAR BAZ!")));
+    }
+
+
+    {
+        String str = SV("\n    hello       \n");
+        assert(string_eq(string_trim_right(str), SV("\n    hello")));
+        assert(string_eq(string_trim_left(str), SV("hello       \n")));
+        assert(string_eq(string_trim(str), SV("hello")));
+        assert(string_eq(string_trim(SV("foo")), SV("foo")));
+        assert(string_eq(string_trim(SV("\t\r\nfoo")), SV("foo")));
+        assert(string_eq(string_trim(SV("foo\r\n\t")), SV("foo")));
+        assert(string_eq(string_trim(SV(" \r\n\t")), SV("")));
+        assert(string_eq(string_trim(SV("")), SV("")));
+    }
 
     todof("Add tests for other string functions");
 }
@@ -414,10 +435,8 @@ void test_swap() {
 }
 
 int main() {
-    // begin_profiling();
-    // test_linear_arena();
-    // end_profiling_and_print_stats();
-    test_swap();
+
+
 
 
     printf("\nExiting successfully\n");

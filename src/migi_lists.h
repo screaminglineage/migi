@@ -4,7 +4,6 @@
 #include "migi.h"
 #include "migi_string.h"
 #include "arena.h"
-#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 

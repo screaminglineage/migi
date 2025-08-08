@@ -1,7 +1,7 @@
 #ifndef MIGI_H
 #define MIGI_H
 
-#include <stdio.h>     // needed for asserts
+#include <stdio.h>     // needed for prints in asserts
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>    // needed for array_extend
@@ -193,13 +193,14 @@ do {                        \
     (array)->length -= 1)                                                         \
 
 #define migi_mem_eq(a, b, length) \
-    (memcmp((a), (b), (length)) == 0)
+    (memcmp((a), (b), sizeof(*(a))*(length)) == 0)
 
-#define migi_mem_eq_type(a, b) \
-    (memcmp((&a), (&b), sizeof(__typeof__(a))) == 0)
+#define migi_mem_eq_single(a, b) migi_mem_eq(a, b, 1)
 
-#define migi_mem_clear(mem, type, length) \
-    (memset((mem), 0, sizeof(type)*(length)))
+#define migi_mem_clear(mem, length) \
+    (memset((mem), 0, sizeof(*(mem))*(length)))
+
+#define migi_mem_clear_single(mem) migi_mem_clear(mem, 1)
 
 
 // Iterate over a dynamic array *by reference*

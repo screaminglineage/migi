@@ -33,7 +33,7 @@ typedef struct {
 } MapStrPoint;
 #endif
 
-typedef MapStr(Point, KVStrPoint) MapStrPoint;
+typedef MapStr(KVStrPoint) MapStrPoint;
 
 void test_basic() {
     Arena a = {0};
@@ -82,8 +82,7 @@ void test_basic() {
     printf("Deleted: %.*s: (Point){%d %d}\n", SV_FMT(deleted.key),
            deleted.value.x, deleted.value.y);
 
-    assertf(migi_mem_eq_type(hms_get_pair(&hm, SV("bar")),
-                             (KVStrPoint){0}),
+    assertf(migi_mem_eq_single(&hms_get_pair(&hm, SV("bar")), &(KVStrPoint){0}),
             "empty returned for deleted keys");
 
     KVStrPoint bla = hms_get_pair(&hm, SV("bla"));
@@ -107,10 +106,8 @@ void test_default_values() {
 
     // Setting default key and value
     // NOTE: This can only be done after atleast 1 insertion into the hashmap
-    hm.data[HASHMAP_DEFAULT_PAIR] = (KVStrPoint){
-        .key   = SV("default"),
-        .value = (Point){100, 100}
-    };
+    hm.data[HASHMAP_DEFAULT_PAIR] =
+        (KVStrPoint){.key = SV("default"), .value = (Point){100, 100}};
 
     Point p1 = hms_get(&hm, SV("foo"));
     printf("foo: (Point){%d %d}\n", p1.x, p1.y);
@@ -220,8 +217,7 @@ void test_type_safety() {
     }
 }
 
-int main() { 
-    frequency_analysis();
+int main() {
+    test_basic();
     return 0;
-
 }
