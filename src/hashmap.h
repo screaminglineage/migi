@@ -36,9 +36,6 @@ static inline uint64_t hash_fnv(byte *data, size_t length) {
 
 typedef struct {
     uint64_t hash;  // rehashing is not needed while growing if the hash is stored
-    // TODO: desired can always be calculated by doing `hash & (header.capacity - 1)`
-    // remove it from this struct
-    uint64_t desired;  // desired index for robin hood linear probing 
     uint64_t index; // index of 0 means its empty
 } HashEntry_;
 
@@ -83,19 +80,16 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
 
         uint64_t hash = old_entries[j].hash;
         size_t i = hash & (header->capacity - 1);
-        size_t desired = i;
         size_t actual_index = old_entries[j].index;
 
         size_t dist = 0;
         while (header->entries[i].index != 0) {
-            size_t cur_desired = header->entries[i].desired;
+            size_t cur_desired = header->entries[i].hash & (header->capacity - 1);
             size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
             if (cur_dist < dist) {
                 migi_swap(hash, header->entries[i].hash);
                 migi_swap(actual_index, header->entries[i].index);
-                migi_swap(desired, header->entries[i].desired);
-                desired = cur_desired;
                 dist = cur_dist;
             }
 
@@ -105,7 +99,6 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
 
         header->entries[i].hash = hash;
         header->entries[i].index = actual_index;
-        header->entries[i].desired = desired;
     }
 }
 
@@ -131,17 +124,14 @@ static void hms_internal_insert(HashmapHeader_ *header, void *data, size_t entry
     // use robin hood probing to adjust existing entries
     uint64_t hash = hash_fnv((byte *)key.data, key.length);
     size_t i = hash & (header->capacity - 1);
-    size_t desired = i;
     size_t dist = 0;
     while (header->entries[i].index != 0) {
-        size_t cur_desired = header->entries[i].desired;
+        size_t cur_desired = header->entries[i].hash & (header->capacity - 1);
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
         if (cur_dist < dist) {
             migi_swap(hash, header->entries[i].hash);
             migi_swap(actual_index, header->entries[i].index);
-            migi_swap(desired, header->entries[i].desired);
-            desired = cur_desired;
             dist = cur_dist;
        }
 
@@ -151,7 +141,6 @@ static void hms_internal_insert(HashmapHeader_ *header, void *data, size_t entry
 
     header->entries[i].hash = hash;
     header->entries[i].index = actual_index;
-    header->entries[i].desired = desired;
 }
 
 
@@ -179,7 +168,7 @@ static bool hms_internal_index(HashmapHeader_ *header, void *data, size_t entry_
             return true;
         };
 
-        size_t cur_desired = header->entries[i].desired;
+        size_t cur_desired = header->entries[i].hash & (header->capacity - 1);
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
         if (cur_dist < dist) return false;
 
@@ -275,9 +264,10 @@ static void *hms_del_impl(HashmapHeader_ *header, void *data, size_t entry_size,
         header->entries[current].index = 0;
         size_t next = (current + 1) & (header->capacity - 1);
 
-        HashEntry_ entry = header->entries[next];
-        if (entry.index == 0) break;
-        if (entry.desired == next) break;
+        HashEntry_ next_entry = header->entries[next];
+        size_t next_desired = next_entry.hash & (header->capacity - 1);
+        if (next_entry.index == 0) break;
+        if (next_desired == next) break;
 
         header->entries[current] = header->entries[next];
         current = next;
