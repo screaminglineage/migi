@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-#define ENABLE_PROFILING
+// #define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -81,7 +81,7 @@ void test_basic() {
     assert(migi_mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
     assert(migi_mem_eq_single(&hm.data[4], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
 
-    KVStrPoint deleted = hms_pop(&hm, SV("bar"));
+    KVStrPoint deleted = hms_pop(&a, &hm, SV("bar"));
     assert(string_eq(deleted.key, SV("bar")) && deleted.value.x == 3 && deleted.value.y == 4);
 
     assertf(migi_mem_eq_single(&hms_get_pair(&hm, SV("bar")), &(KVStrPoint){0}),
@@ -91,17 +91,19 @@ void test_basic() {
     assert(string_eq(bla.key, SV("bla")) && bla.value.x == 7 && bla.value.y == 8);
 
     hms_delete(&hm, SV("aaaaa"));
+
+    // replacing old value of `foo`
+    hms_put(&a, &hm, SV("foo"), ((Point){10, 20}));
+
     printf("\niteration:\n");
     hm_foreach(&hm, pair) {
         printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
-               pair->value.y);
+                pair->value.y);
     }
-
     assert(migi_mem_eq_single(&hm.data[0], &((KVStrPoint){0})));
-    assert(migi_mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){1, 2})})));
+    assert(migi_mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){10, 20})})));
     assert(migi_mem_eq_single(&hm.data[2], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
     assert(migi_mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
-
 }
 
 void test_default_values() {
@@ -190,7 +192,7 @@ void test_small_hashmap_collision() {
     *hms_entry(&a, &hm, SV("abcd")) = 12;
     *hms_entry(&a, &hm, SV("efgh")) = 13;
 
-    assert(hms_pop(&hm, SV("abcd")).value == 12);
+    assert(hms_pop(&a, &hm, SV("abcd")).value == 12);
     assert(hms_get(&hm, SV("efgh")) == 13);
     assert(hms_get(&hm, SV("efg")) == 0);
     assert(hms_get(&hm, SV("abcd")) == 0);
@@ -213,20 +215,25 @@ void test_type_safety() {
     // hms_put(&a, &map2, SV("efgh"), SV("aaaaaaa"));
 
     Point *p = hms_get_ptr(&map2, SV("abcd"));
+    unused(p);
     // int *p1 = hms_get_ptr(&map2, SV("abcd"));
 
     Point i = hms_get(&map2, SV("efgh"));
+    unused(i);
     // Point ab = hms_get(&map, SV("a"));
     // int i1 = hms_get(&map2, SV("efgh"));
 
     KVStrInt pair = hms_get_pair(&map, SV("abcd"));
+    unused(pair);
     // KVStrPoint pair1 = hms_get_pair(&map, SV("abcd"));
 
     KVStrInt *kv = hms_get_pair_ptr(&map, SV("abcd"));
+    unused(kv);
     // KVStrPoint *kv1 = hms_get_pair_ptr(&map, SV("abcd"));
 
-    KVStrInt del_int = hms_pop(&map, SV("abcd"));
-    // KVStrPoint del_point = hms_pop(&map, SV("abcd"));
+    KVStrInt del_int = hms_pop(&a, &map, SV("abcd"));
+    unused(del_int);
+    // KVStrPoint del_point = hms_pop(&a, &map, SV("abcd"));
 
     hm_foreach(&map, pair) {
         printf("%.*s: %ld", SV_FMT(pair->key), pair->value);
