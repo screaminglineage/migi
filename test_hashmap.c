@@ -1,4 +1,3 @@
-#include "migi_random.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,11 +9,11 @@
 
 #include "arena.h"
 
-// #define HASHMAP_INIT_CAP 4
 #include "hashmap.h"
 #include "migi.h"
 #include "migi_lists.h"
 #include "migi_string.h"
+#include "migi_random.h"
 
 typedef struct {
     int x, y;
@@ -132,6 +131,9 @@ int hash_entry_cmp(const void *a, const void *b) {
     return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
 }
 
+// Counts frequency of occurence of words from a text file
+// Regular linear probing performs slightly better here, probably
+// due to the overhead of robin hood probing
 void frequency_analysis() {
     begin_profiling();
     StringBuilder sb = {0};
@@ -232,7 +234,12 @@ String random_string(Arena *a, size_t length) {
     };
 }
 
-int main() {
+// Inserts random strings into the hashmap and tries to later find them
+// Since the strings are random, most of the searches will fail
+// This is extremely slow on a regular linear probing due to having to search
+// the entire table and then failing.
+// The robin hood linear probing approach is MUCH faster in this case
+void test_search_fail() {
     Arena a = {0};
     MapStrInt map = {0};
 
@@ -244,7 +251,6 @@ int main() {
     }
     end_profiling_and_print_stats();
 
-    // memset(global_profiler.timestamps, 0, sizeof(ProfilerTimestamp)*MAX_TIMESTAMPS);
     begin_profiling();
     size_t count = 0;
     for (size_t i = 0; i < 1024*1024; i++) {
@@ -257,6 +263,11 @@ int main() {
 
     printf("Matched elements: %zu\n", count);
     printf("Unmatched elements: %zu\n", map.size - count);
+}
 
+
+int main() {
+    test_search_fail();
     return 0;
 }
+
