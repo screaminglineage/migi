@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #define PROFILER_H_IMPLEMENTATION
@@ -155,10 +156,10 @@ static void hms_internal_insert(HashmapHeader_ *header, void *data, size_t entry
     TIME_FUNCTION;
 
     // inserting key in the table
-    size_t actual_index = header->size + 1;
+    header->size++;
+    size_t actual_index = header->size;
     byte *table = data;
     byte *item = table + (actual_index * entry_size);
-    header->size++;
     memcpy(item, &key, sizeof(key));
 
     // use robin hood probing to adjust existing entries
@@ -171,11 +172,11 @@ static void hms_internal_insert(HashmapHeader_ *header, void *data, size_t entry
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
         if (cur_dist < dist) {
-            desired = cur_desired;
-            dist = cur_dist;
             migi_swap(hash, header->entries[i].hash);
             migi_swap(actual_index, header->entries[i].index);
             migi_swap(desired, header->entries[i].desired);
+            desired = cur_desired;
+            dist = cur_dist;
        }
 
         dist++;

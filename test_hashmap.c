@@ -1,3 +1,4 @@
+#include "migi_random.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -148,6 +149,7 @@ void frequency_analysis() {
     list_foreach(words.head, StringNode, word) {
         String key = string_to_lower(&a, word->str);
         *hms_entry(&a, &map, key) += 1;
+
     }
     printf("size = %zu, capacity = %zu\n", map.size, map.capacity);
     end_profiling_and_print_stats();
@@ -218,8 +220,43 @@ void test_type_safety() {
     }
 }
 
+String random_string(Arena *a, size_t length) {
+    char *chars = arena_push(a, char, length);
+
+    for (size_t i = 0; i < length; i++) {
+        chars[i] = random_range('a', 'z');
+    }
+    return (String){
+        .data = chars,
+        .length = length
+    };
+}
+
 int main() {
-    frequency_analysis();
+    Arena a = {0};
+    MapStrInt map = {0};
+
+    begin_profiling();
+    size_t length = 5;
+    for (size_t i = 0; i < 1024*1024; i++) {
+        String str = random_string(&a, length);
+        *hms_entry(&a, &map, str) = 1;
+    }
+    end_profiling_and_print_stats();
+
+    // memset(global_profiler.timestamps, 0, sizeof(ProfilerTimestamp)*MAX_TIMESTAMPS);
+    begin_profiling();
+    size_t count = 0;
+    for (size_t i = 0; i < 1024*1024; i++) {
+        String str = random_string(&a, length);
+        if (hms_contains(&map, str)) {
+            count++;
+        }
+    }
+    end_profiling_and_print_stats();
+
+    printf("Matched elements: %zu\n", count);
+    printf("Unmatched elements: %zu\n", map.size - count);
 
     return 0;
 }
