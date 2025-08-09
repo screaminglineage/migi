@@ -145,6 +145,7 @@ static void end_profiling_and_print_stats() {
     }
     print_timestamps(total, cpu_freq);
     memset(&global_profiler, 0, sizeof(global_profiler));
+    memset(&global_profiler.timestamps, 0, sizeof(*global_profiler.timestamps)*MAX_TIMESTAMPS);
     global_parent_index = 0;
 }
 

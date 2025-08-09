@@ -124,7 +124,7 @@ typedef struct {
     int64_t value;
 } KVStrInt;
 
-typedef MapStr(int, KVStrInt) MapStrInt;
+typedef MapStr(KVStrInt) MapStrInt;
 
 int hash_entry_cmp(const void *a, const void *b) {
     return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
@@ -218,6 +218,6 @@ void test_type_safety() {
 }
 
 int main() {
-    test_basic();
+    frequency_analysis();
     return 0;
 }
