@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-// #define ENABLE_PROFILING
+#define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -13,6 +13,7 @@
 #include "migi.h"
 #include "migi_lists.h"
 #include "migi_string.h"
+#include "migi_random.h"
 
 typedef struct {
     int x, y;
@@ -130,6 +131,9 @@ int hash_entry_cmp(const void *a, const void *b) {
     return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
 }
 
+// Counts frequency of occurence of words from a text file
+// Regular linear probing performs slightly better here, probably
+// due to the overhead of robin hood probing
 void frequency_analysis() {
     begin_profiling();
     StringBuilder sb = {0};
@@ -217,7 +221,52 @@ void test_type_safety() {
     }
 }
 
+String random_string(Arena *a, size_t length) {
+    char *chars = arena_push(a, char, length);
+
+    for (size_t i = 0; i < length; i++) {
+        chars[i] = random_range('a', 'z');
+    }
+    return (String){
+        .data = chars,
+        .length = length
+    };
+}
+
+// Inserts random strings into the hashmap and tries to later find them
+// Since the strings are random, most of the searches will fail
+// This is extremely slow on a regular linear probing due to having to search
+// the entire table and then failing.
+// The robin hood linear probing approach is MUCH faster in this case
+void test_search_fail() {
+    Arena a = {0};
+    MapStrInt map = {0};
+
+    begin_profiling();
+    size_t length = 5;
+    for (size_t i = 0; i < 1024*1024; i++) {
+        String str = random_string(&a, length);
+        *hms_entry(&a, &map, str) = 1;
+    }
+    end_profiling_and_print_stats();
+
+    begin_profiling();
+    size_t count = 0;
+    for (size_t i = 0; i < 1024*1024; i++) {
+        String str = random_string(&a, length);
+        if (hms_contains(&map, str)) {
+            count++;
+        }
+    }
+    end_profiling_and_print_stats();
+
+    printf("Matched elements: %zu\n", count);
+    printf("Unmatched elements: %zu\n", map.size - count);
+}
+
+
 int main() {
-    frequency_analysis();
+    test_search_fail();
     return 0;
 }
+
