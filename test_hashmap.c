@@ -24,7 +24,6 @@ typedef struct {
     Point value;
 } KVStrPoint;
 
-#if 0
 typedef struct {
     HASHMAP_HEADER;
 
@@ -32,9 +31,6 @@ typedef struct {
     // bool (*hm_key_eq)(Key a, Key b);
     KVStrPoint *data;
 } MapStrPoint;
-#endif
-
-typedef MapStr(KVStrPoint) MapStrPoint;
 
 void test_basic() {
     Arena a = {0};
@@ -136,7 +132,14 @@ typedef struct {
     int64_t value;
 } KVStrInt;
 
-typedef MapStr(KVStrInt) MapStrInt;
+typedef struct {
+    HASHMAP_HEADER;
+
+    // only needed for non-string hashmaps
+    // bool (*hm_key_eq)(Key a, Key b);
+    KVStrInt *data;
+} MapStrInt;
+
 
 int hash_entry_cmp(const void *a, const void *b) {
     return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
