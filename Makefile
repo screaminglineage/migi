@@ -4,6 +4,9 @@ main: main.c src/*.h
 test_hashmap: test_hashmap.c src/*.h
 	gcc -Wall -Wextra -Wno-unused-function -ggdb -I./src test_hashmap.c -o test_hashmap -fsanitize=undefined
 
+test_lexer: test_lexer.c src/*.h
+	gcc -Wall -Wextra -Wno-unused-function -ggdb -I./src test_lexer.c -o test_lexer -fsanitize=undefined
+
 @PHONY=release
 release: main.c src/*.h
 	gcc -Wall -Wextra -O3 -I./src -DMIGI_DISABLE_ASSERTS main.c -o main
