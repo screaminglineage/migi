@@ -106,8 +106,9 @@ static void hms_grow(Arena *a, HashmapHeader_ *header, void **data, size_t entry
     }
 }
 
-static inline byte *hms_internal_data_index(byte *table, size_t entry_size, size_t index) {
-    return table + (index * entry_size);
+// Indexes into the data array of the hashmap
+static inline byte *hms_internal_data_index(byte *table_data, size_t entry_size, size_t index) {
+    return table_data + (index * entry_size);
 }
 
 
@@ -158,7 +159,7 @@ static bool hms_internal_index(HashmapHeader_ *header, void *data, size_t entry_
     }
 }
 
-static void hms_put_impl(Arena *a, HashmapHeader_ *header, void **data, size_t entry_size, String key, void *value) {
+static void *hms_put_impl(Arena *a, HashmapHeader_ *header, void **data, size_t entry_size, String key) {
     TIME_FUNCTION;
     if (header->size >= header->capacity * HASHMAP_LOAD_FACTOR) {
         hms_grow(a, header, data, entry_size);
@@ -173,28 +174,9 @@ static void hms_put_impl(Arena *a, HashmapHeader_ *header, void **data, size_t e
     } else {
         data_index = header->entries[index].index;
     }
-    byte *item = hms_internal_data_index(*data, entry_size, data_index);
-    memcpy(item + sizeof(key), value, entry_size - sizeof(key));
+    return hms_internal_data_index(*data, entry_size, data_index);
 }
 
-static void *hms_entry_impl(Arena *a, HashmapHeader_ *header, void **data, size_t entry_size, String key) {
-    TIME_FUNCTION;
-    if (header->size >= header->capacity * HASHMAP_LOAD_FACTOR) {
-        hms_grow(a, header, data, entry_size);
-    }
-
-    size_t index = 0;
-    size_t actual_index = 0;
-    if (!hms_internal_index(header, *data, entry_size, key, &index)) {
-        hms_internal_insert(header, *data, entry_size, key);
-        actual_index = header->size;
-    } else {
-        actual_index = header->entries[index].index;
-    }
-
-    // return a pointer to the value by skipping the key
-    return hms_internal_data_index(*data, entry_size, actual_index) + sizeof(key);
-}
 
 // Backshift Erasure
 // Move elements back until theres an empty entry or the entry is already
@@ -321,16 +303,27 @@ static void *hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_
 
 
 // Insert a new key-value pair or update the value if it already exists
-#define hms_put(arena, hashmap, key, val)                     \
-    ((void)hms_put_impl((arena), (HashmapHeader_*)(hashmap),  \
-        (void **)&(hashmap)->data, sizeof *((hashmap)->data), \
-        (key), 1 ? &(val): &((hashmap)->data->value)))
+#define hms_put(arena, hashmap, key, val)                             \
+do {                                                                  \
+    void *temp = hms_put_impl((arena), (HashmapHeader_*)(hashmap),    \
+        (void **)&(hashmap)->data, sizeof *((hashmap)->data), (key)); \
+    ((__typeof__((hashmap)->data))temp)->value = (val);               \
+} while(0)
+
+// Insert a new key-value pair or update the value if it already exists
+#define hms_put_pair(arena, hashmap, pair)                                 \
+do {                                                                       \
+    void *temp = hms_put_impl((arena), (HashmapHeader_*)(hashmap),         \
+        (void **)&(hashmap)->data, sizeof *((hashmap)->data), (pair).key); \
+    ((__typeof__((hashmap)->data))temp)->value = (pair).value;             \
+} while(0)
 
 // Insert a new key and return a pointer to the value
-#define hms_entry(arena, hashmap, key)                   \
-    ((__typeof__(&((hashmap)->data->value)))             \
-     hms_entry_impl((arena), (HashmapHeader_*)(hashmap), \
-        (void **)&(hashmap)->data, sizeof *((hashmap)->data), (key)))
+#define hms_entry(arena, hashmap, key)                                \
+    ((__typeof__(&((hashmap)->data->value)))                          \
+     ((byte *)hms_put_impl((arena), (HashmapHeader_*)(hashmap),       \
+         (void **)&(hashmap)->data, sizeof *((hashmap)->data), (key)) \
+         + sizeof((key))))
 
 // Return a pointer to value if it exists, otherwise NULL
 #define hms_get_ptr(hashmap, key)                        \

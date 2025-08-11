@@ -9,6 +9,7 @@
 
 #include "arena.h"
 
+#define HASHMAP_INIT_CAP 4
 #include "hashmap.h"
 #include "migi.h"
 #include "migi_lists.h"
@@ -19,6 +20,8 @@ typedef struct {
     int x, y;
 } Point;
 
+// key must come before value
+// there shouldnt be any other elements between them
 typedef struct {
     String key;
     Point value;
@@ -27,8 +30,6 @@ typedef struct {
 typedef struct {
     HASHMAP_HEADER;
 
-    // only needed for non-string hashmaps
-    // bool (*hm_key_eq)(Key a, Key b);
     KVStrPoint *data;
 } MapStrPoint;
 
@@ -39,7 +40,9 @@ void test_basic() {
     hms_put(&a, &hm, SV("foo"), ((Point){1, 2}));
     hms_put(&a, &hm, SV("bar"), ((Point){3, 4}));
     hms_put(&a, &hm, SV("baz"), ((Point){5, 6}));
-    hms_put(&a, &hm, SV("bla"), ((Point){7, 8}));
+    hms_put_pair(&a, &hm, ((KVStrPoint){
+        .key = SV("bla"),
+        .value = (Point){7, 8}}));
 
     Point *p = hms_get_ptr(&hm, SV("foo"));
     assert(p->x == 1 && p->y == 2);
@@ -127,6 +130,8 @@ void test_default_values() {
     assert(string_eq(p3.key, SV("default")) && p3.value.x == 100 && p3.value.y == 100);
 }
 
+// key must come before value
+// there shouldnt be any other elements between them
 typedef struct {
     String key;
     int64_t value;
@@ -210,6 +215,8 @@ void test_type_safety() {
     Arena a = {0};
     MapStrInt map = {0};
     *hms_entry(&a, &map, SV("abcd")) = 12;
+    hms_put(&a, &map, SV("ijkl"), 100);
+    // hms_put(&a, &map, SV("ijkl"), ((Point){1, 1}));
 
     MapStrPoint map2 = {0};
     *hms_entry(&a, &map2, SV("abcd")) = (Point){1, 2};
@@ -284,6 +291,6 @@ void test_search_fail() {
 }
 
 int main() {
-    frequency_analysis();
+    test_basic();
     return 0;
 }
