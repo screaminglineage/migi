@@ -78,7 +78,8 @@ void test_basic() {
     assert(migi_mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
     assert(migi_mem_eq_single(&hm.data[4], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
 
-    KVStrPoint deleted = hms_pop(&a, &hm, SV("bar"));
+    KVStrPoint deleted = hms_pop(&hm, SV("bar"));
+
     assert(string_eq(deleted.key, SV("bar")) && deleted.value.x == 3 && deleted.value.y == 4);
 
     KVStrPoint t = hms_get_pair(&hm, SV("bar"));
@@ -198,15 +199,32 @@ void test_small_hashmap_collision() {
     *hms_entry(&a, &hm, SV("abcd")) = 12;
     *hms_entry(&a, &hm, SV("efgh")) = 13;
 
-    assert(hms_pop(&a, &hm, SV("abcd")).value == 12);
+    assert(hms_pop(&hm, SV("abcd")).value == 12);
     assert(hms_get(&hm, SV("efgh")) == 13);
     assert(hms_get(&hm, SV("efg")) == 0);
     assert(hms_get(&hm, SV("abcd")) == 0);
 
     // Deleting last value in table
     *hms_entry(&a, &hm, SV("abcd")) = 10;
+    assert(hms_pop(&hm, SV("abcd")).value == 10);
     hms_delete(&hm, SV("abcd"));
     assert(hms_get(&hm, SV("efgh")) == 13);
+
+    // Popping (with swap-remove) with hashmap at max capacity
+    // [3/4 elements] (with load factor >= 0.75, and init capacity 4)
+    MapStrInt map = {0};
+    hms_put(&a, &map, SV("a"), 1);
+    hms_put(&a, &map, SV("b"), 2);
+    hms_put(&a, &map, SV("c"), 3);
+
+    KVStrInt kv = hms_pop(&map, SV("a"));
+    assert(migi_mem_eq_single(&kv, &((KVStrInt){SV("a"), 1})));
+
+    kv = hms_get_pair(&map, SV("b"));
+    assert(migi_mem_eq_single(&kv, &((KVStrInt){SV("b"), 2})));
+
+    kv = hms_get_pair(&map, SV("c"));
+    assert(migi_mem_eq_single(&kv, &((KVStrInt){SV("c"), 3})));
 }
 
 void test_type_safety() {
@@ -240,7 +258,7 @@ void test_type_safety() {
     unused(kv);
     // KVStrPoint *kv1 = hms_get_pair_ptr(&map, SV("abcd"));
 
-    KVStrInt del_int = hms_pop(&a, &map, SV("abcd"));
+    KVStrInt del_int = hms_pop(&map, SV("abcd"));
     unused(del_int);
     // KVStrPoint del_point = hms_pop(&a, &map, SV("abcd"));
 
@@ -303,6 +321,7 @@ void test_search_fail() {
 }
 
 int main() {
+    frequency_analysis();
 
     return 0;
 }
