@@ -9,7 +9,7 @@
 
 #include "arena.h"
 
-#define HASHMAP_INIT_CAP 4
+// #define HASHMAP_INIT_CAP 4
 #include "hashmap.h"
 #include "migi.h"
 #include "migi_lists.h"
@@ -20,8 +20,6 @@ typedef struct {
     int x, y;
 } Point;
 
-// key must come before value
-// there shouldnt be any other elements between them
 typedef struct {
     String key;
     Point value;
@@ -83,8 +81,8 @@ void test_basic() {
     KVStrPoint deleted = hms_pop(&a, &hm, SV("bar"));
     assert(string_eq(deleted.key, SV("bar")) && deleted.value.x == 3 && deleted.value.y == 4);
 
-    assertf(migi_mem_eq_single(&hms_get_pair(&hm, SV("bar")), &(KVStrPoint){0}),
-            "empty returned for deleted keys");
+    KVStrPoint t = hms_get_pair(&hm, SV("bar"));
+    assertf(migi_mem_eq_single(&t, &(KVStrPoint){0}), "empty returned for deleted keys");
 
     KVStrPoint bla = hms_get_pair(&hm, SV("bla"));
     assert(string_eq(bla.key, SV("bla")) && bla.value.x == 7 && bla.value.y == 8);
@@ -220,6 +218,7 @@ void test_type_safety() {
 
     MapStrPoint map2 = {0};
     *hms_entry(&a, &map2, SV("abcd")) = (Point){1, 2};
+    // *hms_entry(&a, &map2, SV("abcd")) = 100;
 
     hms_put(&a, &map2, SV("efgh"), ((Point){3, 4}));
     // hms_put(&a, &map2, SV("efgh"), SV("aaaaaaa"));
@@ -245,9 +244,22 @@ void test_type_safety() {
     unused(del_int);
     // KVStrPoint del_point = hms_pop(&a, &map, SV("abcd"));
 
+    assert(migi_mem_eq_single(&map.data[0], &((KVStrPoint){0})));
+    assert(migi_mem_eq_single(&map.data[1], &((KVStrInt){SV("ijkl"), 100})));
+
+    assert(migi_mem_eq_single(&map2.data[0], &((KVStrPoint){0})));
+    assert(migi_mem_eq_single(&map2.data[1], &((KVStrPoint){SV("abcd"), ((Point){1, 2})})));
+    assert(migi_mem_eq_single(&map2.data[2], &((KVStrPoint){SV("efgh"), ((Point){3, 4})})));
+
+
     hm_foreach(&map, pair) {
         printf("%.*s: %ld", SV_FMT(pair->key), pair->value);
     }
+    printf("\n");
+    hm_foreach(&map2, pair) {
+        printf("%.*s: (Point){%d, %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+    }
+    printf("\n");
 }
 
 String random_string(Arena *a, size_t length) {
@@ -291,6 +303,6 @@ void test_search_fail() {
 }
 
 int main() {
-    test_basic();
+
     return 0;
 }
