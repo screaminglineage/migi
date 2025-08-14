@@ -40,27 +40,17 @@ typedef struct {
     uint64_t index; // index of 0 means an entry is unoccupied
 } HashEntry_;
 
-typedef struct {
-    HashEntry_ *entries;    // entries in the hashmap table
-    size_t size;            // number of entries
-    size_t capacity;        // total allocated entries
-    ptrdiff_t temp_index;   // temporary storage for the data array index (used by macros for various stuff)
-} HashmapHeader_;
-
-
-// Need an anonymous struct version for the actual header
-#define HASHMAP_HEADER struct { \
-    HashEntry_ *entries;        \
-    size_t size;                \
-    size_t capacity;            \
-    ptrdiff_t temp_index;       \
+// Need an anonymous struct for the actual header so that it can be embedded into the main hashmap struct
+#define HASHMAP_HEADER struct {                                                                                  \
+    HashEntry_ *entries;     /* entries in the hashmap table */                                                  \
+    size_t size;             /* number of entries */                                                             \
+    size_t capacity;         /* total allocated entries */                                                       \
+    ptrdiff_t temp_index;    /* temporary storage for the data array index (used by macros for various stuff) */ \
 }
 
-static_assert(sizeof(HashmapHeader_) == sizeof(HASHMAP_HEADER), "One of the hashmap headers have changed");
-static_assert(offsetof(HashmapHeader_, entries) == offsetof(HASHMAP_HEADER, entries), "One of hashmap header elements are out of order");
-static_assert(offsetof(HashmapHeader_, size) == offsetof(HASHMAP_HEADER, size), "One of hashmap header elements are out of order");
-static_assert(offsetof(HashmapHeader_, capacity) == offsetof(HASHMAP_HEADER, capacity), "One of hashmap header elements are out of order");
-static_assert(offsetof(HashmapHeader_, temp_index) == offsetof(HASHMAP_HEADER, temp_index), "One of hashmap header elements are out of order");
+// Typedef needed to cast a `hashmap *` to a `HashmapHeader_ *`
+typedef HASHMAP_HEADER HashmapHeader_;
+
 
 // Uses robin hood linear probing to insert an entry
 static void hms_internal_insert_entry(HashmapHeader_ *header, HashEntry_ entry) {

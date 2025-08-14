@@ -1,7 +1,11 @@
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#include "src/migi.h"
 #include "src/migi_string.h"
 #include "src/migi_lexer.h"
+#pragma GCC diagnostic pop
 
-bool parse(Lexer *lexer) {
+bool dump_tokens(Lexer *lexer) {
     Token tok = {0};
     while (true) {
         if (!next_token(lexer, &tok)) {
@@ -9,32 +13,26 @@ bool parse(Lexer *lexer) {
         }
 
         switch (tok.type) {
-            case TOK_EOF:         printf("got 'TOK_EOF'\n"); return true;
-            case TOK_STRING:      printf("got 'TOK_STRING': `%.*s`\n", SV_FMT(tok.string)); break;
-            case TOK_OPEN_PAREN:  printf("got 'TOK_OPEN_PAREN'\n"); break;
-            case TOK_CLOSE_PAREN: printf("got 'TOK_CLOSE_PAREN'\n"); break;
-            case TOK_OPEN_BRACE:  printf("got 'TOK_OPEN_BRACE'\n"); break;
-            case TOK_CLOSE_BRACE: printf("got 'TOK_CLOSE_BRACE'\n"); break;
             case TOK_IDENTIFIER:  {
                 Keyword keyword = {0};
                 if (identifier_to_keyword(tok, &keyword)) {
-                    printf("got 'TOK_KEYWORD': %.*s\n", SV_FMT(keyword.string));
+                    printf("got 'keyword': %.*s\n", SV_FMT(tok.string)); break;
                 } else {
-                    printf("got 'TOK_IDENTIFIER': %.*s\n", SV_FMT(tok.string));
+                    printf("got '%.*s': %.*s\n", SV_FMT(TOKEN_STRINGS[tok.type]), SV_FMT(tok.string)); break;
                 }
             } break;
-            case TOK_PLUS:      printf("got 'TOK_PLUS'\n"); break;
-            case TOK_MINUS:     printf("got 'TOK_MINUS'\n"); break;
-            case TOK_EQUALS:    printf("got 'TOK_EQUALS'\n"); break;
-            case TOK_COMMA:     printf("got 'TOK_COMMA'\n"); break;
-            case TOK_INTEGER:   printf("got 'TOK_INTEGER': %lu\n", tok.integer); break;
-            case TOK_FLOATING:  printf("got 'TOK_FLOATING': %f\n", tok.floating); break;
-            case TOK_SEMICOLON: printf("got 'TOK_SEMICOLON'\n"); break;
-            case TOK_PLUS_PLUS: printf("got 'TOK_PLUS_PLUS'\n"); break;
-            case TOK_MINUS_MINUS: printf("got 'TOK_MINUS_MINUS'\n"); break;
-            default: {
-                fprintf(stderr, "error: unexpected token, `%.*s`, at: %zu\n", SV_FMT(tok.string), lexer->end - tok.string.length);
+            case TOK_INTEGER:   printf("got '%.*s': %lu\n", SV_FMT(TOKEN_STRINGS[tok.type]), tok.integer); break;
+            case TOK_FLOATING:  printf("got '%.*s': %f\n", SV_FMT(TOKEN_STRINGS[tok.type]), tok.floating); break;
+
+            case TOK_COUNT:
+            case TOK_NONE: {
+                printf("error: unexpected token, `%.*s`, at: %zu\n",
+                        SV_FMT(TOKEN_STRINGS[tok.type]), lexer->end - tok.string.length);
                 return false;
+            } break;
+            default: {
+                printf("got '%.*s': %.*s\n", SV_FMT(TOKEN_STRINGS[tok.type]), SV_FMT(tok.string));
+                if (tok.type == TOK_EOF) return true;
             } break;
         }
     }
@@ -45,6 +43,17 @@ int main() {
     read_file(&sb, SV("tokens.c"));
 
     Lexer l = {.string = sb_to_string(&sb)};
-    parse(&l);
+
+    return_val_if_false(expect_token_str(&l, TOK_IDENTIFIER, SV("int")), 1);
+    return_val_if_false(expect_token_str(&l, TOK_IDENTIFIER, SV("main")), 1);
+    return_val_if_false(expect_token(&l, TOK_OPEN_PAREN), 1);
+    return_val_if_false(expect_token(&l, TOK_CLOSE_PAREN), 1);
+    return_val_if_false(expect_token(&l, TOK_OPEN_BRACE), 1);
+    return_val_if_false(expect_token_str(&l, TOK_IDENTIFIER, SV("return")), 1);
+    return_val_if_false(expect_token(&l, TOK_MINUS), 1);
+    return_val_if_false(expect_token(&l, TOK_FLOATING), 1);
+    return_val_if_false(expect_token(&l, TOK_SEMICOLON), 1);
+    return_val_if_false(expect_token(&l, TOK_CLOSE_BRACE), 1);
+    // dump_tokens(&l);
     return 0;
 }

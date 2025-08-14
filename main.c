@@ -319,8 +319,7 @@ void test_string_split() {
     Arena a = {0};
     StringList s1[] = {
         string_split(&a, SV("Mary had a little lamb"), SV(" ")),
-        string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "),
-                        SPLIT_SKIP_EMPTY),
+        string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY),
         string_split(&a, SV(" Mary    had   a   little   lamb"), SV(" ")),
         string_split(&a, SV("Mary--had--a--little--lamb--"), SV("--")),
         string_split(&a, SV("Mary had a little lamb"), SV("")),

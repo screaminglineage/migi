@@ -165,6 +165,15 @@ static String string_skip(String str, size_t amount) {
     };
 }
 
+// Take `amount` characters from beginning of string
+static String string_take(String str, size_t amount) {
+    assertf(amount <= str.length, "string_take: index out of bounds");
+    return (String){
+        .data = str.data,
+        .length = amount,
+    };
+}
+
 // Get index of suffix or -1 if not found
 static int string_find_suffix(String str, String suffix) {
     if (suffix.length > str.length) return -1;
