@@ -16,6 +16,8 @@
 #include "profiler.h"
 
 // TODO: add line and column count tracking
+// TODO: buffer errors as well rather than returning, otherwise it feels
+// weird when the error occurs even though the token has not yet been seen
 
 typedef enum {
     TOK_NONE = 0,
@@ -228,23 +230,40 @@ static bool identifier_to_keyword(Token identifier, Keyword *keyword) {
      }, {0}})
 
 
-// TODO: rename this to something else (GET_CHAR (?))
-#define LEXER_GET(lexer) (lexer)->string.data[(lexer)->end]
+// #define LEXER_GET(lexer) (lexer)->string.data[(lexer)->end]
+
+static inline char lexer_peek_char(Lexer *lexer) {
+    if (lexer->end >= lexer->string.length) {
+        return 0;
+    }
+    return lexer->string.data[lexer->end];
+}
+
+static inline char lexer_peek_next_char(Lexer *lexer) {
+    if (lexer->end + 1 >= lexer->string.length) {
+        return 0;
+    }
+    return lexer->string.data[lexer->end + 1];
+}
+
+static inline char lexer_consume_char(Lexer *lexer) {
+    if (lexer->end >= lexer->string.length) {
+        return 0;
+    }
+    return lexer->string.data[lexer->end++];
+}
 
 static bool tokenize_string(Lexer *lexer) {
     TIME_FUNCTION;
 
-    bool closed = false;
-    size_t start_index = lexer->end;
-    while (lexer->end < lexer->string.length) {
-        char ch = LEXER_GET(lexer);
-        if (ch == '"') {
-            closed = true;
-            break;
-        }
+    size_t start_index = lexer->start;
+    char ch = '\0';
+    while (true) {
+        ch = lexer_peek_char(lexer);
+        if (ch == '"' || ch == '\0') break;
         lexer->end++;
     }
-    if (!closed) {
+    if (ch == '\0') {
         fprintf(stderr, "error: unmatched '\"' at index: %zu\n", start_index);
         return false;
     }
@@ -262,22 +281,21 @@ static bool tokenize_string(Lexer *lexer) {
 static bool tokenize_number(Lexer *lexer) {
     TIME_FUNCTION;
 
-    size_t number_start = lexer->end;
-    while (lexer->end < lexer->string.length) {
-        char ch = LEXER_GET(lexer);
-        if (!between(ch, '0', '9')) {
+    size_t number_start = lexer->start;
+    char ch = '\0';
+    while (true) {
+        ch = lexer_peek_char(lexer);
+        if (ch == '\0' || !between(ch, '0', '9')) {
             break;
         }
         lexer->end++;
     }
 
-    if (lexer->end < lexer->string.length) {
-        char ch = LEXER_GET(lexer);
-
+    if (ch != '\0') {
         // parsing as floating point
         if (ch == 'e' || ch == 'E' || ch == '.') {
-            while (lexer->end < lexer->string.length) {
-                char ch = LEXER_GET(lexer);
+            while (true) {
+                char ch = lexer_peek_char(lexer);
                 if (!(ch == 'e' || ch == 'E' || ch == '.' || between(ch, '0', '9'))) {
                     break;
                 }
@@ -325,9 +343,9 @@ static bool tokenize_number(Lexer *lexer) {
 static bool tokenize_identifier(Lexer *lexer) {
     TIME_FUNCTION;
 
-    size_t identifier_start = lexer->end;
-    while (lexer->end < lexer->string.length) {
-        char ch = LEXER_GET(lexer);
+    size_t identifier_start = lexer->start;
+    while (true) {
+        char ch = lexer_peek_char(lexer);
         if (!(between(ch, 'a', 'z')
             || between(ch, 'A', 'Z')
             || between(ch, '0', '9')
@@ -343,81 +361,91 @@ static bool tokenize_identifier(Lexer *lexer) {
     return true;
 }
 
-static inline char peek(Lexer *lexer) {
-    if (lexer->end >= lexer->string.length) {
-        return 0;
-    }
-    return lexer->string.data[lexer->end + 1];
-}
 
 static bool next_token_impl(Lexer *lexer, Token *tok)  {
     TIME_FUNCTION;
 
     lexer->token_buf[0] = lexer->token_buf[1];
-    while (lexer->end < lexer->string.length) {
-        if (!isspace(LEXER_GET(lexer))) break;
+    while (true) {
+        if (!isspace(lexer_peek_char(lexer))) break;
         lexer->end++;
     }
+    lexer->start = lexer->end;
 
-    if (lexer->end >= lexer->string.length) {
-        lexer->token_buf[1] = TOK_NEW(lexer, TOK_EOF);
-    } else {
-        char ch = LEXER_GET(lexer);
-        // TODO: do C lexing here
-        switch(ch) {
-            case '(':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_PAREN);     break;
-            case ')':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_PAREN);    break;
-            case '{':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_BRACE);     break;
-            case '}':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_BRACE);    break;
-            case '[':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_BRACKET);   break;
-            case ']':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_BRACKET);  break;
-            case ',':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_COMMA);          break;
-            case '\'': lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_SINGLEQUOTE);    break;
-            case '\\': lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_BACKSLASH);      break;
-            case '.':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_DOT);            break;
-            case ':':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_COLON);          break;
-            case ';':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_SEMICOLON);      break;
-            case '-':  {
+    char ch = lexer_consume_char(lexer);
+    // TODO: do C lexing here
+    switch(ch) {
+        case '\0': lexer->token_buf[1] = TOK_NEW(lexer, TOK_EOF);            break;
+        case '(':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_PAREN);     break;
+        case ')':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_PAREN);    break;
+        case '{':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_BRACE);     break;
+        case '}':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_BRACE);    break;
+        case '[':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_BRACKET);   break;
+        case ']':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_BRACKET);  break;
+        case ',':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_COMMA);          break;
+        case '\'': lexer->token_buf[1] = TOK_NEW(lexer, TOK_SINGLEQUOTE);    break;
+        case '\\': lexer->token_buf[1] = TOK_NEW(lexer, TOK_BACKSLASH);      break;
+        case '.':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_DOT);            break;
+        case ':':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_COLON);          break;
+        case ';':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_SEMICOLON);      break;
+        case '-':  {
+            if (lexer_peek_char(lexer) == '-') {
+               lexer->end++;
+               lexer->token_buf[1] = TOK_NEW(lexer, TOK_MINUS_MINUS);
+            } else {
+               lexer->token_buf[1] = TOK_NEW(lexer, TOK_MINUS);
+            }
+        } break;
+        case '+':  {
+            if (lexer_peek_char(lexer) == '+') {
                 lexer->end++;
-                if (lexer->end < lexer->string.length && LEXER_GET(lexer) == '-') {
+                lexer->token_buf[1] = TOK_NEW(lexer, TOK_PLUS_PLUS);
+            } else {
+                lexer->token_buf[1] = TOK_NEW(lexer, TOK_PLUS);
+            }
+        } break;
+        case '*': lexer->token_buf[1] = TOK_NEW(lexer, TOK_STAR); break;
+        case '/': {
+            if (lexer_peek_char(lexer) == '/') {
+                while (lexer_peek_char(lexer) != '\n') lexer->end++;
+                lexer->start = lexer->end;
+                // TODO: remove recursive lexing, can overflow if too many comments follow each other
+                if (!next_token_impl(lexer, tok)) return false;
+
+            } else if (lexer_peek_char(lexer) == '*') {
+                while (!(lexer_peek_char(lexer) == '*'
+                        && lexer_peek_next_char(lexer) == '/'))
                     lexer->end++;
-                    lexer->token_buf[1] = TOK_NEW(lexer, TOK_MINUS_MINUS);
-                } else {
-                    lexer->token_buf[1] = TOK_NEW(lexer, TOK_MINUS);
-                }
-            } break;
-            case '+':  {
+
                 lexer->end++;
-                if (lexer->end < lexer->string.length && LEXER_GET(lexer) == '+') {
-                    lexer->end++;
-                    lexer->token_buf[1] = TOK_NEW(lexer, TOK_PLUS_PLUS);
-                } else {
-                    lexer->token_buf[1] = TOK_NEW(lexer, TOK_PLUS);
-                }
-            } break;
-            case '=':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_EQUALS);         break;
-            case '*':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_STAR);           break;
-            case '/':  lexer->end++; lexer->token_buf[1] = TOK_NEW(lexer, TOK_SLASH);          break;
-            case '_': {
+                lexer->end++;
+                lexer->start = lexer->end;
+                // TODO: remove recursive lexing, can overflow if too many comments follow each other
+                if (!next_token_impl(lexer, tok)) return false;
+            } else {
+                lexer->token_buf[1] = TOK_NEW(lexer, TOK_SLASH);
+            }
+        } break;
+        case '=': lexer->token_buf[1] = TOK_NEW(lexer, TOK_EQUALS); break;
+        case '_': {
+            if (!tokenize_identifier(lexer)) return false;
+        } break;
+        case '"': {
+            lexer->start = lexer->end; // resetting lexer to not include quote in string
+            if (!tokenize_string(lexer)) return false;
+            assertf(lexer->string.data[lexer->end] == '\"', "string literal is terminated");
+            lexer->end++;
+        } break;
+        default: {
+            if (between(ch, '0', '9')) {
+                if (!tokenize_number(lexer)) return false;
+            } else if (isalpha(ch)) {
                 if (!tokenize_identifier(lexer)) return false;
-            } break;
-            case '"': {
-                lexer->end++;
-                if (!tokenize_string(lexer)) return false;
-                assertf(lexer->string.data[lexer->end] == '\"', "string literal is terminated");
-                lexer->end++;
-            } break;
-            default: {
-                if (between(ch, '0', '9')) {
-                    if (!tokenize_number(lexer)) return false;
-                } else if (isalpha(ch)) {
-                    if (!tokenize_identifier(lexer)) return false;
-                } else if (!isspace(ch)) {
-                    fprintf(stderr, "error: unexpected token, `%c` at: %zu\n", ch, lexer->end);
-                    return false;
-                }
-            } break;
-        }
+            } else if (!isspace(ch)) {
+                fprintf(stderr, "error: unexpected token, `%c` at: %zu\n", ch, lexer->end);
+                return false;
+            }
+        } break;
     }
 
     *tok = lexer->token_buf[0];
