@@ -1,7 +1,6 @@
 #ifndef MIGI_LEXER_H
 #define MIGI_LEXER_H
 
-#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -50,6 +49,36 @@ typedef enum {
     TOK_COUNT
 } TokenType;
 
+static String TOKEN_STRINGS[] = {
+    [TOK_NONE]          = SV("none"),
+    [TOK_EOF]           = SV("end of file"),
+    [TOK_OPEN_PAREN]    = SV("("),
+    [TOK_CLOSE_PAREN]   = SV(")"),
+    [TOK_OPEN_BRACE]    = SV("{"),
+    [TOK_CLOSE_BRACE]   = SV("}"),
+    [TOK_OPEN_BRACKET]  = SV("["),
+    [TOK_CLOSE_BRACKET] = SV("]"),
+    [TOK_PLUS]          = SV("+"),
+    [TOK_MINUS]         = SV("-"),
+    [TOK_STAR]          = SV("*"),
+    [TOK_SLASH]         = SV("/"),
+    [TOK_EQUALS]        = SV("="),
+    [TOK_MINUS_MINUS]   = SV("--"),
+    [TOK_PLUS_PLUS]     = SV("++"),
+    [TOK_COLON]         = SV(":"),
+    [TOK_SEMICOLON]     = SV(";"),
+    [TOK_COMMA]         = SV("),"),
+    [TOK_DOUBLEQUOTE]   = SV("\""),
+    [TOK_SINGLEQUOTE]   = SV("\'"),
+    [TOK_BACKSLASH]     = SV("\\"),
+    [TOK_DOT]           = SV("."),
+    [TOK_STRING]        = SV("string literal"),
+    [TOK_FLOATING]      = SV("floating point literal"),
+    [TOK_INTEGER]       = SV("integer literal"),
+    [TOK_IDENTIFIER]    = SV("identifier"),
+};
+
+static_assert(array_len(TOKEN_STRINGS) == TOK_COUNT, "Token Strings is not the same size as the number of tokens");
 
 typedef struct {
     TokenType type;
@@ -131,7 +160,7 @@ typedef enum {
     KEYWORD_COUNT,
 } KeywordType;
 
-static String keywords[KEYWORD_COUNT] = {
+static String KEYWORD_STRINGS[KEYWORD_COUNT] = {
     [KEYWORD_ALIGNAS]        = SV("alignas"),
     [KEYWORD_ALIGNOF]        = SV("alignof"),
     [KEYWORD_AUTO]           = SV("auto"),
@@ -193,7 +222,7 @@ static String keywords[KEYWORD_COUNT] = {
     [KEYWORD__THREAD_LOCAL]  = SV("_Thread_local"),
 };
 
-static_assert(array_len(keywords) == KEYWORD_COUNT, "Keyword count has changed");
+static_assert(array_len(KEYWORD_STRINGS) == KEYWORD_COUNT, "Keyword count has changed");
 
 typedef struct {
     KeywordType type;
@@ -201,18 +230,34 @@ typedef struct {
 } Keyword;
 
 
+// Consume the next token
 static inline bool next_token(Lexer *lexer, Token *tok);
+
+// Advance lexer to next token, asserting that it is valid
+static inline void advance_token(Lexer *lexer);
+
+// Get the next token without consuming it
 static inline bool peek_token(Lexer *lexer, Token *tok);
+
+// Check if the next token is the same as expected and consume it
+// Doesn't consume the token if its different
+static inline bool expect_token(Lexer *lexer, TokenType expected);
+static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str);
+
+// Check if the next token is the same as expected
 static inline bool match_token(Lexer *lexer, TokenType expected);
+static inline bool match_token_str(Lexer *lexer, TokenType expected, String token_str);
+
+// Try to convert an indentifier to a keyword
 static bool identifier_to_keyword(Token identifier, Keyword *keyword);
 
 
 static bool identifier_to_keyword(Token identifier, Keyword *keyword) {
     for (size_t i = 0; i < KEYWORD_COUNT; i++) {
-        if (string_eq(identifier.string, keywords[i])) {
+        if (string_eq(identifier.string, KEYWORD_STRINGS[i])) {
             *keyword = (Keyword){
                 .type = i,
-                .string = keywords[i],
+                .string = KEYWORD_STRINGS[i],
             };
             return true;
         }
@@ -312,7 +357,7 @@ static bool tokenize_number(Lexer *lexer) {
 
             if (end_ptr != number_str.data + number_str.length) {
                 fprintf(stderr, "error: invalid floating point constant, `%.*s`, at: %zu\n",
-                        SV_FMT(number_str), lexer->end);
+                        SV_FMT(number_str), number_start);
                 return false;
             }
 
@@ -322,7 +367,7 @@ static bool tokenize_number(Lexer *lexer) {
                 .floating = number
             };
             return true;
-        } 
+        }
     }
 
     // parsing as integer
@@ -442,7 +487,7 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
             } else if (isalpha(ch)) {
                 if (!tokenize_identifier(lexer)) return false;
             } else if (!isspace(ch)) {
-                fprintf(stderr, "error: unexpected token, `%c` at: %zu\n", ch, lexer->end);
+                fprintf(stderr, "error: unexpected character, `%c` at: %zu\n", ch, lexer->end);
                 return false;
             }
         } break;
@@ -461,16 +506,63 @@ static inline bool next_token(Lexer *lexer, Token *tok)  {
     return next_token_impl(lexer, tok);
 }
 
+static inline void advance_token(Lexer *lexer) {
+    Token _tok = {0};
+    bool valid = next_token(lexer, &_tok);
+    assertf(valid, "%s: next_token() failed", __func__);
+}
 
 static inline bool peek_token(Lexer *lexer, Token *tok) {
+    if (lexer->token_buf[1].type == TOK_NONE) {
+        if (!next_token_impl(lexer, tok)) return false;
+    }
     *tok = lexer->token_buf[1];
     return lexer->token_buf[1].type != TOK_EOF;
 }
 
 static inline bool match_token(Lexer *lexer, TokenType expected) {
     Token tok = {0};
-    return peek_token(lexer, &tok) && tok.type == expected;
+    if (!peek_token(lexer, &tok)) return false;
+    if (tok.type != expected) {
+        // TODO: add location info to the token, the byte offset here can never be 0
+        fprintf(stderr, "error: expected `%.*s`, but got `%.*s` at: %zu\n",
+                SV_FMT(TOKEN_STRINGS[expected]), SV_FMT(TOKEN_STRINGS[tok.type]),
+                lexer->end - tok.string.length + 1);
+        return false;
+    }
+    return true;
 }
 
+static inline bool match_token_str(Lexer *lexer, TokenType expected, String token_str) {
+    Token tok = {0};
+    if (!peek_token(lexer, &tok)) return false;
+    if (tok.type != expected) {
+        // TODO: add location info to the token, the byte offset here can never be 0
+        fprintf(stderr, "error: expected `%.*s`, but got `%.*s` at: %zu\n",
+                SV_FMT(TOKEN_STRINGS[expected]), SV_FMT(TOKEN_STRINGS[tok.type]),
+                lexer->end - tok.string.length + 1);
+        return false;
+    }
+    if (!string_eq(tok.string, token_str)) {
+        // TODO: add location info to the token, the byte offset here can never be 0
+        fprintf(stderr, "error: expected `%.*s`, `%.*s` but got `%.*s` at: %zu\n",
+                SV_FMT(TOKEN_STRINGS[expected]), SV_FMT(token_str),
+                SV_FMT(tok.string), lexer->end - tok.string.length + 1);
+        return false;
+    }
+    return true;
+}
+
+static inline bool expect_token(Lexer *lexer, TokenType expected) {
+    if (!match_token(lexer, expected)) return false;
+    Token tok = {0};
+    return next_token(lexer, &tok);
+}
+
+static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str) {
+    if (!match_token_str(lexer, expected, str)) return false;
+    Token tok = {0};
+    return next_token(lexer, &tok);
+}
 
 #endif // !MIGI_LEXER_H

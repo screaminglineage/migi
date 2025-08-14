@@ -94,29 +94,26 @@ static String strlist_to_string(Arena *a, StringList *list) {
 
 #define SPLIT_SKIP_EMPTY 0x1
 
+// TODO: the string_split functions below dont move the actual string data onto the arena
+// However the caller may expect that to be the case since an arena parameter is passed in
+// More experimentation is needed before it can be said for sure though
 static StringList string_split_ex(Arena *a, String str, String delimiter, int flags) {
     StringList strings = {0};
     if (delimiter.length == 0) return strings;
 
-    int64_t substr_start = string_find(str, delimiter);
-    while (substr_start != -1 && str.length > 0) {
-        String substr = (String){
-            .data = str.data,
-            .length = substr_start
-        };
-
+    int64_t index = string_find(str, delimiter);
+    while (index != -1 && str.length > 0) {
+        String substr = string_slice(str, 0, index);
         if (!(flags & SPLIT_SKIP_EMPTY) || substr.length != 0) {
             strlist_push_string(a, &strings, substr);
         }
-        str = string_skip(str, substr_start + delimiter.length);
-        substr_start = string_find(str, delimiter);
+        str = string_skip(str, index + delimiter.length);
+        index = string_find(str, delimiter);
     }
-    String remaining_part = (String){
-        .data = str.data,
-        .length = str.length
-    };
-    if (!(flags & SPLIT_SKIP_EMPTY) || remaining_part.length != 0) {
-        strlist_push_string(a, &strings, remaining_part);
+
+    // Only include empty strings if the flag is set
+    if (str.length != 0 || (str.length == 0 && !(flags & SPLIT_SKIP_EMPTY))) {
+        strlist_push_string(a, &strings, str);
     }
     return strings;
 }
