@@ -20,7 +20,6 @@
 #include "profiler.h"
 
 #include "arena.h"
-#include "hashmap.h"
 #include "linear_arena.h"
 #include "migi.h"
 #include "migi_lists.h"
@@ -433,6 +432,7 @@ void test_swap() {
             && f2.a == 1 && f2.b == 2 && f2.c == 'a',
             "swapping things work");
 }
+
 
 int main() {
 

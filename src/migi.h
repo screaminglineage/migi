@@ -61,6 +61,10 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
     return value + align_up_padding(value, align_to);
 }
 
+static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
+    return value - align_to + align_up_padding(value, align_to);
+}
+
 
 #ifdef __GNUC__
 #   define migi_crash() __builtin_trap()
