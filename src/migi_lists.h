@@ -12,7 +12,7 @@
 
 typedef struct StringNode StringNode;
 struct StringNode {
-    String str;
+    String string;
     StringNode *next;
 };
 
@@ -24,7 +24,7 @@ typedef struct {
 
 static void strlist_push_string(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
-    node->str = str;
+    node->string = str;
     node->next = NULL;
     if (!list->tail) {
         list->head = node;
@@ -85,8 +85,8 @@ static String strlist_to_string(Arena *a, StringList *list) {
     char *mem = arena_push(a, char, list->size);
     char *mem_start = mem;
     for (StringNode *node = list->head; node != NULL; node = node->next) {
-        memcpy(mem, node->str.data, node->str.length);
-        mem += node->str.length;
+        memcpy(mem, node->string.data, node->string.length);
+        mem += node->string.length;
     }
     return (String){mem_start, list->size};
 }

@@ -67,22 +67,22 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 
 
 #ifdef __GNUC__
-#   define migi_crash() __builtin_trap()
+    #define migi_crash() __builtin_trap()
 #elif _MSC_VER
-#   define migi_crash() __debugbreak()
+    #define migi_crash() __debugbreak()
 #else
-#   define migi_crash() (*(volatile int *)0 = 0)
+    #define migi_crash() (*(volatile int *)0 = 0)
 #endif
 
 #ifndef MIGI_DISABLE_ASSERTS
-#   define assert(expr)                                                           \
+    #define assert(expr)                                                          \
         (!(expr))?                                                                \
             (printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
             fflush(NULL),                                                         \
             migi_crash())                                                         \
         : (void)0
 
-#   define assertf(expr, ...)                                                       \
+    #define assertf(expr, ...)                                                      \
         (!(expr))?                                                                  \
             (printf("%s:%d: assertion `%s` failed: \"", __FILE__, __LINE__, #expr), \
             printf(__VA_ARGS__),                                                    \
@@ -94,17 +94,17 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 
 // NOTE: Use avow when the application should fail even if asserts are disabled
 // For example, if the memory allocator fails for some reason.
-#   define avow assertf
+    #define avow assertf
 
 #else
 // assert is implemented as an expression and so it must be
 // replaced by the expression passed in
 // this also keeps the expression even if asserts are disabled
-#   define assert(expr) ((void)(expr))
-#   define assertf(expr, ...) ((void)(expr))
+   #define assert(expr) ((void)(expr))
+   #define assertf(expr, ...) ((void)(expr))
 
 // fallback to slightly simpler implementation when asserts are disabled
-#   define avow(expr, ...)                                                      \
+   #define avow(expr, ...)                                                      \
         (!(expr)                                                                \
          ? printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
            migi_crash()                                                         \
@@ -147,7 +147,19 @@ do {                        \
 
 #define array_shift(array) (*(array)++)
 
-#define array_len(array) (sizeof(array) / sizeof(*array))
+#define array_len(array) (sizeof(array) / sizeof(*(array)))
+
+// Creates a Slice (any struct with a data and length) from an array designated initializer
+#define migi_slice(slice_type, ...) (slice_type){__VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))}
+
+// Creates a Slice (any struct with a data and length) from an 
+// array designated initializer and allocate the data on an arena
+#define migi_slice_dup(arena, slice_type, ...)                                \
+    (slice_type){                                                             \
+        .data = arena_memdup(arena, __typeof__((__VA_ARGS__)[0]),             \
+                (__VA_ARGS__), sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))), \
+        .length = sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))                \
+    }
 
 // Print an array with a pointer and a length. The printf
 // format string for the type needs to be passed in as well
@@ -166,35 +178,6 @@ do {                        \
     node = node->next;                                         \
     printf(fmt"]\n", (list)->(item));
 
-
-
-#define ARRAY_INIT_CAPACITY 4
-
-#define array_reserve(arr, len)                                                    \
-    (((arr)->length + (len) > (arr)->capacity)                                     \
-    ? ((arr)->capacity =                                                           \
-            (((arr)->capacity == 0 && (arr)->length + (len) < ARRAY_INIT_CAPACITY) \
-            ? ARRAY_INIT_CAPACITY                                                  \
-            : next_power_of_two((arr)->length + (len))),                           \
-       (arr)->data = realloc((arr)->data, sizeof(*(arr)) * (arr)->capacity),       \
-       assertf(((arr))->data, "array_reserve: allocation failed!"),                \
-       (arr)->data + (arr)->length)                                                \
-    : (arr)->data + (arr)->length)
-
-
-#define array_add(array, item) \
-    (*array_reserve((array), 1) = item, (array)->length += 1)
-
-#define array_extend(array, items)                          \
-    (memcpy(array_reserve((array), (items)->length),        \
-        (items)->data, sizeof(*(items)) * (items)->length), \
-    (array)->length += (items)->length)
-
-#define array_swap_remove(array, index)                                           \
-    (assertf((array)->length > 0, "array_swap_remove: remove from empty array"),  \
-    assertf((index) < (array)->length, "array_swap_remove: index out of bounds"), \
-    (array)->data[(index)] = (array)->data[(array)->length - 1],                  \
-    (array)->length -= 1)                                                         \
 
 #define migi_mem_eq(a, b, length) \
     (memcmp((a), (b), sizeof(*(a))*(length)) == 0)

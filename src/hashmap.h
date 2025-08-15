@@ -25,11 +25,11 @@ static inline uint64_t hash_fnv(byte *data, size_t length) {
 }
 
 #ifndef HASHMAP_INIT_CAP
-#   define HASHMAP_INIT_CAP 256
+   #define HASHMAP_INIT_CAP 256
 #endif
 
 #ifndef HASHMAP_LOAD_FACTOR
-#   define HASHMAP_LOAD_FACTOR 0.75
+   #define HASHMAP_LOAD_FACTOR 0.75
 #endif
 
 // index of default key value pair in the table

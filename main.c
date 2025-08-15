@@ -22,6 +22,10 @@
 #include "arena.h"
 #include "linear_arena.h"
 #include "migi.h"
+
+// #define DYNAMIC_ARRAY_USE_ARENA
+// #define DYNAMIC_ARRAY_USE_LINEAR_ARENA
+#include "dynamic_array.h"
 #include "migi_lists.h"
 #include "migi_random.h"
 #include "migi_string.h"
@@ -99,14 +103,17 @@ void test_linear_arena_regular(LinearArena *arena) {
     assertf(migi_mem_eq(a, c, count), "a and c are equal upto count");
     assertf(a != c, "a and c are separate allocations!");
 
-    assertf(arena->length == (size_t)(4 * getpagesize()), "4 allocations are left");
+    assertf(arena->length == (size_t)(4 * getpagesize()),
+            "4 allocations are left");
     int *b = lnr_arena_pop(arena, int, count);
     unused(b);
     // b[0] = 100; // This will segfault since the memory has been decommitted
 
-    assertf(arena->length == (size_t)(3 * getpagesize()), "3 allocations are left");
+    assertf(arena->length == (size_t)(3 * getpagesize()),
+            "3 allocations are left");
     lnr_arena_free(arena);
-    assertf(arena->length == arena->capacity && arena->capacity == 0, "0 allocations are left");
+    assertf(arena->length == arena->capacity && arena->capacity == 0,
+            "0 allocations are left");
 }
 
 void test_linear_arena_rewind() {
@@ -267,22 +274,42 @@ void test_random() {
 
 void test_dynamic_array() {
     Ints ints = {0};
+    Ints ints_new = {0};
+
+#if defined(DYNAMIC_ARRAY_USE_LINEAR_ARENA)
+    LinearArena a = {0};
+#elif defined(DYNAMIC_ARRAY_USE_ARENA)
+    Arena a = {0};
+#endif
+
+#if defined(DYNAMIC_ARRAY_USE_ARENA) || defined(DYNAMIC_ARRAY_USE_LINEAR_ARENA)
+    for (size_t i = 0; i < 100; i++) {
+        array_add(&a, &ints, i);
+    }
+
+    array_reserve(&a, &ints_new, 100);
+    for (size_t i = 0; i < 100; i++) {
+        array_add(&a, &ints_new, 2 * i);
+    }
+    array_extend(&a, &ints_new, &ints);
+#else
     for (size_t i = 0; i < 100; i++) {
         array_add(&ints, i);
     }
 
-    Ints ints_new = {0};
     array_reserve(&ints_new, 100);
     for (size_t i = 0; i < 100; i++) {
-        array_add(&ints, 2 * i);
+        array_add(&ints_new, 2 * i);
     }
-
     array_extend(&ints_new, &ints);
+#endif
+
     array_swap_remove(&ints_new, 50);
     printf("ints = %zu, new_ints = %zu\n", ints.length, ints_new.length);
 
-    for (size_t i = 0; i < ints_new.length; i++) {
-        printf("%d ", ints_new.data[i]);
+
+    array_foreach(&ints_new, int, i) {
+        printf("%d ", *i);
     }
 }
 
@@ -308,36 +335,77 @@ void profile_linear_arena() {
     end_profiling_and_print_stats();
 }
 
-void test_string_split_print(StringList s) {
-    list_foreach(s.head, StringNode, node) {
-        printf("`%.*s` ", SV_FMT(node->str));
+
+typedef struct {
+    StringSlice expected;
+    StringList actual;
+} StringSplitTest;
+
+static void assert_string_split(StringSplitTest t) {
+    size_t count = 0;
+    size_t char_count = 0;
+    if (t.actual.size != 0) {
+        list_foreach(t.actual.head, StringNode, node) {
+            assertf(string_eq(node->string, t.expected.data[count]),
+                    "expected: `%.*s,` got: `%.*s`",
+                    SV_FMT(t.expected.data[count]), SV_FMT(node->string));
+            count++;
+            char_count += node->string.length;
+        }
     }
-    printf("\n");
+    assert(count == t.expected.length);
+    assert(char_count == t.actual.size);
 }
+
 
 void test_string_split() {
     Arena a = {0};
-    StringList s1[] = {
-        string_split(&a, SV("Mary had a little lamb"), SV(" ")),
-        string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY),
-        string_split(&a, SV(" Mary    had   a   little   lamb"), SV(" ")),
-        string_split(&a, SV("Mary--had--a--little--lamb--"), SV("--")),
-        string_split(&a, SV("Mary had a little lamb"), SV("")),
-        string_split(&a, SV(" Mary had a little lamb"), SV(" ")),
-        string_split(&a, SV("010"), SV("0")),
+    StringSplitTest tests[] = {
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
+            .actual = string_split(&a, SV("Mary had a little lamb"), SV(" "))
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
+            .actual =  string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY)
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV(""), SV("Mary"), SV(""), SV(""), SV(""), SV("had"), SV(""), SV(""), 
+                    SV("a"), SV(""), SV(""), SV("little"), SV(""), SV(""), SV("lamb") }),
+            .actual =  string_split(&a, SV(" Mary    had   a   little   lamb"), SV(" "))
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb"), SV("") }),
+            .actual = string_split(&a, SV("Mary--had--a--little--lamb--"), SV("--"))
+        },
+        {
+            .expected = (StringSlice){0},
+            .actual = string_split(&a, SV("Mary had a little lamb"), SV(""))
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV(""), SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
+            .actual = string_split(&a, SV(" Mary had a little lamb"), SV(" ")),
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV(""), SV("1"), SV("") }),
+            .actual = string_split(&a, SV("010"), SV("0"))
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV("03"), SV("23"), SV("59"), SV("") }),
+            .actual = string_split_chars(&a, SV("2020-11-03 23:59@"), SV("- :@"))
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV("03"), SV("23"), SV("59") }),
+            .actual = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), SV("- :@"), SPLIT_SKIP_EMPTY)
+        },
     };
 
-    for (size_t i = 0; i < array_len(s1); i++) {
-        test_string_split_print(s1[i]);
+    for (size_t i = 0; i < array_len(tests); i++) {
+        assert_string_split(tests[i]);
     }
-
-    String delims = SV("- :@");
-    StringList s2 = string_split_chars(&a, SV("2020-11-03 23:59@"), delims);
-
-    test_string_split_print(s2);
-    s2 = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), delims, SPLIT_SKIP_EMPTY);
-    test_string_split_print(s2);
 }
+
+
 
 void linear_arena_stress_test() {
     LinearArena arenas[100] = {0};
@@ -385,31 +453,61 @@ void profile_arenas() {
         }
         end_profiling_and_print_stats();
     }
-
 }
 
 void test_string() {
     Arena a = {0};
     {
-        assert(string_eq(
-                    string_to_lower(&a, SV("HELLO world!!!")),
-                    SV("hello world!!!")));
-        assert(string_eq(
-                    string_to_upper(&a, SV("FOO bar baz!")),
-                    SV("FOO BAR BAZ!")));
+        assert(string_eq(string_to_lower(&a, SV("HELLO world!!!")),
+                         SV("hello world!!!")));
+        assert(string_eq(string_to_upper(&a, SV("FOO bar baz!")),
+                         SV("FOO BAR BAZ!")));
     }
-
 
     {
         String str = SV("\n    hello       \n");
-        assert(string_eq(string_trim_right(str), SV("\n    hello")));
-        assert(string_eq(string_trim_left(str), SV("hello       \n")));
-        assert(string_eq(string_trim(str), SV("hello")));
-        assert(string_eq(string_trim(SV("foo")), SV("foo")));
+        assert(string_eq(string_trim_right(str),       SV("\n    hello")));
+        assert(string_eq(string_trim_left(str),        SV("hello       \n")));
+        assert(string_eq(string_trim(str),             SV("hello")));
+        assert(string_eq(string_trim(SV("foo")),       SV("foo")));
         assert(string_eq(string_trim(SV("\t\r\nfoo")), SV("foo")));
         assert(string_eq(string_trim(SV("foo\r\n\t")), SV("foo")));
-        assert(string_eq(string_trim(SV(" \r\n\t")), SV("")));
-        assert(string_eq(string_trim(SV("")), SV("")));
+        assert(string_eq(string_trim(SV(" \r\n\t")),   SV("")));
+        assert(string_eq(string_trim(SV("")),          SV("")));
+    }
+
+    // string_find
+    {
+        assert(string_find(SV("hello"),  SV("he"))     == 0);
+        assert(string_find(SV("hello"),  SV("llo"))    == 2);
+        assert(string_find(SV("hello"),  SV("o"))      == 4);
+        assert(string_find(SV("banana"), SV("ana"))    == 1);
+        assert(string_find(SV("abcabc"), SV("cab"))    == 2);
+        assert(string_find(SV("hello"),  SV("world"))  == -1);
+        assert(string_find(SV("short"),  SV("longer")) == -1);
+        assert(string_find(SV("abc"),    SV("abcd"))   == -1);
+        assert(string_find(SV("abc"),    SV("z"))      == -1);
+        assert(string_find(SV(""),       SV(""))       == 0);
+        assert(string_find(SV("abc"),    SV(""))       == 0);
+        assert(string_find(SV(""),       SV("a"))      == -1);
+        assert(string_find(SV("aaaaa"),  SV("aa"))     == 0);
+    }
+
+    // string_find_rev
+    {
+        assert(string_find_rev(SV("hello"),  SV("he"))     == 0);
+        assert(string_find_rev(SV("hello"),  SV("llo"))    == 2);
+        assert(string_find_rev(SV("hello"),  SV("o"))      == 4);
+        assert(string_find_rev(SV("banana"), SV("ana"))    == 3);
+        assert(string_find_rev(SV("abcabc"), SV("cab"))    == 2);
+        assert(string_find_rev(SV("hello"),  SV("world"))  == -1);
+        assert(string_find_rev(SV("short"),  SV("longer")) == -1);
+        assert(string_find_rev(SV("abc"),    SV("abcd"))   == -1);
+        assert(string_find_rev(SV("abc"),    SV("z"))      == -1);
+        assert(string_find_rev(SV(""),       SV(""))       == 0);
+        assert(string_find_rev(SV("abc"),    SV(""))       == 3);
+        assert(string_find_rev(SV(""),       SV("a"))      == -1);
+        assert(string_find_rev(SV("aaaaa"),  SV("aa"))     == 3);
     }
 
     todof("Add tests for other string functions");
@@ -427,17 +525,31 @@ void test_swap() {
 
     Foo f1 = {1, 2, 'a'}, f2 = {3, 4, 'b'};
     migi_swap(f1, f2);
-    assertf(f1.a == 3 && f1.b == 4 && f1.c == 'b'
-            && f2.a == 1 && f2.b == 2 && f2.c == 'a',
+    assertf(f1.a == 3 && f1.b == 4 && f1.c == 'b' && f2.a == 1 && f2.b == 2 &&
+                f2.c == 'a',
             "swapping things work");
+}
+
+typedef struct {
+    int *data;
+    size_t length;
+} IntSlice;
+
+
+IntSlice return_slice(Arena *a) {
+    return migi_slice_dup(a, IntSlice, (int[]){1,2,3,4,5});
+}
+
+void test_return_slice() {
+    Arena a = {0};
+    IntSlice slice = return_slice(&a);
+    int arr[] = {1,2,3,4,5};
+    assert(slice.length == array_len(arr) && migi_mem_eq(slice.data, arr, slice.length));
 }
 
 
 int main() {
-
-
-
-
+    test_return_slice();
     printf("\nExiting successfully\n");
     return 0;
 }

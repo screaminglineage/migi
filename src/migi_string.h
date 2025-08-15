@@ -20,15 +20,17 @@ typedef struct {
     size_t length;
 } String;
 
+typedef struct {
+    String *data;
+    size_t length;
+} StringSlice;
+
 #define SV_FMT(sv) (int)(sv).length, (sv).data
-#define SVP_FMT(sv) (int)(sv)->length, (sv)->data
 #define SV(cstr) (String){(cstr), (sizeof(cstr) - 1)}
 
 typedef struct {
     LinearArena arena;
 } StringBuilder;
-
-#define STRING_BUILDER_INIT_CAPACITY 4
 
 static void sb_push(StringBuilder *sb, char to_push) {
     *lnr_arena_push(&sb->arena, char, 1) = to_push;
@@ -118,30 +120,28 @@ static int64_t string_find_char_rev(String haystack, char needle) {
     return -1;
 }
 
+// Find `needle` within `haystack`
 static int64_t string_find(String haystack, String needle) {
     if (needle.length > haystack.length) return -1;
     if (needle.length == 0 && haystack.length == 0) return 0;
 
     for (size_t i = 0; i <= haystack.length - needle.length; i++) {
-        size_t j = 0;
-        for (; j < needle.length; j++) {
-            if (haystack.data[i + j] != needle.data[j]) break;
+        if (migi_mem_eq(haystack.data + i, needle.data, needle.length)) {
+            return i;
         }
-        if (j == needle.length) return i;
     }
     return -1;
 }
 
+// Find `needle` within `haystack`, starting from the end of `haystack`
 static int64_t string_find_rev(String haystack, String needle) {
     if (needle.length > haystack.length) return -1;
     if (needle.length == 0 && haystack.length == 0) return 0;
 
     for (int i = haystack.length - needle.length; i >= 0; i--) {
-        size_t j = 0;
-        for (; j < needle.length; j++) {
-            if (haystack.data[i + j] != needle.data[j]) break;
+        if (migi_mem_eq(haystack.data + i, needle.data, needle.length)) {
+            return i;
         }
-        if (j == needle.length) return i;
     }
     return -1;
 }

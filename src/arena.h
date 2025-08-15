@@ -10,7 +10,7 @@
 #include "migi_memory.h"
 
 #ifndef ARENA_DEFAULT_CAP
-#   define ARENA_DEFAULT_CAP 16*KB
+   #define ARENA_DEFAULT_CAP 16*KB
 #endif
 
 // TODO: define functions as static
