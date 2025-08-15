@@ -53,7 +53,7 @@ typedef HASHMAP_HEADER HashmapHeader_;
 
 
 // Uses robin hood linear probing to insert an entry
-static void hms_internal_insert_entry(HashmapHeader_ *header, HashEntry_ entry) {
+static void hm_internal_insert_entry(HashmapHeader_ *header, HashEntry_ entry) {
     size_t i = entry.hash & (header->capacity - 1);
     size_t dist = 0;
     while (header->entries[i].index != 0) {
@@ -93,14 +93,14 @@ static void *hms_grow(Arena *a, HashmapHeader_ *header, void *data, size_t entry
     header->entries = new_entries;
     for (size_t j = 0; j < old_capacity; j++) {
         if (old_entries[j].index != 0) {
-            hms_internal_insert_entry(header, old_entries[j]);
+            hm_internal_insert_entry(header, old_entries[j]);
         }
     }
     return new_data;
 }
 
 // Indexes into the data array of the hashmap
-static inline byte *hms_internal_data_index(byte *table_data, size_t entry_size, size_t index) {
+static inline byte *hm_internal_data_index(byte *table_data, size_t entry_size, size_t index) {
     return table_data + (index * entry_size);
 }
 
@@ -116,7 +116,7 @@ static bool hms_internal_index(HashmapHeader_ *header, void *data, size_t entry_
     while (true) {
         if (header->entries[i].index == 0) return false;
 
-        String map_key = *(String *)hms_internal_data_index(data, entry_size, header->entries[i].index);
+        String map_key = *(String *)hm_internal_data_index(data, entry_size, header->entries[i].index);
 
         // return if key was found
         if (string_eq(key, map_key)) {
@@ -147,7 +147,7 @@ static void *hms_put_impl(Arena *a, HashmapHeader_ *header, void *data, size_t e
         uint64_t hash = hash_fnv((byte *)key.data, key.length);
         // new items are always inserted at the end of the table
         header->size++;
-        hms_internal_insert_entry(header, (HashEntry_){ .hash = hash, .index = header->size });
+        hm_internal_insert_entry(header, (HashEntry_){ .hash = hash, .index = header->size });
         header->temp_index = header->size;
     } else {
         header->temp_index = header->entries[index].index;
@@ -190,7 +190,7 @@ static void hms_delete_impl(HashmapHeader_ *header, void *data, size_t entry_siz
     }
 
     // Update the entry of the last key in the hashmap data array to its new index
-    String last_key = *((String*)hms_internal_data_index(data, entry_size, header->size));
+    String last_key = *((String*)hm_internal_data_index(data, entry_size, header->size));
     size_t last_entry = 0;
     bool exists = hms_internal_index(header, data, entry_size, last_key, &last_entry);
     assertf(exists, "hashmap should always have a last entry");
@@ -214,11 +214,106 @@ static void hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_s
 }
 
 
+static bool hm_internal_index(HashmapHeader_ *header, void *data, size_t entry_size, void *key, size_t key_size, size_t *entry_index) {
+    TIME_FUNCTION;
+    uint64_t hash = hash_fnv((byte *)key, key_size);
+    size_t i = hash & (header->capacity - 1);
+    size_t dist = 0;
+
+    while (true) {
+        if (header->entries[i].index == 0) return false;
+
+        void *map_key = hm_internal_data_index(data, entry_size, header->entries[i].index);
+
+        // return if key was found
+        if (migi_mem_eq(key, map_key, key_size)) {
+            // TODO: maybe return header->entries[i].index instead?
+            // most functions only need that except for possibly hms_del_impl
+            *entry_index = i;
+            return true;
+        };
+
+        size_t cur_desired = header->entries[i].hash & (header->capacity - 1);
+        size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
+        if (cur_dist < dist) return false;
+
+        dist++;
+        i = (i + 1) & (header->capacity - 1);
+    }
+}
+
+static void *hm_put_impl(Arena *a, HashmapHeader_ *header, void *data, size_t entry_size, void *key, size_t key_size) {
+    TIME_FUNCTION;
+    void *new_data = data;
+    if (header->size >= (size_t)(header->capacity * HASHMAP_LOAD_FACTOR)) {
+        new_data = hms_grow(a, header, data, entry_size);
+    }
+
+    size_t index = 0;
+    if (!hm_internal_index(header, data, entry_size, key, key_size, &index)) {
+        uint64_t hash = hash_fnv((byte *)key, key_size);
+        // new items are always inserted at the end of the table
+        header->size++;
+        hm_internal_insert_entry(header, (HashEntry_){ .hash = hash, .index = header->size });
+        header->temp_index = header->size;
+    } else {
+        header->temp_index = header->entries[index].index;
+    }
+    return new_data;
+}
+
+static void hm_delete_impl(HashmapHeader_ *header, void *data, size_t entry_size, void *key, size_t key_size) {
+    TIME_FUNCTION;
+    if (header->capacity == 0) {
+        header->temp_index = 0;
+        return;
+    };
+    size_t entry = 0;
+    if (!hm_internal_index(header, data, entry_size, key, key_size, &entry)) {
+        header->temp_index = 0;
+        return;
+    }
+
+    // Update the entry of the last key in the hashmap data array to its new index
+    void *last_key = hm_internal_data_index(data, entry_size, header->size);
+    size_t last_entry = 0;
+    bool exists = hm_internal_index(header, data, entry_size, last_key, key_size, &last_entry);
+    assertf(exists, "hashmap should always have a last entry");
+
+    header->entries[last_entry].index = header->entries[entry].index;
+    header->temp_index = header->entries[entry].index;
+    assertf(header->temp_index != 0, "nothing can map to the 0 value of the data array");
+
+    header->size--;
+    hms_internal_erase(header, entry);
+}
+
+// Returns the default value at index 0 if not found
+static void hm_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_size, void *key, size_t key_size) {
+    size_t entry;
+    if (hm_internal_index(header, data, entry_size, key, key_size, &entry)) {
+        header->temp_index = header->entries[entry].index;
+    } else {
+        header->temp_index = 0;
+    }
+}
+
+// array with a single element that decays to a pointer
+#define addr_of(x) ((__typeof__(x)[1]){x})
+
+
 // Insert a new key-value pair or update the value if it already exists
 #define hms_put(arena, hashmap, k, v)                                    \
     ((hashmap)->data = hms_put_impl((arena), (HashmapHeader_*)(hashmap), \
         (void *)(hashmap)->data, sizeof((hashmap)->data[0]), (k)),       \
         (hashmap)->data[(hashmap)->temp_index].key = (k),                \
+        (hashmap)->data[(hashmap)->temp_index].value = (v))
+
+// Insert a new key-value pair or update the value if it already exists
+#define hm_put(arena, hashmap, k, v)                                                   \
+    ((hashmap)->data = hm_put_impl((arena), (HashmapHeader_*)(hashmap),                \
+        (void *)(hashmap)->data, sizeof((hashmap)->data[0]), addr_of((k)), sizeof(__typeof__(k))), \
+        (hashmap)->data[(hashmap)->temp_index].key = (k),                              \
         (hashmap)->data[(hashmap)->temp_index].value = (v))
 
 
@@ -228,11 +323,25 @@ static void hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_s
         (void *)(hashmap)->data, sizeof((hashmap)->data[0]), (pair).key), \
         (hashmap)->data[(hashmap)->temp_index] = (pair))                  \
 
+// Insert a new key-value pair or update the value if it already exists
+#define hm_put_pair(arena, hashmap, pair)                                                     \
+    ((hashmap)->data = hm_put_impl((arena), (HashmapHeader_*)(hashmap),                       \
+        (void *)(hashmap)->data, sizeof((hashmap)->data[0]), &(pair).key, sizeof((pair).key)), \
+        (hashmap)->data[(hashmap)->temp_index] = (pair))                                      \
+
 // Insert a new key and return a pointer to the value
 #define hms_entry(arena, hashmap, k)                                     \
     ((hashmap)->data = hms_put_impl((arena), (HashmapHeader_*)(hashmap), \
         (void *)(hashmap)->data, sizeof((hashmap)->data[0]), (k)),       \
         (hashmap)->data[(hashmap)->temp_index].key = (k),                \
+        &((hashmap)->data[(hashmap)->temp_index].value))
+
+// Insert a new key and return a pointer to the value
+#define hm_entry(arena, hashmap, k)                                     \
+    ((hashmap)->data = hm_put_impl((arena), (HashmapHeader_*)(hashmap), \
+        (void *)(hashmap)->data, sizeof((hashmap)->data[0]),            \
+        addr_of((k)), sizeof(__typeof__(k))),                                       \
+        (hashmap)->data[(hashmap)->temp_index].key = (k),               \
         &((hashmap)->data[(hashmap)->temp_index].value))
 
 
@@ -244,10 +353,26 @@ static void hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_s
         ? NULL                                              \
         : &((hashmap)->data[(hashmap)->temp_index]).value)
 
+// Return a pointer to value if it exists, otherwise NULL
+#define hm_get_ptr(hashmap, key)                    \
+    (hm_get_pair_impl((HashmapHeader_*)(hashmap),   \
+        (hashmap)->data, sizeof (*(hashmap)->data), \
+        addr_of((key)), sizeof(__typeof__(key))),               \
+    (hashmap)->temp_index == 0                      \
+        ? NULL                                      \
+        : &((hashmap)->data[(hashmap)->temp_index]).value)
+
 // Return the value if it exists, otherwise the default value at index 0
 #define hms_get(hashmap, key)                               \
     (hms_get_pair_impl((HashmapHeader_*)(hashmap),          \
         (hashmap)->data, sizeof (*(hashmap)->data), (key)), \
+    (hashmap)->data[(hashmap)->temp_index].value)
+
+// Return the value if it exists, otherwise the default value at index 0
+#define hm_get(hashmap, key)                        \
+    (hm_get_pair_impl((HashmapHeader_*)(hashmap),   \
+        (hashmap)->data, sizeof (*(hashmap)->data), \
+        addr_of((key)), sizeof(__typeof__(key))),                 \
     (hashmap)->data[(hashmap)->temp_index].value)
 
 
@@ -259,11 +384,28 @@ static void hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_s
         ? NULL                                              \
         : &(hashmap)->data[(hashmap)->temp_index])
 
+// Return a pointer to the key-value pair if it exists, otherwise NULL
+#define hm_get_pair_ptr(hashmap, key)               \
+    (hm_get_pair_impl((HashmapHeader_*)(hashmap),   \
+        (hashmap)->data, sizeof (*(hashmap)->data), \
+        addr_of((key)), sizeof(__typeof__(key))),               \
+    (hashmap)->temp_index == 0                      \
+        ? NULL                                      \
+        : &(hashmap)->data[(hashmap)->temp_index])
+
 // Return a pointer to the key-value pair if it exists, otherwise
 // the default key-value pair at index 0
 #define hms_get_pair(hashmap, key)                          \
     (hms_get_pair_impl((HashmapHeader_*)(hashmap),          \
         (hashmap)->data, sizeof (*(hashmap)->data), (key)), \
+    (hashmap)->data[(hashmap)->temp_index])
+
+// Return a pointer to the key-value pair if it exists, otherwise
+// the default key-value pair at index 0
+#define hm_get_pair(hashmap, key)                   \
+    (hm_get_pair_impl((HashmapHeader_*)(hashmap),   \
+        (hashmap)->data, sizeof (*(hashmap)->data), \
+        addr_of((key)), sizeof(__typeof__(key))),               \
     (hashmap)->data[(hashmap)->temp_index])
 
 // Return the index of the key-value pair in the table if it exists, otherwise -1
@@ -274,10 +416,26 @@ static void hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_s
         ? -1                                                \
         : (hashmap)->temp_index)
 
+// Return the index of the key-value pair in the table if it exists, otherwise -1
+#define hm_get_index(hashmap, key)                  \
+    (hm_get_pair_impl((HashmapHeader_*)(hashmap),   \
+        (hashmap)->data, sizeof (*(hashmap)->data), \
+        addr_of((key)), sizeof(__typeof__(key))),               \
+    (hashmap)->temp_index == 0                      \
+        ? -1                                        \
+        : (hashmap)->temp_index)
+
 // Returns true if key is present, false otherwise
 #define hms_contains(hashmap, key)                               \
     (hms_get_pair_impl((HashmapHeader_*)(hashmap),               \
         (hashmap)->data, sizeof (*(hashmap)->data), (key)),      \
+    (hashmap)->temp_index != 0)
+
+// Returns true if key is present, false otherwise
+#define hm_contains(hashmap, key)                   \
+    (hm_get_pair_impl((HashmapHeader_*)(hashmap),   \
+        (hashmap)->data, sizeof (*(hashmap)->data), \
+        addr_of((key)), sizeof(__typeof__(key))),               \
     (hashmap)->temp_index != 0)
 
 // Remove a key-value pair if it exists, and returns it, otherwise the default pair
@@ -290,12 +448,30 @@ static void hms_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_s
         (hashmap)->data[(hashmap)->temp_index] = (hashmap)->data[(hashmap)->size + 1],  \
         (hashmap)->data[(hashmap)->size + 2]))
 
+// Remove a key-value pair if it exists, and returns it, otherwise the default pair
+#define hm_pop(hashmap, key)                                                                  \
+     (hm_delete_impl((HashmapHeader_ *)(hashmap),                                             \
+        (hashmap)->data, sizeof (*(hashmap)->data), addr_of((key)), sizeof(__typeof__(key))), \
+    (hashmap)->temp_index == 0                                                                \
+      ? (hashmap)->data[0]                                                                    \
+      : ((hashmap)->data[(hashmap)->size + 2] = (hashmap)->data[(hashmap)->temp_index],       \
+        (hashmap)->data[(hashmap)->temp_index] = (hashmap)->data[(hashmap)->size + 1],        \
+        (hashmap)->data[(hashmap)->size + 2]))
+
 // Remove a key-value pair if it exists, and return it
 #define hms_delete(hashmap, key)                                                      \
      ((void)(hms_delete_impl((HashmapHeader_ *)(hashmap),                             \
         (hashmap)->data, sizeof (*(hashmap)->data), (key)),                           \
     (hashmap)->temp_index != 0                                                        \
       ? (hashmap)->data[(hashmap)->temp_index] = (hashmap)->data[(hashmap)->size + 1] \
+      : (void)0))
+
+// Remove a key-value pair if it exists, and return it
+#define hm_delete(hashmap, key)                                                                \
+     ((void)(hm_delete_impl((HashmapHeader_ *)(hashmap),                                       \
+        (hashmap)->data, sizeof (*(hashmap)->data), addr_of((key)), sizeof(__typeof__(key))), \
+    (hashmap)->temp_index != 0                                                                 \
+      ? (hashmap)->data[(hashmap)->temp_index] = (hashmap)->data[(hashmap)->size + 1]          \
       : (void)0))
 
 // Iterate over the hashmap by reference

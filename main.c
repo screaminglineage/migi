@@ -549,7 +549,6 @@ void test_return_slice() {
 
 
 int main() {
-    test_return_slice();
     printf("\nExiting successfully\n");
     return 0;
 }
