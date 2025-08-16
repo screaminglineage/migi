@@ -31,9 +31,12 @@ typedef enum {
     TOK_MINUS,
     TOK_STAR,
     TOK_SLASH,
+    TOK_LESSER,
+    TOK_GREATER,
     TOK_EQUALS,
     TOK_MINUS_MINUS,
     TOK_PLUS_PLUS,
+    TOK_QUESTION,
     TOK_COLON,
     TOK_SEMICOLON,
     TOK_COMMA,
@@ -45,6 +48,13 @@ typedef enum {
     TOK_FLOATING,
     TOK_INTEGER,
     TOK_IDENTIFIER,
+    TOK_HASH,
+    TOK_BANG,
+    TOK_AND,
+    TOK_OR,
+    TOK_BIT_AND,
+    TOK_BIT_OR,
+    TOK_MODULO,
 
     TOK_COUNT
 } TokenType;
@@ -62,9 +72,12 @@ static String TOKEN_STRINGS[] = {
     [TOK_MINUS]         = SV("-"),
     [TOK_STAR]          = SV("*"),
     [TOK_SLASH]         = SV("/"),
+    [TOK_LESSER]        = SV("<"),
+    [TOK_GREATER]       = SV(">"),
     [TOK_EQUALS]        = SV("="),
     [TOK_MINUS_MINUS]   = SV("--"),
     [TOK_PLUS_PLUS]     = SV("++"),
+    [TOK_QUESTION]      = SV("?"),
     [TOK_COLON]         = SV(":"),
     [TOK_SEMICOLON]     = SV(";"),
     [TOK_COMMA]         = SV("),"),
@@ -76,6 +89,13 @@ static String TOKEN_STRINGS[] = {
     [TOK_FLOATING]      = SV("floating point literal"),
     [TOK_INTEGER]       = SV("integer literal"),
     [TOK_IDENTIFIER]    = SV("identifier"),
+    [TOK_HASH]          = SV("#"),
+    [TOK_BANG]          = SV("!"),
+    [TOK_AND]           = SV("&&"),
+    [TOK_OR]            = SV("||"),
+    [TOK_BIT_AND]       = SV("&"),
+    [TOK_BIT_OR]        = SV("|"),
+    [TOK_MODULO]        = SV("%"),
 };
 
 static_assert(array_len(TOKEN_STRINGS) == TOK_COUNT, "Token Strings is not the same size as the number of tokens");
@@ -431,8 +451,10 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
         case '\'': lexer->token_buf[1] = TOK_NEW(lexer, TOK_SINGLEQUOTE);    break;
         case '\\': lexer->token_buf[1] = TOK_NEW(lexer, TOK_BACKSLASH);      break;
         case '.':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_DOT);            break;
+        case '?':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_QUESTION);       break;
         case ':':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_COLON);          break;
         case ';':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_SEMICOLON);      break;
+        case '#':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_HASH);           break;
         case '-':  {
             if (lexer_peek_char(lexer) == '-') {
                lexer->end++;
@@ -471,7 +493,27 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
                 lexer->token_buf[1] = TOK_NEW(lexer, TOK_SLASH);
             }
         } break;
-        case '=': lexer->token_buf[1] = TOK_NEW(lexer, TOK_EQUALS); break;
+        case '<':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_LESSER); break;
+        case '>':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_GREATER); break;
+        case '=':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_EQUALS); break;
+        case '!':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_BANG); break;
+        case '%':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_MODULO); break;
+        case '&':  {
+            if (lexer_peek_char(lexer) == '&') {
+               lexer->end++;
+               lexer->token_buf[1] = TOK_NEW(lexer, TOK_AND);
+            } else {
+               lexer->token_buf[1] = TOK_NEW(lexer, TOK_BIT_AND);
+            }
+        } break;
+        case '|':  {
+            if (lexer_peek_char(lexer) == '|') {
+               lexer->end++;
+               lexer->token_buf[1] = TOK_NEW(lexer, TOK_OR);
+            } else {
+               lexer->token_buf[1] = TOK_NEW(lexer, TOK_BIT_OR);
+            }
+        } break;
         case '_': {
             if (!tokenize_identifier(lexer)) return false;
         } break;

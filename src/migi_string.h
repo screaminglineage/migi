@@ -15,6 +15,9 @@
 #include "linear_arena.h"
 #include "arena.h"
 
+// TODO: forward declare all functions
+// TODO: dont pass in pointers to string_builder for functions that dont modify it
+
 typedef struct {
     const char *data;
     size_t length;
@@ -31,6 +34,11 @@ typedef struct {
 typedef struct {
     LinearArena arena;
 } StringBuilder;
+
+// TODO: check how to do this on MSVC
+#ifdef __GNUC__
+    __attribute__((__format__(__printf__, 2, 3))) static void sb_pushf(StringBuilder *sb, const char *fmt, ...);
+#endif
 
 static void sb_push(StringBuilder *sb, char to_push) {
     *lnr_arena_push(&sb->arena, char, 1) = to_push;
@@ -76,6 +84,12 @@ static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
     va_end(args1);
 }
 
+void sb_reset(StringBuilder *sb) {
+    // TODO: should this pop off the data?
+    // lnr_arena_pop(&sb->arena, char, sb->arena.length);
+    sb->arena.length = 0;
+}
+
 static StringBuilder sb_from_string(String string) {
     StringBuilder sb = {0};
     sb_push_string(&sb, string);
@@ -94,7 +108,7 @@ static char *sb_to_cstr(StringBuilder *sb) {
     return (char *)sb->arena.data;
 }
 
-static String string_from_cstr(char *cstr) {
+static String string_from_cstr(const char *cstr) {
     return (String){
         .data = cstr,
         .length = (cstr == NULL)? 0: strlen(cstr)
@@ -104,6 +118,15 @@ static String string_from_cstr(char *cstr) {
 static bool string_eq(String a, String b) {
     if (a.length != b.length) return false;
     return !a.length || migi_mem_eq(a.data, b.data, a.length);
+}
+
+bool string_eq_any(String to_match, StringSlice matches) {
+    array_foreach(&matches, String, str) {
+        if (string_eq(to_match, *str)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static int64_t string_find_char(String haystack, char needle) {
