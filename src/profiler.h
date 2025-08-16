@@ -1,6 +1,9 @@
 #ifndef PROFILER_H
 #define PROFILER_H
 
+// TODO: add a `end_profiling` function which simply clears
+// the timestamp state and returns them without printing anything
+
 static void begin_profiling();
 static void end_profiling_and_print_stats();
 

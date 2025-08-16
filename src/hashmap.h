@@ -1,6 +1,8 @@
 #ifndef MIGI_HASHMAP_H
 #define MIGI_HASHMAP_H
 
+// TODO: use a different hash function when working with non-strings
+
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -24,15 +26,20 @@ static inline uint64_t hash_fnv(byte *data, size_t length) {
     return h;
 }
 
+// NOTE: HASHMAP_INIT_CAP *must* always be a power of two or bad things will happen
 #ifndef HASHMAP_INIT_CAP
    #define HASHMAP_INIT_CAP 256
 #endif
 
+// Any number in the range (0, 1.0) (both exclusive) should work
+// A load factor of 1.0 is not supported as atleast 1 empty spot must
+// exist at the end, for hashmap_pop to use it as a temporary variable
+// for swap-removal
 #ifndef HASHMAP_LOAD_FACTOR
    #define HASHMAP_LOAD_FACTOR 0.75
 #endif
 
-// index of default key value pair in the table
+// Index of default key value pair in the table
 #define HASHMAP_DEFAULT_PAIR 0
 
 typedef struct {
@@ -51,6 +58,10 @@ typedef struct {
 // Typedef needed to cast a `hashmap *` to a `HashmapHeader_ *`
 typedef HASHMAP_HEADER HashmapHeader_;
 
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+    static size_t hashmap_max_probe_length = 0;
+    static size_t _hashmap_probes = 0;
+#endif
 
 // Uses robin hood linear probing to insert an entry
 static void hm_internal_insert_entry(HashmapHeader_ *header, HashEntry_ entry) {
@@ -113,6 +124,10 @@ static bool hms_internal_index(HashmapHeader_ *header, void *data, size_t entry_
     size_t i = hash & (header->capacity - 1);
     size_t dist = 0;
 
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+    _hashmap_probes = 0;
+#endif
+
     while (true) {
         if (header->entries[i].index == 0) return false;
 
@@ -129,6 +144,11 @@ static bool hms_internal_index(HashmapHeader_ *header, void *data, size_t entry_
         size_t cur_desired = header->entries[i].hash & (header->capacity - 1);
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
         if (cur_dist < dist) return false;
+
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+        _hashmap_probes++;
+        hashmap_max_probe_length = max(hashmap_max_probe_length, _hashmap_probes);
+#endif
 
         dist++;
         i = (i + 1) & (header->capacity - 1);
@@ -220,6 +240,10 @@ static bool hm_internal_index(HashmapHeader_ *header, void *data, size_t entry_s
     size_t i = hash & (header->capacity - 1);
     size_t dist = 0;
 
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+    _hashmap_probes = 0;
+#endif
+
     while (true) {
         if (header->entries[i].index == 0) return false;
 
@@ -237,6 +261,10 @@ static bool hm_internal_index(HashmapHeader_ *header, void *data, size_t entry_s
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
         if (cur_dist < dist) return false;
 
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+        _hashmap_probes++;
+        hashmap_max_probe_length = max(hashmap_max_probe_length, _hashmap_probes);
+#endif
         dist++;
         i = (i + 1) & (header->capacity - 1);
     }
@@ -309,12 +337,15 @@ static void hm_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_si
         (hashmap)->data[(hashmap)->temp_index].key = (k),                \
         (hashmap)->data[(hashmap)->temp_index].value = (v))
 
+// BUG: change sizeof(__typeof__(key)) to `sizeof((hashmap)->data->key))`
+
 // Insert a new key-value pair or update the value if it already exists
-#define hm_put(arena, hashmap, k, v)                                                   \
-    ((hashmap)->data = hm_put_impl((arena), (HashmapHeader_*)(hashmap),                \
-        (void *)(hashmap)->data, sizeof((hashmap)->data[0]), addr_of((k)), sizeof(__typeof__(k))), \
-        (hashmap)->data[(hashmap)->temp_index].key = (k),                              \
-        (hashmap)->data[(hashmap)->temp_index].value = (v))
+#define hm_put(arena, hashmap, k, v)                                    \
+    ((hashmap)->data = hm_put_impl((arena), (HashmapHeader_*)(hashmap), \
+        (void *)(hashmap)->data, sizeof((hashmap)->data[0]),            \
+        addr_of((k)), sizeof((hashmap)->data->key)),                    \
+    (hashmap)->data[(hashmap)->temp_index].key = (k),                   \
+    (hashmap)->data[(hashmap)->temp_index].value = (v))
 
 
 // Insert a new key-value pair or update the value if it already exists
@@ -340,7 +371,7 @@ static void hm_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_si
 #define hm_entry(arena, hashmap, k)                                     \
     ((hashmap)->data = hm_put_impl((arena), (HashmapHeader_*)(hashmap), \
         (void *)(hashmap)->data, sizeof((hashmap)->data[0]),            \
-        addr_of((k)), sizeof(__typeof__(k))),                                       \
+        addr_of((k)), sizeof(__typeof__(k))),                           \
         (hashmap)->data[(hashmap)->temp_index].key = (k),               \
         &((hashmap)->data[(hashmap)->temp_index].value))
 
@@ -369,10 +400,10 @@ static void hm_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_si
     (hashmap)->data[(hashmap)->temp_index].value)
 
 // Return the value if it exists, otherwise the default value at index 0
-#define hm_get(hashmap, key)                        \
-    (hm_get_pair_impl((HashmapHeader_*)(hashmap),   \
-        (hashmap)->data, sizeof (*(hashmap)->data), \
-        addr_of((key)), sizeof(__typeof__(key))),                 \
+#define hm_get(hashmap, k)                           \
+    (hm_get_pair_impl((HashmapHeader_*)(hashmap),    \
+        (hashmap)->data, sizeof (*(hashmap)->data),  \
+        addr_of((k)), sizeof((hashmap)->data->key)), \
     (hashmap)->data[(hashmap)->temp_index].value)
 
 
@@ -473,6 +504,9 @@ static void hm_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_si
     (hashmap)->temp_index != 0                                                                 \
       ? (hashmap)->data[(hashmap)->temp_index] = (hashmap)->data[(hashmap)->size + 1]          \
       : (void)0))
+
+
+#define hm_free(hashmap) (migi_mem_clear_single((hashmap)))
 
 // Iterate over the hashmap by reference
 // Use in a similar manner to array_foreach

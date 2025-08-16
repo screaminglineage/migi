@@ -1,3 +1,4 @@
+#include "timing.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,8 +10,9 @@
 
 #include "arena.h"
 
-// #define HASHMAP_INIT_CAP 4
-// #define HASHMAP_LOAD_FACTOR 0.75
+#define HASHMAP_INIT_CAP 8
+// #define HASHMAP_LOAD_FACTOR 0.25
+// #define HASHMAP_TRACK_MAX_PROBE_LENGTH
 #include "hashmap.h"
 #include "migi.h"
 #include "migi_lists.h"
@@ -207,6 +209,9 @@ void frequency_analysis() {
         printf("%.*s => %ld\n", SV_FMT(pair->key), pair->value);
     }
 #endif
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+    printf("Maximum Probe Length: %zu\n", hashmap_max_probe_length);
+#endif
 }
 
 // `#define HASHMAP_INIT_CAP 4` before including hashmap.h
@@ -350,6 +355,10 @@ void test_search_fail() {
 
     printf("Matched elements: %zu\n", count);
     printf("Unmatched elements: %zu\n", map.size - count);
+
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+    printf("Maximum Probe Length: %zu\n", hashmap_max_probe_length);
+#endif
 }
 
 
@@ -557,10 +566,70 @@ void test_basic_primitive_key() {
     assert(migi_mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
 }
 
+// NOTE: ensure i starts from the initial capacity of the hashmap
+// set HASHMAP_INIT_CAP to 8 for the best results
+void profile_hashmap() {
+    typedef struct {
+        int key, value;
+    } KVIntInt;
+    typedef struct {
+        HASHMAP_HEADER;
+        KVIntInt *data;
+    } MapIntInt;
+
+    Arena a = {0};
+    MapIntInt map = {0};
+
+    uint64_t cpu_freq = estimate_cpu_timer_freq();
+    size_t max_capacity = 10*MB;
+
+    for (size_t i = HASHMAP_INIT_CAP; i < max_capacity; i*=2) {
+        hm_free(&map);
+        arena_free(&a);
+
+        size_t max_size = HASHMAP_LOAD_FACTOR * i;
+        for (size_t j = 0; j < max_size; j++) {
+            hm_put(&a, &map, j, 5025);
+        }
+
+        #define SAMPLES 10
+        uint64_t samples[SAMPLES] = {0};
+
+        for (size_t i = 0; i < SAMPLES; i++) {
+            int key = random_range_exclusive(-max_size, -1); // missing key
+            uint64_t start = read_cpu_timer();
+
+            // TODO: ensure hm_get is actually called when using -O3
+            int value = hm_get(&map, key);
+            printf("%d ", value);
+
+            uint64_t end = read_cpu_timer();
+            samples[i] = (end - start);
+        }
+
+        double elapsed_nanos = 0;
+        for (size_t i = 0; i < SAMPLES; i++) {
+            double t = (double)samples[i] / (double)cpu_freq;
+            elapsed_nanos += t;
+        }
+        elapsed_nanos /= SAMPLES;
+        elapsed_nanos *= NS;
+
+        printf("Capacity: %-7zu , Lookup Time: %.3f ns\n", i, elapsed_nanos);
+
+    }
+    assertf(HASHMAP_LOAD_FACTOR*map.capacity == map.size, "hashmap is filled upto load factor");
+}
+
 int main() {
-    test_basic();
-    test_basic_struct_key();
-    test_basic_primitive_key();
+    profile_hashmap();
+    // frequency_analysis();
+    // test_search_fail();
+    // test_basic();
+    // test_basic_struct_key();
+    // test_basic_primitive_key();
+    // test_default_values();
+    // test_type_safety();
 
     printf("\nexiting successfully\n");
 
