@@ -6,20 +6,17 @@
 #include "../src/dynamic_array.h"
 
 // TODO: generate special case for:
-// - dynamic arrays (data, length, and capacity members) 
-// - slices (data and length members)
-// array_print() already exists and can be used for both of the above
 // - unions [?] (undefined behaviour to access the wrong member)
 // - tagged unions
 // - enums
+// - dereference pointers [?] (should be fine to only do 1 level at most)
+
 
 typedef struct {
     String name;
     bool is_non_primitive;
-    union {
-        const char *format;  // only valid when is_non_primitive is false
-        String type_name;    // used if type is non-primitive
-    };
+    const char *format;
+    String type_name;
 } Member;
 
 typedef struct {
@@ -31,6 +28,7 @@ typedef struct {
 typedef struct {
     String name;
     Members members;
+    bool has_data_and_length;
 } StructDef;
 
 
@@ -41,34 +39,59 @@ typedef struct {
 } StructDefs;
 
 
-// TODO: parse qualifiers (static, const, etc.)
-// TODO: parse pointers and array types
-bool parse_member(Lexer *lexer, Member *member) {
-    Token token = {0};
-    if (!consume_token(lexer, &token)) return false;
-    if (token.type != TOK_IDENTIFIER) return false;
-
-    if (string_eq_any(token.string, migi_slice(StringSlice, (String[]){SV("int"), SV("signed"), SV("short"), SV("bool")}))) {
-        member->format = "%d";
-    } else if (string_eq(token.string, SV("char"))) {
-        member->format = "%c";
-    } else if (string_eq(token.string, SV("size_t"))) {
-        member->format = "%zu";
-    } else if (string_eq(token.string, SV("ptrdiff_t"))) {
-        member->format = "%td";
-    } else if (string_eq_any(token.string, migi_slice(StringSlice, (String[]){SV("float"), SV("double")}))) {
-        member->format = "%.3f";
-    } else if (string_eq(token.string, SV("long"))) {
-        member->format = "%ld";
-    } else if (string_eq(token.string, SV("unsigned"))) {
-        member->format = "%u";
-    } else if (string_eq(token.string, SV("const"))) {
-        if (!expect_token_str(lexer, TOK_IDENTIFIER, SV("char"))) return false;
-        if (!expect_token(lexer, TOK_STAR)) return false;
-        member->format = "\\\"%s\\\"";
+bool format_for_type(String type, const char **format, bool *is_char) {
+    if (string_eq_any(type, (String[]){SV("int"), SV("byte"), SV("bool"), SV("short"), SV("signed") })) {
+        *format = "%d";
+    } else if (string_eq(type, SV("char"))) {
+        is_char? *is_char = true: (void)0;
+        *format = "\'%c\'";
+    } else if (string_eq(type, SV("size_t"))) {
+        *format = "%zu";
+    } else if (string_eq_any(type, (String[]){SV("float"), SV("double")})) {
+        *format = "%.3f";
+    } else if (string_eq(type, SV("ptrdiff_t"))) {
+        *format = "%td";
+    } else if (string_eq(type, SV("void"))) {
+        *format = "%p";
+    } else if (string_eq(type, SV("long"))) {
+        *format = "%ld";
+    } else if (string_eq(type, SV("unsigned"))) {
+        *format = "%u";
     } else {
+        return false;
+    }
+    return true;
+}
+
+
+// TODO: parse static arrays and flexible array members
+bool parse_member(Lexer *lexer, Member *member) {
+    if (!match_token(lexer, TOK_IDENTIFIER)) return false;
+    Token token = next_token(lexer);
+
+    bool is_const = false;
+    if (string_eq(token.string, SV("const"))) {
+        is_const = true;
+        if (!match_token(lexer, TOK_IDENTIFIER)) return false;
+        if (!consume_token(lexer, &token)) return false;
+    }
+
+    bool is_char = false;
+    if (!format_for_type(token.string, &member->format, &is_char)) {
         member->is_non_primitive = true;
-        member->type_name = token.string;
+    }
+    member->type_name = token.string;
+
+    if (match_token(lexer, TOK_STAR)) {
+        next_token(lexer);
+        if (is_const && is_char) {
+            member->format = "\\\"%s\\\"";
+        } else {
+            if (!match_token_str(lexer, TOK_IDENTIFIER, SV("data"))) {
+                member->is_non_primitive = false;
+                member->format = "%p";
+            }
+        }
     }
 
     if (!match_token(lexer, TOK_IDENTIFIER)) return false;
@@ -78,18 +101,24 @@ bool parse_member(Lexer *lexer, Member *member) {
 
 
 bool parse_struct(Lexer *lexer, StructDef *struct_def) {
+    bool has_field_data     = false;
+    bool has_field_length   = false;
+
     Token tok = {0};
     while (peek_token(lexer, &tok)) {
         if (tok.type == TOK_CLOSE_BRACE) break;
 
         Member member = {0};
-        if (parse_member(lexer, &member)) {
-            array_add(&struct_def->members, member);
-        } else {
-            if (!consume_token(lexer, &tok)) return false;
-        }
+        if (!parse_member(lexer, &member)) return false;
+        if (string_eq(member.name, SV("data"))) {
+            has_field_data = true;
+        } else if (string_eq(member.name, SV("length"))) {
+            has_field_length = true;
+        } 
+        array_add(&struct_def->members, member);
         if (!expect_token(lexer, TOK_SEMICOLON)) return false;
     }
+    struct_def->has_data_and_length = has_field_data && has_field_length;
 
     if (tok.type == TOK_EOF) {
         fprintf(stderr, "error: expected identifier, but got end of file at: %zu\n",
@@ -111,27 +140,51 @@ void generate_string_printer(StringBuilder *sb) {
     // so that it can be called just like the other `_print_*` functions
     sb_push_cstr(sb, "static void _print_String(String var_name, int level) {\n");
     sb_push_cstr(sb, "    (void)level;\n");
-    sb_push_cstr(sb, "    printf(\"\\\"%.*s\\\",\\n\", SV_FMT(var_name));\n");
+    sb_push_cstr(sb, "    printf(\"\\\"%.*s\\\"\", SV_FMT(var_name));\n");
     sb_push_cstr(sb, "}\n");
 }
 
-void generate_member_printer(StringBuilder *sb, Member member, int indent_count, int max_name_length) {
+
+void generate_member_printer(StringBuilder *sb, Member member, int indent_count, int max_name_length, bool is_slice) {
     // indent member sufficiently according to the level
     sb_pushf(sb, "    printf(\"%%*s\", (level + 1) * %d, \"\");\n", indent_count);
 
+    // padding to align the `=` characters by the member with the longest name
+    int padding = max_name_length - member.name.length + 1;
+
+
+    // print as slice
+    if (is_slice) {
+        sb_pushf     (sb, "    printf(\".%.*s%*s= \");\n", SV_FMT(member.name), padding, " ");
+        sb_pushf     (sb, "    printf(\"(%.*s[]){ \");\n", SV_FMT(member.type_name));
+        sb_push_cstr (sb, "    for (size_t i = 0; i < var_name.length; i++) {\n");
+
+        if (member.is_non_primitive) {
+            sb_pushf(sb,     "        _print_%.*s(var_name.data[i], level + 1);\n", SV_FMT(member.type_name));
+            sb_push_cstr(sb, "        printf(\", \");\n");
+        } else {
+            const char *format_str = NULL;
+            format_for_type(member.type_name, &format_str, NULL);
+            sb_pushf     (sb, "        printf(\"%s, \", var_name.data[i]);\n", format_str);
+        }
+        sb_push_cstr (sb, "    }\n");
+        sb_push_cstr (sb, "    printf(\"},\\n\");\n");
+
+
     // call the respective `_print_*` for non-primitive types
-    if (member.is_non_primitive) {
-        sb_pushf(sb, "    printf(\".%.*s = \");\n", SV_FMT(member.name));
+    } else if (member.is_non_primitive) {
+        sb_pushf(sb, "    printf(\".%.*s%*s= \");\n", SV_FMT(member.name), padding, " ");
         sb_pushf(sb, "    _print_%.*s(var_name.%.*s, level + 1);\n",
                 SV_FMT(member.type_name), SV_FMT(member.name));
+        sb_push_cstr(sb, "        printf(\"\\n\");\n");
 
-    // otherwise use the respective format string, while maintaining alignment
+    // otherwise use the respective format string
     } else {
-        int padding = max_name_length - member.name.length + 1;
         sb_pushf(sb, "    printf(\".%.*s%*s= %s,\\n\", var_name.%.*s);\n",
                 SV_FMT(member.name), padding, " ", member.format, SV_FMT(member.name));
     }
 }
+
 
 void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent_count) {
     // generate print function with indentation level
@@ -147,21 +200,31 @@ void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent
         max_name_length = max(max_name_length, struct_def.members.data[i].name.length);
     }
 
-    for (size_t i = 0; i < members_length - 1; i++) {
-        Member member = struct_def.members.data[i];
-        generate_member_printer(sb, member, indent_count, max_name_length);
+    // TODO: save the index of data and length so that this loop is not required here
+    size_t member_data_i = 0;
+    if (struct_def.has_data_and_length) {
+        for (size_t i = 0; i < members_length; i++) {
+            if (string_eq(struct_def.members.data[i].name, SV("data"))) {
+                member_data_i = i;
+            }
+        }
     }
-    Member last_member = struct_def.members.data[members_length - 1];
-    generate_member_printer(sb, last_member, indent_count, max_name_length);
+
+    for (size_t i = 0; i < members_length; i++) {
+        Member member = struct_def.members.data[i];
+        generate_member_printer(sb, member, indent_count, max_name_length,
+                struct_def.has_data_and_length && i == member_data_i);
+    }
 
     // also indent final closing brace
     sb_pushf(sb, "    printf(\"%%*s\", level*%d, \"\");\n", indent_count);
-    sb_push_cstr(sb, "    printf(\"}\\n\");\n");
+    sb_push_cstr(sb, "    printf(\"}\");\n");
     sb_push_cstr(sb, "}\n");
 
     sb_pushf(sb, "static void print_%.*s(%.*s var_name) {\n",
             SV_FMT(struct_def.name), SV_FMT(struct_def.name));
-    sb_pushf(sb, "    _print_%.*s(var_name, 0);\n", SV_FMT(struct_def.name));
+    sb_pushf    (sb, "    _print_%.*s(var_name, 0);\n", SV_FMT(struct_def.name));
+    sb_push_cstr(sb, "    printf(\"\\n\");\n");
     sb_push_cstr(sb, "}\n");
 }
 

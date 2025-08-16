@@ -156,12 +156,6 @@ do {                        \
         .length = sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__)) \
     }
 
-#define migi_slice2(slice_type, type, ...)                                    \
-    (slice_type){                                                            \
-        .data = (type [])__VA_ARGS__,                                        \
-        .length = sizeof((type [])__VA_ARGS__)/sizeof(*(type [])__VA_ARGS__) \
-    }
-
 // Creates a Slice (any struct with a data and length) from an 
 // array designated initializer and allocate the data on an arena
 #define migi_slice_dup(arena, slice_type, ...)                                \

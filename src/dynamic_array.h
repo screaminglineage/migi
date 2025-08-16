@@ -83,11 +83,14 @@ do {                                                       \
 
 #endif // defined(DYNAMIC_ARRAY_USE_ARENA) || defined(DYNAMIC_ARRAY_USE_LINEAR_ARENA)
 
+
+#define array_last(array) ((array)->data[(array)->length - 1])
+
 #define array_swap_remove(array, index)                                           \
 do {                                                                              \
     assertf((array)->length > 0, "array_swap_remove: remove from empty array");   \
     assertf((index) < (array)->length, "array_swap_remove: index out of bounds"); \
-    (array)->data[(index)] = (array)->data[(array)->length - 1];                  \
+    (array)->data[(index)] = array_last((array))                                  \
     (array)->length -= 1;                                                         \
 } while (0)
 

@@ -120,14 +120,17 @@ static bool string_eq(String a, String b) {
     return !a.length || migi_mem_eq(a.data, b.data, a.length);
 }
 
-bool string_eq_any(String to_match, StringSlice matches) {
-    array_foreach(&matches, String, str) {
-        if (string_eq(to_match, *str)) {
+bool _string_eq_any(String to_match, String *matches, size_t matches_len) {
+    for (size_t i = 0; i < matches_len; i++) {
+        if (string_eq(to_match, matches[i])) {
             return true;
         }
     }
     return false;
 }
+
+#define string_eq_any(to_match, ...) \
+    (_string_eq_any((to_match), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
 static int64_t string_find_char(String haystack, char needle) {
     for (size_t i = 0; i < haystack.length; i++) {

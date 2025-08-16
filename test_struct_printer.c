@@ -1,41 +1,74 @@
+#include <stddef.h>
 #include <stdio.h>
+#include "src/migi.h"
+#include "src/dynamic_array.h"
 #include "src/migi_string.h"
 #include "gen/String_printer.gen.c"
 
 typedef struct {
-    int a;
-    int b;
+    int *data;
+    size_t length;
+    size_t capacity;
+    String *extra;
+} Ints;
+#include "gen/Ints_printer.gen.c"
+
+typedef struct {
+    String *data;
+    size_t length;
+    void *more;
+} Strings;
+#include "gen/Strings_printer.gen.c"
+
+typedef struct {
+    int integer;
+    const long *pointer;
     char ch;
-    float f;
+    const float f32;
     const char *str;
+    Ints ints;
 } Foo;
 #include "gen/Foo_printer.gen.c"
 
 typedef struct {
-    String abcd;
-    const char *efgh;
-    double d;
-    Foo f;
+    String string;
+    const char *c_string;
+    char *char_ptr;
+    Foo foo;
+    Strings strings;
+    // int array[10];               // unsupported for now
+    // int flexible_array_member[]; // unsupported for now
 } Bar;
 #include "gen/Bar_printer.gen.c"
 
-
 int main() {
+    long l = 10*TB;
+
+    Ints arr = {0};
+    for (size_t i = 0; i < 10; i++) {
+        array_add(&arr, i);
+    }
+
+    Strings strings = migi_slice(Strings, (String[]){SV("hello"), SV("world"), SV("Generated!")});
+    strings.more = (void *)0x8000f;
+
     Foo f = {
-        .a = 25,
-        .b = 40,
+        .integer = 25,
+        .pointer = &l,
         .ch = 'A',
-        .f = 3.14,
-        .str = "hello world"
+        .f32 = 3.14,
+        .str = "hello world",
+        .ints = arr,
     };
 
     Bar b = {
-        .abcd = SV("abcd"),
-        .efgh = "efgh",
-        .d = -1.243423,
-        .f = f
+        .string = SV("abcd"),
+        .c_string = "efgh",
+        .char_ptr = (char *)0xad171a,
+        .foo = f,
+        .strings = strings,
     };
 
-    print_Foo(f);
+
     print_Bar(b);
 }
