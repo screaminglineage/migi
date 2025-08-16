@@ -45,7 +45,7 @@ typedef struct {
 // TODO: parse pointers and array types
 bool parse_member(Lexer *lexer, Member *member) {
     Token token = {0};
-    if (!next_token(lexer, &token)) return false;
+    if (!consume_token(lexer, &token)) return false;
     if (token.type != TOK_IDENTIFIER) return false;
 
     if (string_eq_any(token.string, migi_slice(StringSlice, (String[]){SV("int"), SV("signed"), SV("short"), SV("bool")}))) {
@@ -72,8 +72,7 @@ bool parse_member(Lexer *lexer, Member *member) {
     }
 
     if (!match_token(lexer, TOK_IDENTIFIER)) return false;
-    next_token(lexer, &token);
-    member->name = token.string;
+    member->name = next_token(lexer).string;
     return true;
 }
 
@@ -87,7 +86,7 @@ bool parse_struct(Lexer *lexer, StructDef *struct_def) {
         if (parse_member(lexer, &member)) {
             array_add(&struct_def->members, member);
         } else {
-            if (!next_token(lexer, &tok)) return false;
+            if (!consume_token(lexer, &tok)) return false;
         }
         if (!expect_token(lexer, TOK_SEMICOLON)) return false;
     }
@@ -99,10 +98,9 @@ bool parse_struct(Lexer *lexer, StructDef *struct_def) {
     }
 
     // skipping closing brace
-    next_token(lexer, &tok);
+    consume_token(lexer, &tok);
     if (!match_token(lexer, TOK_IDENTIFIER)) return false;
-    next_token(lexer, &tok);
-    struct_def->name = tok.string;
+    struct_def->name = next_token(lexer).string;
 
     if (!expect_token(lexer, TOK_SEMICOLON)) return false;
     return true;
@@ -192,7 +190,7 @@ int main(int argc, char *argv[]) {
     Token tok = {0};
     StructDefs structs = {0};
     while (tok.type != TOK_EOF) {
-        if (!next_token(&lexer, &tok)) {
+        if (!consume_token(&lexer, &tok)) {
             return 1;
         }
 

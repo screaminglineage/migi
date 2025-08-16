@@ -1,3 +1,4 @@
+#include <stdio.h>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #include "src/migi.h"
@@ -44,16 +45,23 @@ int main() {
 
     Lexer l = {.string = sb_to_string(&sb)};
 
+    while (match_token_any(&l, (TokenType[]){TOK_IDENTIFIER, TOK_OPEN_PAREN, TOK_CLOSE_PAREN, TOK_OPEN_BRACE})) {
+        Token tok = {0};
+        next_token(&l, &tok);
+        printf("%.*s\n", SV_FMT(tok.string));
+    }
+    l.start = l.end = 0;
+
     return_val_if_false(expect_token_str(&l, TOK_IDENTIFIER, SV("int")), 1);
     return_val_if_false(expect_token_str(&l, TOK_IDENTIFIER, SV("main")), 1);
-    return_val_if_false(expect_token(&l, TOK_OPEN_PAREN), 1);
-    return_val_if_false(expect_token(&l, TOK_CLOSE_PAREN), 1);
-    return_val_if_false(expect_token(&l, TOK_OPEN_BRACE), 1);
-    return_val_if_false(expect_token_str(&l, TOK_IDENTIFIER, SV("return")), 1);
-    return_val_if_false(expect_token(&l, TOK_MINUS), 1);
-    return_val_if_false(expect_token(&l, TOK_FLOATING), 1);
-    return_val_if_false(expect_token(&l, TOK_SEMICOLON), 1);
-    return_val_if_false(expect_token(&l, TOK_CLOSE_BRACE), 1);
+    // return_val_if_false(expect_token(&l, TOK_OPEN_PAREN), 1);
+    // return_val_if_false(expect_token(&l, TOK_CLOSE_PAREN), 1);
+    // return_val_if_false(expect_token(&l, TOK_OPEN_BRACE), 1);
+    // return_val_if_false(expect_token_str(&l, TOK_IDENTIFIER, SV("return")), 1);
+    // return_val_if_false(expect_token(&l, TOK_MINUS), 1);
+    // return_val_if_false(expect_token(&l, TOK_FLOATING), 1);
+    // return_val_if_false(expect_token(&l, TOK_SEMICOLON), 1);
+    // return_val_if_false(expect_token(&l, TOK_CLOSE_BRACE), 1);
     // dump_tokens(&l);
     return 0;
 }

@@ -251,10 +251,10 @@ typedef struct {
 
 
 // Consume the next token
-static inline bool next_token(Lexer *lexer, Token *tok);
+static inline bool consume_token(Lexer *lexer, Token *tok);
 
 // Advance lexer to next token, asserting that it is valid
-static inline void advance_token(Lexer *lexer);
+static inline Token next_token(Lexer *lexer);
 
 // Get the next token without consuming it
 static inline bool peek_token(Lexer *lexer, Token *tok);
@@ -268,9 +268,13 @@ static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str
 static inline bool match_token(Lexer *lexer, TokenType expected);
 static inline bool match_token_str(Lexer *lexer, TokenType expected, String token_str);
 
+// Check if the next token is one of the passed in tokens
+// bool match_token_any(Lexer *lexer, (TokenType[]){ ... })
+#define match_token_any(lexer, ...) \
+    (_match_token_any((lexer), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
+
 // Try to convert an indentifier to a keyword
 static bool identifier_to_keyword(Token identifier, Keyword *keyword);
-
 
 static bool identifier_to_keyword(Token identifier, Keyword *keyword) {
     for (size_t i = 0; i < KEYWORD_COUNT; i++) {
@@ -541,17 +545,18 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
 }
 
 
-static inline bool next_token(Lexer *lexer, Token *tok)  {
+static inline bool consume_token(Lexer *lexer, Token *tok)  {
     if (lexer->token_buf[1].type == TOK_NONE) {
         if (!next_token_impl(lexer, tok)) return false;
     }
     return next_token_impl(lexer, tok);
 }
 
-static inline void advance_token(Lexer *lexer) {
-    Token _tok = {0};
-    bool valid = next_token(lexer, &_tok);
+static inline Token next_token(Lexer *lexer) {
+    Token tok = {0};
+    bool valid = consume_token(lexer, &tok);
     assertf(valid, "%s: next_token() failed", __func__);
+    return tok;
 }
 
 static inline bool peek_token(Lexer *lexer, Token *tok) {
@@ -566,45 +571,40 @@ static inline bool match_token(Lexer *lexer, TokenType expected) {
     Token tok = {0};
     if (!peek_token(lexer, &tok)) return false;
     if (tok.type != expected) {
-        // TODO: add location info to the token, the byte offset here can never be 0
-        fprintf(stderr, "error: expected `%.*s`, but got `%.*s` at: %zu\n",
-                SV_FMT(TOKEN_STRINGS[expected]), SV_FMT(TOKEN_STRINGS[tok.type]),
-                lexer->end - tok.string.length + 1);
         return false;
     }
     return true;
 }
 
+static inline bool _match_token_any(Lexer *lexer, TokenType *expected, size_t expected_len) {
+    Token tok = {0};
+    if (!peek_token(lexer, &tok)) return false;
+    for (size_t i = 0; i < expected_len; i++) {
+        if (tok.type == expected[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static inline bool match_token_str(Lexer *lexer, TokenType expected, String token_str) {
     Token tok = {0};
     if (!peek_token(lexer, &tok)) return false;
-    if (tok.type != expected) {
-        // TODO: add location info to the token, the byte offset here can never be 0
-        fprintf(stderr, "error: expected `%.*s`, but got `%.*s` at: %zu\n",
-                SV_FMT(TOKEN_STRINGS[expected]), SV_FMT(TOKEN_STRINGS[tok.type]),
-                lexer->end - tok.string.length + 1);
-        return false;
-    }
-    if (!string_eq(tok.string, token_str)) {
-        // TODO: add location info to the token, the byte offset here can never be 0
-        fprintf(stderr, "error: expected `%.*s`, `%.*s` but got `%.*s` at: %zu\n",
-                SV_FMT(TOKEN_STRINGS[expected]), SV_FMT(token_str),
-                SV_FMT(tok.string), lexer->end - tok.string.length + 1);
-        return false;
-    }
+    if (tok.type != expected) return false;
+    if (!string_eq(tok.string, token_str)) return false;
     return true;
 }
 
 static inline bool expect_token(Lexer *lexer, TokenType expected) {
     if (!match_token(lexer, expected)) return false;
     Token tok = {0};
-    return next_token(lexer, &tok);
+    return consume_token(lexer, &tok);
 }
 
 static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str) {
     if (!match_token_str(lexer, expected, str)) return false;
     Token tok = {0};
-    return next_token(lexer, &tok);
+    return consume_token(lexer, &tok);
 }
 
 #endif // !MIGI_LEXER_H
