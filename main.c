@@ -370,6 +370,7 @@ static void assert_string_split(StringSplitTest t) {
     size_t char_count = 0;
     if (t.actual.size != 0) {
         list_foreach(t.actual.head, StringNode, node) {
+            assert(count < t.expected.length);
             assertf(string_eq(node->string, t.expected.data[count]),
                     "expected: `%.*s,` got: `%.*s`",
                     SV_FMT(t.expected.data[count]), SV_FMT(node->string));
@@ -377,21 +378,21 @@ static void assert_string_split(StringSplitTest t) {
             char_count += node->string.length;
         }
     }
-    assert(count == t.expected.length);
+    assertf(count == t.expected.length, "expected length: %zu, actual length: %zu", t.expected.length, count);
     assert(char_count == t.actual.size);
 }
 
 
-void test_string_split() {
+void test_string_split_and_join() {
     Arena a = {0};
-    StringSplitTest tests[] = {
+    StringSplitTest splits[] = {
         {
             .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
             .actual = string_split(&a, SV("Mary had a little lamb"), SV(" "))
         },
         {
             .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
-            .actual =  string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "), SPLIT_SKIP_EMPTY)
+            .actual =  string_split_ex(&a, SV(" Mary    had   a   little   lamb "), SV(" "), Split_SkipEmpty)
         },
         {
             .expected = migi_slice(StringSlice, (String[]){ SV(""), SV("Mary"), SV(""), SV(""), SV(""), SV("had"), SV(""), SV(""), 
@@ -416,17 +417,29 @@ void test_string_split() {
         },
         {
             .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV("03"), SV("23"), SV("59"), SV("") }),
-            .actual = string_split_chars(&a, SV("2020-11-03 23:59@"), SV("- :@"))
+            .actual = string_split_ex(&a, SV("2020-11-03 23:59@"), SV("- :@"), Split_AsChars)
         },
         {
             .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV("03"), SV("23"), SV("59") }),
-            .actual = string_split_chars_ex(&a, SV("2020-11-03 23:59@"), SV("- :@"), SPLIT_SKIP_EMPTY)
+            .actual = string_split_ex(&a, SV("2020-11--03 23:59@"), SV("- :@"), Split_SkipEmpty|Split_AsChars)
+        },
+        {
+            .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV(""), SV("03"), SV("23"), SV("59"), SV("") }),
+            .actual = string_split_ex(&a, SV("2020-11--03 23:59@"), SV("- :@"), Split_AsChars)
         },
     };
 
-    for (size_t i = 0; i < array_len(tests); i++) {
-        assert_string_split(tests[i]);
+    for (size_t i = 0; i < array_len(splits); i++) {
+        assert_string_split(splits[i]);
     }
+
+    StringList list = string_split_ex(&a, SV("2020-11--03 23:59@"), SV("- :@"), Split_AsChars|Split_SkipEmpty);
+    String expected = strlist_join(&a, &list, SV("/"));
+    assert(string_eq(expected, SV("2020/11/03/23/59")));
+
+    list = string_split(&a, SV("--foo--bar--baz--"), SV("--"));
+    expected = strlist_join(&a, &list, SV("=="));
+    assert(string_eq(expected, SV("==foo==bar==baz==")));
 }
 
 
@@ -573,7 +586,14 @@ void test_return_slice() {
 
 
 int main() {
-    test_random();
+    // String a = SV("2020-11--03 23:59@");
+    // String delimiter = SV("- :@");
+    // bool end = false;
+    // while (!end) {
+    //     String next = string_split_chars_first(&a, delimiter, &end);
+    //     printf("=> `%.*s`\n", SV_FMT(next));
+    // }
+    test_string_split_and_join();
 
 
     printf("\nExiting successfully\n");

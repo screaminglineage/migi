@@ -17,8 +17,10 @@
 
 // TODO: forward declare all functions
 // TODO: dont pass in pointers to string_builder for functions that dont modify it
-// TODO: implement string_split_first()
+// TODO: implement string_split_chars_first()
 // TODO: implement string_split_foreach()
+// TODO: implement string_replace()
+// TODO: implement string_reverse()
 
 typedef struct {
     const char *data;
@@ -350,6 +352,48 @@ static String string_to_upper(Arena *arena, String str) {
         }
     }
     return (String){upper, str.length};
+}
+
+// TODO: come up with a better name
+static String string_split_first(String *str, String split_at, bool *is_last) {
+    if (str->length == 0) {
+        *is_last = true;
+        return *str;
+    }
+    if (split_at.length == 0) return *str;
+
+    int64_t index = string_find(*str, split_at);
+    if (index == -1) {
+        *is_last = true;
+        return *str;
+    }
+
+    String substr = string_slice(*str, 0, index);
+    *str = string_skip(*str, index + split_at.length);
+    return substr;
+}
+
+// TODO: come up with a better name
+static String string_split_chars_first(String *str, String delims, bool *is_last) {
+    if (str->length == 0) {
+        *is_last = true;
+        return *str;
+    }
+    if (delims.length == 0) return *str;
+
+    int64_t index = -1;
+    for (size_t i = 0; i < delims.length; i++) {
+        index = string_find_char(*str, delims.data[i]);
+        if (index != -1) break;
+    }
+    if (index == -1) {
+        *is_last = true;
+        return *str;
+    }
+
+    String substr = string_slice(*str, 0, index);
+    *str = string_skip(*str, index + 1);
+    return substr;
 }
 
 // TODO: use linux syscalls instead of C stdlib

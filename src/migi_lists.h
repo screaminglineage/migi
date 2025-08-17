@@ -8,7 +8,6 @@
 #include <string.h>
 
 // TODO: add basic stack and queue macros
-// TODO: add strlist_join
 
 typedef struct StringNode StringNode;
 struct StringNode {
@@ -20,6 +19,7 @@ typedef struct {
     StringNode *head;
     StringNode *tail;
     size_t size;
+    size_t length;
 } StringList;
 
 static void strlist_push_string(Arena *a, StringList *list, String str) {
@@ -34,6 +34,7 @@ static void strlist_push_string(Arena *a, StringList *list, String str) {
         list->tail = node;
     }
     list->size += str.length;
+    list->length += 1;
 }
 
 static void strlist_push(Arena *a, StringList *list, char ch) {
@@ -91,72 +92,55 @@ static String strlist_to_string(Arena *a, StringList *list) {
     return (String){mem_start, list->size};
 }
 
+static String strlist_join(Arena *a, StringList *list, String join_with) {
+    size_t total_size = list->size + (list->length - 1) * join_with.length;
+    char *mem = arena_push(a, char, total_size);
+    char *mem_start = mem;
 
-#define SPLIT_SKIP_EMPTY 0x1
+    StringNode *node = list->head;
+    while (node->next != NULL) {
+        memcpy(mem, node->string.data, node->string.length);
+        mem += node->string.length;
 
-// TODO: the string_split functions below dont move the actual string data onto the arena
-// However the caller may expect that to be the case since an arena parameter is passed in
-// More experimentation is needed before it can be said for sure though
-static StringList string_split_ex(Arena *a, String str, String delimiter, int flags) {
+        memcpy(mem, join_with.data, join_with.length);
+        mem += join_with.length;
+
+        node = node->next;
+    }
+    memcpy(mem, node->string.data, node->string.length);
+    return (String){mem_start, total_size};
+}
+
+typedef enum {
+    // Skip empty strings
+    Split_SkipEmpty = 1 << 0,
+
+    // Treat delimiter as a list of characters, where
+    // splitting is done any time one of them appear
+    Split_AsChars   = 1 << 1,
+} SplitOpt;
+
+// Splits a string by delimiter, pushing each chunk onto a StringList
+static StringList string_split_ex(Arena *a, String str, String delimiter, SplitOpt flags) {
     StringList strings = {0};
     if (delimiter.length == 0) return strings;
 
-    int64_t index = string_find(str, delimiter);
-    while (index != -1 && str.length > 0) {
-        String substr = string_slice(str, 0, index);
-        if (!(flags & SPLIT_SKIP_EMPTY) || substr.length != 0) {
-            strlist_push_string(a, &strings, substr);
+    bool end = false;
+    while (!end) {
+        String next = (flags & Split_AsChars)
+            ? string_split_chars_first(&str, delimiter, &end)
+            : string_split_first(&str, delimiter, &end);
+        if (next.length != 0 || !(flags & Split_SkipEmpty)) {
+            strlist_push_string(a, &strings, next);
         }
-        str = string_skip(str, index + delimiter.length);
-        index = string_find(str, delimiter);
-    }
-
-    // Only include empty strings if the flag is set
-    if (str.length != 0 || (str.length == 0 && !(flags & SPLIT_SKIP_EMPTY))) {
-        strlist_push_string(a, &strings, str);
     }
     return strings;
 }
 
-static StringList string_split_chars_ex(Arena *a, String str, String delims, int flags) {
-    StringList strings = {0};
-    size_t start = 0;
-    size_t length = 0;
-    for (size_t i = 0; i < str.length; i++) {
-        bool delim_found = false;
-        for (size_t j = 0; j < delims.length; j++) {
-            if (delims.data[j] == str.data[i]) {
-                String substr = (String){
-                    .data = str.data + start,
-                    .length = length
-                };
-                if (!(flags & SPLIT_SKIP_EMPTY) || substr.length != 0) {
-                    strlist_push_string(a, &strings, substr);
-                }
-                length = 0;
-                start = i + 1;
-                delim_found = true;
-                break;
-            }
-        }
-        if (!delim_found) length++;
-    }
-    String remaining_part = (String){
-        .data = str.data + start,
-        .length = length
-    };
-    if (!(flags & SPLIT_SKIP_EMPTY) || remaining_part.length != 0) {
-        strlist_push_string(a, &strings, remaining_part);
-    }
-    return strings;
-}
-
-// Convenience macros which set flags to 0
+// Convenience macro with some flags set to 0
 #define string_split(arena, str, delimiter) \
     (string_split_ex((arena), (str), (delimiter), 0))
 
-#define string_split_chars(arena, str, delims) \
-    (string_split_chars_ex((arena), (str), (delims), 0))
 
 
 
