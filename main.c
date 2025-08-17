@@ -270,6 +270,11 @@ void test_random() {
 
     assertf(migi_mem_eq(buf1, buf2, size),
             "random with same seed must have same data");
+
+    for (size_t i = 0; i < 10; i++) {
+        assert(random_range_exclusive(-1, 0) != 0);
+        assert(random_range_exclusive(0, 1) != 1);
+    }
 }
 
 void test_dynamic_array() {
@@ -549,7 +554,7 @@ void test_return_slice() {
 
 
 int main() {
-    test_return_slice();
+    test_random();
     printf("\nExiting successfully\n");
     return 0;
 }

@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 #include "migi.h"
 
@@ -111,7 +112,7 @@ static float random_float() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     if (!rng.is_seeded) migi_seed(time(NULL));
 #endif
-    return (float)xoshiro256_plus(rng.state) / (float)UINT64_MAX;
+    return (float)xoshiro256_plus(rng.state) / UINT64_MAX;
 }
 
 // Return a random double in the range [0, 1)
@@ -120,19 +121,20 @@ static double random_double() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     if (!rng.is_seeded) migi_seed(time(NULL));
 #endif
-    return (double)xoshiro256_plus(rng.state) / (double)UINT64_MAX;
+    return (double)xoshiro256_plus(rng.state) / UINT64_MAX;
 }
 
 // Return a random integer in the range [min, max]
 // min <= num <= max
 static int64_t random_range(int64_t min, int64_t max) {
-    return (int64_t)(random_float() * (max - min + 1) + min);
+    return (int64_t)floorf(random_float() * (max - min + 1) + min);
 }
 
 // Return a random integer in the range [min, max)
 // min <= num < max
 static int64_t random_range_exclusive(int64_t min, int64_t max) {
-    return (int64_t)(random_float() * (max - min) + min);
+    float r = random_float();
+    return (int64_t)floorf(r * (max - min) + min);
 }
 
 // Return a random double in the range [min, max]

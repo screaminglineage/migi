@@ -8,7 +8,7 @@
 #include <string.h>
 
 // TODO: add basic stack and queue macros
-// TODO: add strlist_pushf
+// TODO: add strlist_join
 
 typedef struct StringNode StringNode;
 struct StringNode {

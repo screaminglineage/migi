@@ -17,6 +17,8 @@
 
 // TODO: forward declare all functions
 // TODO: dont pass in pointers to string_builder for functions that dont modify it
+// TODO: implement string_split_first()
+// TODO: implement string_split_foreach()
 
 typedef struct {
     const char *data;
