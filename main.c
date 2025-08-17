@@ -584,17 +584,22 @@ void test_return_slice() {
     assert(slice.length == array_len(arr) && migi_mem_eq(slice.data, arr, slice.length));
 }
 
+void test_string_split_foreach() {
+    String a = SV("2020-11--03 23:59@");
+    string_split_chars_foreach(a, SV("- :@"), ch) {
+        printf("=> `%.*s`\n", SV_FMT(ch));
+    }
+    assertf(string_eq(a, SV("2020-11--03 23:59@")), "original string remains intact");
+
+    String b = SV("a,b,c,");
+    string_split_foreach(b, SV(","), it) {
+        printf("=> `%.*s`\n", SV_FMT(it));
+    }
+    assertf(string_eq(b, SV("a,b,c,")), "original string remains intact");
+}
 
 int main() {
-    // String a = SV("2020-11--03 23:59@");
-    // String delimiter = SV("- :@");
-    // bool end = false;
-    // while (!end) {
-    //     String next = string_split_chars_first(&a, delimiter, &end);
-    //     printf("=> `%.*s`\n", SV_FMT(next));
-    // }
-    test_string_split_and_join();
-
+    test_string_split_foreach();
 
     printf("\nExiting successfully\n");
     return 0;

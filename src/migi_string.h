@@ -17,8 +17,6 @@
 
 // TODO: forward declare all functions
 // TODO: dont pass in pointers to string_builder for functions that dont modify it
-// TODO: implement string_split_chars_first()
-// TODO: implement string_split_foreach()
 // TODO: implement string_replace()
 // TODO: implement string_reverse()
 
@@ -354,32 +352,41 @@ static String string_to_upper(Arena *arena, String str) {
     return (String){upper, str.length};
 }
 
-// TODO: come up with a better name
-static String string_split_first(String *str, String split_at, bool *is_last) {
-    if (str->length == 0) {
-        *is_last = true;
-        return *str;
+typedef struct {
+    bool is_over;
+    String string;
+} SplitIterator;
+
+static SplitIterator string_split_first(String *str, String split_at) {
+    SplitIterator it = {0};
+
+    if (str->length == 0 || split_at.length == 0) {
+        it.is_over = true;
+        it.string = *str;
+        return it;
     }
-    if (split_at.length == 0) return *str;
 
     int64_t index = string_find(*str, split_at);
     if (index == -1) {
-        *is_last = true;
-        return *str;
+        it.is_over = true;
+        it.string = *str;
+        return it;
     }
 
-    String substr = string_slice(*str, 0, index);
+    it.string = string_slice(*str, 0, index);
     *str = string_skip(*str, index + split_at.length);
-    return substr;
+    return it;
 }
 
-// TODO: come up with a better name
-static String string_split_chars_first(String *str, String delims, bool *is_last) {
-    if (str->length == 0) {
-        *is_last = true;
-        return *str;
+
+static SplitIterator string_split_chars_first(String *str, String delims) {
+    SplitIterator it = {0};
+
+    if (str->length == 0 || delims.length == 0) {
+        it.is_over = true;
+        it.string = *str;
+        return it;
     }
-    if (delims.length == 0) return *str;
 
     int64_t index = -1;
     for (size_t i = 0; i < delims.length; i++) {
@@ -387,14 +394,40 @@ static String string_split_chars_first(String *str, String delims, bool *is_last
         if (index != -1) break;
     }
     if (index == -1) {
-        *is_last = true;
-        return *str;
+        it.is_over = true;
+        it.string = *str;
+        return it;
     }
 
-    String substr = string_slice(*str, 0, index);
+    it.string = string_slice(*str, 0, index);
     *str = string_skip(*str, index + 1);
-    return substr;
+    return it;
 }
+
+// Iterator-like macros to loop over each string split
+// A bit cursed, so use with care
+#define string_split_foreach(str, split_at, it)                                          \
+    SplitIterator make_unique(si__) = {0};                                               \
+    String make_unique(str0__) = (str);                                                  \
+    String it;                                                                           \
+    int make_unique(cnt__) = 0;                                                          \
+    while ((make_unique(si__) = string_split_first(&make_unique(str0__), (split_at))),   \
+           (it = make_unique(si__).string),                                              \
+           (make_unique(cnt__) = make_unique(si__).is_over ? make_unique(cnt__) + 1: 0), \
+           (!make_unique(si__).is_over || make_unique(cnt__) < 2))                       \
+
+
+#define string_split_chars_foreach(str, delims, it)                                        \
+    SplitIterator make_unique(si__) = {0};                                                 \
+    String make_unique(str0__) = (str);                                                    \
+    String it;                                                                             \
+    int make_unique(cnt__) = 0;                                                            \
+    while ((make_unique(si__) = string_split_chars_first(&make_unique(str0__), (delims))), \
+           (it = make_unique(si__).string),                                                \
+           (make_unique(cnt__) = make_unique(si__).is_over ? make_unique(cnt__) + 1: 0),   \
+           (!make_unique(si__).is_over || make_unique(cnt__) < 2))                         \
+
+
 
 // TODO: use linux syscalls instead of C stdlib
 static bool read_file(StringBuilder *builder, String filepath) {

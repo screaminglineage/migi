@@ -125,13 +125,14 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
     StringList strings = {0};
     if (delimiter.length == 0) return strings;
 
-    bool end = false;
-    while (!end) {
-        String next = (flags & Split_AsChars)
-            ? string_split_chars_first(&str, delimiter, &end)
-            : string_split_first(&str, delimiter, &end);
-        if (next.length != 0 || !(flags & Split_SkipEmpty)) {
-            strlist_push_string(a, &strings, next);
+    SplitIterator next = {0};
+    while (!next.is_over) {
+        next = (flags & Split_AsChars)
+            ? string_split_chars_first(&str, delimiter)
+            : string_split_first(&str, delimiter);
+
+        if (next.string.length != 0 || !(flags & Split_SkipEmpty)) {
+            strlist_push_string(a, &strings, next.string);
         }
     }
     return strings;
