@@ -1,13 +1,12 @@
 #ifndef MIGI_RANDOM_H
 #define MIGI_RANDOM_H
 
-// TODO: add a function that shuffles an existing array
-// TODO: maybe add a weighted random chooser which take an array 
-// and weights and returns a random value based on them
+// TODO: forward declare all functions
 
 #include <stddef.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -106,8 +105,8 @@ static uint64_t migi_random() {
     return xoshiro256_starstar(rng.state);
 }
 
-// Return a random float in the range [0, 1)
-// 0 <= num < 1
+// Return a random float in the range [0, 1]
+// 0 <= num <= 1
 static float random_float() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     if (!rng.is_seeded) migi_seed(time(NULL));
@@ -115,8 +114,8 @@ static float random_float() {
     return (float)xoshiro256_plus(rng.state) / UINT64_MAX;
 }
 
-// Return a random double in the range [0, 1)
-// 0 <= num < 1
+// Return a random double in the range [0, 1]
+// 0 <= num <= 1
 static double random_double() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     if (!rng.is_seeded) migi_seed(time(NULL));
@@ -140,13 +139,13 @@ static int64_t random_range_exclusive(int64_t min, int64_t max) {
 // Return a random double in the range [min, max]
 // min <= num <= max
 static double random_range_double(double min, double max) {
-    return (random_double() * (max - min + 1) + min);
+    return (random_double() * (max - min) + min);
 }
 
 // Return a random float in the range [min, max]
 // min <= num <= max
 static float random_range_float(float min, float max) {
-    return (random_float() * (max - min + 1) + min);
+    return (random_float() * (max - min) + min);
 }
 
 // Fill passed in buffer with random bytes
@@ -160,7 +159,8 @@ static void random_bytes(byte *buf, size_t size) {
     }
 }
 
-static void array_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
+// TODO: look into improving this function
+static void random_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
     for (size_t i = 0; i < size; i++) {
         int64_t index_a = random_range_exclusive(0, size);
         int64_t index_b = random_range_exclusive(0, size);
@@ -173,12 +173,77 @@ static void array_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
     }
 }
 
+typedef struct {
+    float weight;
+    size_t index;
+} WeightIndex;
+
+static int compare_weights(const void *_a, const void *_b) {
+    const WeightIndex *a = _a;
+    const WeightIndex *b = _b;
+    if (a->weight > b->weight) {
+        return 1;
+    } else if (a->weight < b->weight) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, float *weights, size_t length) {
+    // TODO: use an arena rather than a VLA
+    WeightIndex weight_indices[length];
+    for (size_t i = 0; i < length; i++) {
+        weight_indices[i] = (WeightIndex){.weight = weights[i], .index = i};
+    }
+    qsort(weight_indices, length, sizeof(*weight_indices), compare_weights);
+
+    float choice = random_float();
+    float accumulator = 0;
+    for (size_t i = 0; i < length; i++) {
+        accumulator += weight_indices[i].weight;
+        if (choice <= accumulator) {
+            return buf + elem_size*weight_indices[i].index;
+        }
+    }
+    migi_unreachablef("since choice is in [0, 1], it must already be selected");
+}
+
+static byte *random_choose_bytes_fuzzy(byte *buf, size_t elem_size, int64_t *weights, size_t length) {
+    int sum = 0;
+    for (size_t i = 0; i < length; i++) {
+        sum += weights[i];
+    }
+    avow(sum != 0, "sum of weights must not be 0");
+
+    // TODO: use an arena rather than a VLA
+    float normalised_weights[length];
+    for (size_t i = 0; i < length; i++) {
+        normalised_weights[i] = (float)weights[i] / (float)sum;
+    }
+    return random_choose_bytes_weighted(buf, elem_size, normalised_weights, length);
+}
+
+
 // Convenience macro to get a random array of any type
 #define random_array(array, type, size) \
     (random_bytes((byte *)(array), sizeof(type)*(size)))
 
 // Convenience macro to shuffle an array of any type
 #define array_shuffle(array, type, size) \
-    (array_shuffle_bytes((byte *)(array), sizeof(type), (size)))
+    (random_shuffle_bytes((byte *)(array), sizeof(type), (size)))
+
+// Convenience macro to choose a random element from an designated initializer
+#define random_choose(...) \
+    ((__VA_ARGS__)[random_range_exclusive(0, sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))])
+
+// Convenience macros to choose a random element from an array by weight
+#define random_choose_weighted(array, type, ...)                           \
+    (*(type *)(random_choose_bytes_weighted((byte *)(array), sizeof(type), \
+            (__VA_ARGS__), sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))))
+
+#define random_choose_fuzzy(array, type, ...)                           \
+    (*(type *)(random_choose_bytes_fuzzy((byte *)(array), sizeof(type), \
+            (__VA_ARGS__), sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))))
 
 #endif // MIGI_RANDOM_H

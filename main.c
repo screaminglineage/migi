@@ -275,6 +275,25 @@ void test_random() {
         assert(random_range_exclusive(-1, 0) != 0);
         assert(random_range_exclusive(0, 1) != 1);
     }
+
+#define COUNT 5
+    int arr[COUNT] = {0, 1, 2, 3, 4};
+    int64_t weights[COUNT] = {25, 50, 75, 50, 25};
+    int frequencies[COUNT] = {0};
+
+    int sample_size = 1000000;
+    int total = 0;
+    for (int i = 0; i < sample_size; i++) {
+        int a = random_choose_fuzzy(arr, int, weights);
+        frequencies[a] += 1;
+        total += 1;
+    }
+
+    for (size_t i = 0; i < COUNT; i++) {
+        double percentage = ((double)frequencies[i] / (double)total) * 100.0;
+        printf("[%zu] => %.2f%%\n", i, percentage);
+    }
+#undef COUNT
 }
 
 void test_dynamic_array() {
@@ -555,6 +574,8 @@ void test_return_slice() {
 
 int main() {
     test_random();
+
+
     printf("\nExiting successfully\n");
     return 0;
 }

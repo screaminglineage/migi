@@ -86,10 +86,10 @@ do {                                                       \
 
 #define array_last(array) ((array)->data[(array)->length - 1])
 
-#define array_swap_remove(array, index)                                                \
+#define array_swap_remove(array, index)                                                 \
     ((void)(assertf((array)->length > 0, "array_swap_remove: remove from empty array"), \
-    assertf((index) < (array)->length, "array_swap_remove: index out of bounds"),      \
-    (array)->data[(index)] = array_last((array)),                                      \
+    assertf((index) < (array)->length, "array_swap_remove: index out of bounds"),       \
+    (array)->data[(index)] = array_last((array)),                                       \
     (array)->length -= 1))                                                              \
 
 
