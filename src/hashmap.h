@@ -506,7 +506,10 @@ static void hm_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_si
       : (void)0))
 
 
-#define hm_free(hashmap) (migi_mem_clear_single((hashmap)))
+#define hm_free(hashmap)                               \
+    ((hashmap)->size = 0, (hashmap)->capacity = 0,     \
+    (hashmap)->temp_index = 0, (hashmap)->entries = 0, \
+    (hashmap)->data = 0)
 
 // Iterate over the hashmap by reference
 // Use in a similar manner to array_foreach

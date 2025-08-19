@@ -10,7 +10,7 @@
 
 #include "arena.h"
 
-#define HASHMAP_INIT_CAP 8
+// #define HASHMAP_INIT_CAP 2
 // #define HASHMAP_LOAD_FACTOR 0.25
 // #define HASHMAP_TRACK_MAX_PROBE_LENGTH
 #include "hashmap.h"
@@ -172,7 +172,6 @@ int hash_entry_cmp(const void *a, const void *b) {
 // Regular linear probing performs slightly better here, probably
 // due to the overhead of robin hood probing
 void frequency_analysis() {
-    begin_profiling();
     StringBuilder sb = {0};
     read_file(&sb, SV("shakespeare.txt"));
     // read_file(&sb, SV("gatsby.txt"));
@@ -185,6 +184,8 @@ void frequency_analysis() {
 
     MapStrInt map = {0};
 
+    printf("Inserting items:\n");
+    begin_profiling();
     list_foreach(words.head, StringNode, word) {
         String key = string_to_lower(&a, word->string);
         *hms_entry(&a, &map, key) += 1;
@@ -196,6 +197,7 @@ void frequency_analysis() {
     qsort(entries, map.size, sizeof(*entries), hash_entry_cmp);
 
 #ifdef ENABLE_PROFILING
+    printf("\n\nDeleting items:\n");
     begin_profiling();
     for (size_t i = 0; i < map.size; i++) {
         KVStrInt *pair = entries + i;
@@ -566,30 +568,24 @@ void test_basic_primitive_key() {
     assert(migi_mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
 }
 
-// NOTE: ensure i starts from the initial capacity of the hashmap
-// set HASHMAP_INIT_CAP to 8 for the best results
-void profile_hashmap() {
-    typedef struct {
-        int key, value;
-    } KVIntInt;
-    typedef struct {
-        HASHMAP_HEADER;
-        KVIntInt *data;
-    } MapIntInt;
 
-    Arena a = {0};
-    MapIntInt map = {0};
+typedef struct {
+    int key, value;
+} KVIntInt;
 
-    uint64_t cpu_freq = estimate_cpu_timer_freq();
-    size_t max_capacity = 10*MB;
+typedef struct {
+    HASHMAP_HEADER;
+    KVIntInt *data;
+} MapIntInt;
 
-    for (size_t i = HASHMAP_INIT_CAP; i < max_capacity; i*=2) {
-        hm_free(&map);
-        arena_free(&a);
+void profile_hashmap_iteration(Arena *a, MapIntInt *map, size_t capacity, int64_t cpu_freq, bool print_stats) {
+        hm_free(map);
+        arena_free(a);
 
-        size_t max_size = HASHMAP_LOAD_FACTOR * i;
-        for (size_t j = 0; j < max_size; j++) {
-            hm_put(&a, &map, j, 5025);
+        size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
+        if (max_size == 0) max_size = capacity * 2;
+        for (size_t i = 0; i < max_size; i++) {
+            hm_put(a, map, i, 5025);
         }
 
         #define SAMPLES 10
@@ -597,14 +593,85 @@ void profile_hashmap() {
 
         for (size_t i = 0; i < SAMPLES; i++) {
             int key = random_range_exclusive(-max_size, -1); // missing key
+            // int key = random_range_exclusive(0, max_size - 1); // valid key
             uint64_t start = read_cpu_timer();
 
-            // TODO: ensure hm_get is actually called when using -O3
-            int value = hm_get(&map, key);
-            printf("%d ", value);
+            int value = hm_get(map, key);
+            fprintf(stderr, "%d ", value);
 
             uint64_t end = read_cpu_timer();
             samples[i] = (end - start);
+        }
+        if (!print_stats) return;
+
+        double elapsed_nanos = 0;
+        for (size_t i = 0; i < SAMPLES; i++) {
+            double t = (double)samples[i] / (double)cpu_freq;
+            elapsed_nanos += t;
+        }
+        elapsed_nanos /= SAMPLES;
+        elapsed_nanos *= NS;
+        #undef SAMPLES
+
+        assert(capacity == map->capacity);
+        printf("%zu,%f\n", capacity, elapsed_nanos);
+}
+
+
+// NOTE: set HASHMAP_INIT_CAP to 2 (lowest valid capacity) for the best results
+void profile_hashmap_lookup_times() {
+    Arena a = {0};
+    MapIntInt map = {0};
+
+    uint64_t cpu_freq = estimate_cpu_timer_freq();
+    size_t max_capacity = 10*MB;
+
+    profile_hashmap_iteration(&a, &map, HASHMAP_INIT_CAP, cpu_freq, false);
+    hm_free(&map);
+
+    printf("capacity,valid key lookup time (ns)\n");
+    for (size_t i = HASHMAP_INIT_CAP; i <= max_capacity; i*=2) {
+        profile_hashmap_iteration(&a, &map, i, cpu_freq, true);
+    }
+    printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
+    assertf(HASHMAP_LOAD_FACTOR*map.capacity == map.size, "hashmap is filled upto load factor");
+}
+
+
+void profile_hashmap_deletion_times() {
+    Arena a = {0};
+    MapIntInt map = {0};
+
+    uint64_t cpu_freq = estimate_cpu_timer_freq();
+    size_t max_capacity = 10*MB;
+
+    printf("capacity,key removal time (ns)\n");
+
+    profile_hashmap_iteration(&a, &map, HASHMAP_INIT_CAP, cpu_freq, false);
+
+    for (size_t capacity = HASHMAP_INIT_CAP; capacity <= max_capacity; capacity*=2) {
+        hm_free(&map);
+        arena_free(&a);
+
+        size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
+        if (max_size == 0) continue;
+
+        for (size_t j = 0; j < max_size; j++) {
+            hm_put(&a, &map, j, 1234);
+        }
+
+        #define SAMPLES 10
+        uint64_t samples[SAMPLES] = {0};
+
+        for (size_t i = 0; i < SAMPLES; i++) {
+            int key = random_range_exclusive(0, max_size - 1);
+            uint64_t start = read_cpu_timer();
+            hm_pop(&map, key);
+            uint64_t end = read_cpu_timer();
+
+            avow(!hm_contains(&map, key), "key was deleted");
+            samples[i] = (end - start);
+            hm_put(&a, &map, key, 1234);
         }
 
         double elapsed_nanos = 0;
@@ -614,16 +681,16 @@ void profile_hashmap() {
         }
         elapsed_nanos /= SAMPLES;
         elapsed_nanos *= NS;
-
-        printf("Capacity: %-7zu , Lookup Time: %.3f ns\n", i, elapsed_nanos);
-
+        #undef SAMPLES
+        printf("%zu,%f\n", map.capacity, elapsed_nanos);
     }
-    assertf(HASHMAP_LOAD_FACTOR*map.capacity == map.size, "hashmap is filled upto load factor");
+    printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
 }
 
 int main() {
-    profile_hashmap();
-    // frequency_analysis();
+    frequency_analysis();
+    // profile_hashmap_lookup_times();
+    // profile_hashmap_deletion_times();
     // test_search_fail();
     // test_basic();
     // test_basic_struct_key();
