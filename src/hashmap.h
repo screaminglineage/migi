@@ -1,6 +1,32 @@
 #ifndef MIGI_HASHMAP_H
 #define MIGI_HASHMAP_H
 
+// TODO: try out an architecture where the keys and values are separate arrays
+//
+// Declared like:
+// typedef struct {
+//   HASHMAP_HEADER;
+//   Key *keys;
+//   Value *values;
+// } MapKeyValue;
+//
+// Any macro returning Pair will have to pass in the type to fill in
+// In this way, the pair struct will only need to be created if really needed
+// typedef struct {
+//    Key key;
+//    Value value;
+// } PairType;
+// PairType p = get_pair(&map, PairType, key);
+//
+// This should work too
+// hashmap_foreach(&map, key, value) {
+//    printf(key);
+//    printf(value);
+// }
+//
+// Also fixes the issue of expecting that key always has to come first
+// Also makes it possible to allocate the values separately if they are really large
+
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>

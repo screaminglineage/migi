@@ -161,15 +161,12 @@ void frequency_analysis() {
     String contents = sb_to_string(&sb);
 
     Arena a = {0};
-    StringList words =
-        string_split_chars_ex(&a, contents, SV(" \n"), SPLIT_SKIP_EMPTY);
-
     MapStrInt map = {0};
-
-    list_foreach(words.head, StringNode, word) {
-        String key = string_to_lower(&a, word->str);
+    string_split_chars_foreach(contents, SV(" \n"), word) {
+        String key = string_to_lower(&a, string_trim(word));
         *hms_entry(&a, &map, key) += 1;
     }
+
     printf("size = %zu, capacity = %zu\n", map.size, map.capacity);
     end_profiling_and_print_stats();
 

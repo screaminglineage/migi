@@ -379,6 +379,9 @@ static SplitIterator string_split_first(String *str, String split_at) {
 }
 
 
+// Splits up to the first occurrence of any of the characters of delimiter
+// Always returns the nearest match if multiple characters are found
+// Eg: string_split_chars_first("a+-b", "-+") will return "a", then "", and finally "b"
 static SplitIterator string_split_chars_first(String *str, String delims) {
     SplitIterator it = {0};
 
@@ -388,19 +391,23 @@ static SplitIterator string_split_chars_first(String *str, String delims) {
         return it;
     }
 
-    int64_t index = -1;
+    int64_t first_match = INT64_MAX;
+    int64_t last_match = INT64_MIN;
     for (size_t i = 0; i < delims.length; i++) {
-        index = string_find_char(*str, delims.data[i]);
-        if (index != -1) break;
+        int64_t new_index = string_find_char(*str, delims.data[i]);
+        if (new_index != -1) {
+            first_match = min(first_match, new_index);
+            last_match = max(last_match, new_index);
+        }
     }
-    if (index == -1) {
+    if ((first_match == -1 || first_match == INT64_MAX) && (last_match < 0)) {
         it.is_over = true;
         it.string = *str;
         return it;
     }
 
-    it.string = string_slice(*str, 0, index);
-    *str = string_skip(*str, index + 1);
+    it.string = string_slice(*str, 0, first_match);
+    *str = string_skip(*str, first_match + 1);
     return it;
 }
 

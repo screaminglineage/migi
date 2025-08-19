@@ -2,7 +2,7 @@ main: main.c src/*.h
 	gcc -Wall -Wextra -ggdb -I./src main.c -o main -lm -fsanitize=undefined
 
 test_hashmap: test_hashmap.c src/*.h
-	gcc -Wall -Wextra -Wno-unused-function -ggdb -I./src test_hashmap.c -o test_hashmap -fsanitize=undefined
+	gcc -Wall -Wextra -Wno-unused-function -ggdb -I./src test_hashmap.c -o test_hashmap -fsanitize=undefined -lm
 
 test_lexer: test_lexer.c src/*.h
 	gcc -Wall -Wextra -Wno-unused-function -ggdb -I./src test_lexer.c -o test_lexer -fsanitize=undefined
