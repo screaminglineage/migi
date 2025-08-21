@@ -10,11 +10,7 @@
 
 #include "arena.h"
 
-<<<<<<< HEAD
-#define HASHMAP_INIT_CAP 4
-=======
 // #define HASHMAP_INIT_CAP 4
->>>>>>> hashmap-generic-key
 // #define HASHMAP_LOAD_FACTOR 0.25
 // #define HASHMAP_TRACK_MAX_PROBE_LENGTH
 #include "hashmap.h"
@@ -184,18 +180,10 @@ void frequency_analysis() {
 
     Arena a = {0};
     MapStrInt map = {0};
-<<<<<<< HEAD
     printf("Inserting items:\n");
     begin_profiling();
     string_split_chars_foreach(contents, SV(" \n"), word) {
         String key = string_to_lower(&a, string_trim(word));
-=======
-
-    printf("Inserting items:\n");
-    begin_profiling();
-    list_foreach(words.head, StringNode, word) {
-        String key = string_to_lower(&a, word->string);
->>>>>>> hashmap-generic-key
         *hms_entry(&a, &map, key) += 1;
     }
 
@@ -714,30 +702,17 @@ void profile_huge_strings() {
 }
 
 int main() {
-<<<<<<< HEAD
-    // frequency_analysis();
-=======
     frequency_analysis();
->>>>>>> hashmap-generic-key
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
     // profile_search_fail();
     // profile_huge_strings();
-<<<<<<< HEAD
-    test_small_hashmap_collision();
-    test_basic();
-    test_basic_struct_key();
-    test_basic_primitive_key();
-    test_default_values();
-    test_type_safety();
-=======
     // test_small_hashmap_collision();
     // test_basic();
     // test_basic_struct_key();
     // test_basic_primitive_key();
     // test_default_values();
     // test_type_safety();
->>>>>>> hashmap-generic-key
 
     printf("\nexiting successfully\n");
 
