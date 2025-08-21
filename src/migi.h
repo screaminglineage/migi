@@ -134,6 +134,10 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 
 #define unused(a) ((void)a)
 
+#define macro__concat(A, B) (A ## B)
+#define macro_concat(A, B) macro__concat(A, B)
+#define make_unique(a) macro_concat(a, __LINE__)
+
 
 #define migi_swap(a, b)     \
 do {                        \

@@ -22,6 +22,7 @@
 // |*********|***********|#######-------|xxxxxxxxxxx|xxxxxxxxx|xxxxxxxxxx|
 // ^data                 ^new   ^length ^capacity                        ^total
 
+// TODO: forward declare all functions
 
 #include <stddef.h>
 #include <stdint.h>

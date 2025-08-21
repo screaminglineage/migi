@@ -14,9 +14,9 @@
 
 typedef struct {
     String name;
+    String type_name;
     bool is_non_primitive;
     const char *format;
-    String type_name;
 } Member;
 
 typedef struct {
@@ -66,13 +66,13 @@ bool format_for_type(String type, const char **format, bool *is_char) {
 
 // TODO: parse static arrays and flexible array members
 bool parse_member(Lexer *lexer, Member *member) {
-    if (!match_token(lexer, TOK_IDENTIFIER)) return false;
+    if (!match_token(lexer, Tok_Identifier)) return false;
     Token token = next_token(lexer);
 
     bool is_const = false;
     if (string_eq(token.string, SV("const"))) {
         is_const = true;
-        if (!match_token(lexer, TOK_IDENTIFIER)) return false;
+        if (!match_token(lexer, Tok_Identifier)) return false;
         if (!consume_token(lexer, &token)) return false;
     }
 
@@ -82,19 +82,19 @@ bool parse_member(Lexer *lexer, Member *member) {
     }
     member->type_name = token.string;
 
-    if (match_token(lexer, TOK_STAR)) {
+    if (match_token(lexer, Tok_Star)) {
         next_token(lexer);
         if (is_const && is_char) {
             member->format = "\\\"%s\\\"";
         } else {
-            if (!match_token_str(lexer, TOK_IDENTIFIER, SV("data"))) {
+            if (!match_token_str(lexer, Tok_Identifier, SV("data"))) {
                 member->is_non_primitive = false;
                 member->format = "%p";
             }
         }
     }
 
-    if (!match_token(lexer, TOK_IDENTIFIER)) return false;
+    if (!match_token(lexer, Tok_Identifier)) return false;
     member->name = next_token(lexer).string;
     return true;
 }
@@ -106,7 +106,7 @@ bool parse_struct(Lexer *lexer, StructDef *struct_def) {
 
     Token tok = {0};
     while (peek_token(lexer, &tok)) {
-        if (tok.type == TOK_CLOSE_BRACE) break;
+        if (tok.type == Tok_CloseBrace) break;
 
         Member member = {0};
         if (!parse_member(lexer, &member)) return false;
@@ -116,11 +116,11 @@ bool parse_struct(Lexer *lexer, StructDef *struct_def) {
             has_field_length = true;
         } 
         array_add(&struct_def->members, member);
-        if (!expect_token(lexer, TOK_SEMICOLON)) return false;
+        if (!expect_token(lexer, Tok_Semicolon)) return false;
     }
     struct_def->has_data_and_length = has_field_data && has_field_length;
 
-    if (tok.type == TOK_EOF) {
+    if (tok.type == Tok_Eof) {
         fprintf(stderr, "error: expected identifier, but got end of file at: %zu\n",
                 lexer->end - tok.string.length + 1);
         return false;
@@ -128,10 +128,10 @@ bool parse_struct(Lexer *lexer, StructDef *struct_def) {
 
     // skipping closing brace
     consume_token(lexer, &tok);
-    if (!match_token(lexer, TOK_IDENTIFIER)) return false;
+    if (!match_token(lexer, Tok_Identifier)) return false;
     struct_def->name = next_token(lexer).string;
 
-    if (!expect_token(lexer, TOK_SEMICOLON)) return false;
+    if (!expect_token(lexer, Tok_Semicolon)) return false;
     return true;
 }
 
@@ -252,15 +252,15 @@ int main(int argc, char *argv[]) {
     Lexer lexer = {.string = file_data};
     Token tok = {0};
     StructDefs structs = {0};
-    while (tok.type != TOK_EOF) {
+    while (tok.type != Tok_Eof) {
         if (!consume_token(&lexer, &tok)) {
             return 1;
         }
 
-        if (tok.type == TOK_IDENTIFIER) {
+        if (tok.type == Tok_Identifier) {
             if (!string_eq(SV("typedef"), tok.string)) continue;
-            if (!expect_token_str(&lexer, TOK_IDENTIFIER, SV("struct"))) continue;
-            if (!expect_token(&lexer, TOK_OPEN_BRACE)) continue;
+            if (!expect_token_str(&lexer, Tok_Identifier, SV("struct"))) continue;
+            if (!expect_token(&lexer, Tok_OpenBrace)) continue;
             StructDef struct_def = {0};
             if (!parse_struct(&lexer, &struct_def)) continue;
             array_add(&structs, struct_def);

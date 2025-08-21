@@ -17,88 +17,90 @@
 // TODO: add line and column count tracking
 // TODO: buffer errors as well rather than returning, otherwise it feels
 // weird when the error occurs even though the token has not yet been seen
+// TODO: handle escape characters within strings
+// TODO: check for \r\n newlines while parsing as well (only for skipping comments for now)
 
 typedef enum {
-    TOK_NONE = 0,
-    TOK_EOF,
-    TOK_OPEN_PAREN,
-    TOK_CLOSE_PAREN,
-    TOK_OPEN_BRACE,
-    TOK_CLOSE_BRACE,
-    TOK_OPEN_BRACKET,
-    TOK_CLOSE_BRACKET,
-    TOK_PLUS,
-    TOK_MINUS,
-    TOK_STAR,
-    TOK_SLASH,
-    TOK_LESSER,
-    TOK_GREATER,
-    TOK_EQUALS,
-    TOK_MINUS_MINUS,
-    TOK_PLUS_PLUS,
-    TOK_QUESTION,
-    TOK_COLON,
-    TOK_SEMICOLON,
-    TOK_COMMA,
-    TOK_DOUBLEQUOTE,
-    TOK_SINGLEQUOTE,
-    TOK_BACKSLASH,
-    TOK_DOT,
-    TOK_STRING,
-    TOK_FLOATING,
-    TOK_INTEGER,
-    TOK_IDENTIFIER,
-    TOK_HASH,
-    TOK_BANG,
-    TOK_AND,
-    TOK_OR,
-    TOK_BIT_AND,
-    TOK_BIT_OR,
-    TOK_MODULO,
+    Tok_None = 0,
+    Tok_Eof,
+    Tok_OpenParen,
+    Tok_CloseParen,
+    Tok_OpenBrace,
+    Tok_CloseBrace,
+    Tok_OpenBracket,
+    Tok_CloseBracket,
+    Tok_Plus,
+    Tok_Minus,
+    Tok_Star,
+    Tok_Slash,
+    Tok_Lesser,
+    Tok_Greater,
+    Tok_Equals,
+    Tok_MinusMinus,
+    Tok_PlusPlus,
+    Tok_Question,
+    Tok_Colon,
+    Tok_Semicolon,
+    Tok_Comma,
+    Tok_Doublequote,
+    Tok_Singlequote,
+    Tok_Backslash,
+    Tok_Dot,
+    Tok_String,
+    Tok_Floating,
+    Tok_Integer,
+    Tok_Identifier,
+    Tok_Hash,
+    Tok_Bang,
+    Tok_And,
+    Tok_Or,
+    Tok_BitAnd,
+    Tok_BitOr,
+    Tok_Modulo,
 
-    TOK_COUNT
+    Tok_Count
 } TokenType;
 
 static String TOKEN_STRINGS[] = {
-    [TOK_NONE]          = SV("none"),
-    [TOK_EOF]           = SV("end of file"),
-    [TOK_OPEN_PAREN]    = SV("("),
-    [TOK_CLOSE_PAREN]   = SV(")"),
-    [TOK_OPEN_BRACE]    = SV("{"),
-    [TOK_CLOSE_BRACE]   = SV("}"),
-    [TOK_OPEN_BRACKET]  = SV("["),
-    [TOK_CLOSE_BRACKET] = SV("]"),
-    [TOK_PLUS]          = SV("+"),
-    [TOK_MINUS]         = SV("-"),
-    [TOK_STAR]          = SV("*"),
-    [TOK_SLASH]         = SV("/"),
-    [TOK_LESSER]        = SV("<"),
-    [TOK_GREATER]       = SV(">"),
-    [TOK_EQUALS]        = SV("="),
-    [TOK_MINUS_MINUS]   = SV("--"),
-    [TOK_PLUS_PLUS]     = SV("++"),
-    [TOK_QUESTION]      = SV("?"),
-    [TOK_COLON]         = SV(":"),
-    [TOK_SEMICOLON]     = SV(";"),
-    [TOK_COMMA]         = SV("),"),
-    [TOK_DOUBLEQUOTE]   = SV("\""),
-    [TOK_SINGLEQUOTE]   = SV("\'"),
-    [TOK_BACKSLASH]     = SV("\\"),
-    [TOK_DOT]           = SV("."),
-    [TOK_STRING]        = SV("string literal"),
-    [TOK_FLOATING]      = SV("floating point literal"),
-    [TOK_INTEGER]       = SV("integer literal"),
-    [TOK_IDENTIFIER]    = SV("identifier"),
-    [TOK_HASH]          = SV("#"),
-    [TOK_BANG]          = SV("!"),
-    [TOK_AND]           = SV("&&"),
-    [TOK_OR]            = SV("||"),
-    [TOK_BIT_AND]       = SV("&"),
-    [TOK_BIT_OR]        = SV("|"),
-    [TOK_MODULO]        = SV("%"),
+    [Tok_None]                = SV("none"),
+    [Tok_Eof]                 = SV("end of file"),
+    [Tok_OpenParen]           = SV("("),
+    [Tok_CloseParen]          = SV(")"),
+    [Tok_OpenBrace]           = SV("{"),
+    [Tok_CloseBrace]          = SV("}"),
+    [Tok_OpenBracket]         = SV("["),
+    [Tok_CloseBracket]        = SV("]"),
+    [Tok_Plus]                = SV("+"),
+    [Tok_Minus]               = SV("-"),
+    [Tok_Star]                = SV("*"),
+    [Tok_Slash]               = SV("/"),
+    [Tok_Lesser]              = SV("<"),
+    [Tok_Greater]             = SV(">"),
+    [Tok_Equals]              = SV("="),
+    [Tok_MinusMinus]          = SV("--"),
+    [Tok_PlusPlus]            = SV("++"),
+    [Tok_Question]            = SV("?"),
+    [Tok_Colon]               = SV(":"),
+    [Tok_Semicolon]           = SV(";"),
+    [Tok_Comma]               = SV("),"),
+    [Tok_Doublequote]         = SV("\""),
+    [Tok_Singlequote]         = SV("\'"),
+    [Tok_Backslash]           = SV("\\"),
+    [Tok_Dot]                 = SV("."),
+    [Tok_String]              = SV("string literal"),
+    [Tok_Floating]            = SV("floating point literal"),
+    [Tok_Integer]             = SV("integer literal"),
+    [Tok_Identifier]          = SV("identifier"),
+    [Tok_Hash]                = SV("#"),
+    [Tok_Bang]                = SV("!"),
+    [Tok_And]                 = SV("&&"),
+    [Tok_Or]                  = SV("||"),
+    [Tok_BitAnd]              = SV("&"),
+    [Tok_BitOr]               = SV("|"),
+    [Tok_Modulo]              = SV("%"),
 };
 
-static_assert(array_len(TOKEN_STRINGS) == TOK_COUNT, "Token Strings is not the same size as the number of tokens");
+static_assert(array_len(TOKEN_STRINGS) == Tok_Count, "Token Strings is not the same size as the number of tokens");
 
 typedef struct {
     TokenType type;
@@ -117,132 +119,132 @@ typedef struct {
 } Lexer;
 
 typedef enum {
-    KEYWORD_ALIGNAS,
-    KEYWORD_ALIGNOF,
-    KEYWORD_AUTO,
-    KEYWORD_BOOL,
-    KEYWORD_BREAK,
-    KEYWORD_CASE,
-    KEYWORD_CHAR,
-    KEYWORD_CONST,
-    KEYWORD_CONSTEXPR,
-    KEYWORD_CONTINUE,
-    KEYWORD_DEFAULT,
-    KEYWORD_DO,
-    KEYWORD_DOUBLE,
-    KEYWORD_ELSE,
-    KEYWORD_ENUM,
-    KEYWORD_EXTERN,
-    KEYWORD_FALSE,
-    KEYWORD_FLOAT,
-    KEYWORD_FOR,
-    KEYWORD_GOTO,
-    KEYWORD_IF,
-    KEYWORD_INLINE,
-    KEYWORD_INT,
-    KEYWORD_LONG,
-    KEYWORD_NULLPTR,
-    KEYWORD_REGISTER,
-    KEYWORD_RESTRICT,
-    KEYWORD_RETURN,
-    KEYWORD_SHORT,
-    KEYWORD_SIGNED,
-    KEYWORD_SIZEOF,
-    KEYWORD_STATIC,
-    KEYWORD_STATIC_ASSERT,
-    KEYWORD_STRUCT,
-    KEYWORD_SWITCH,
-    KEYWORD_THREAD_LOCAL,
-    KEYWORD_TRUE,
-    KEYWORD_TYPEDEF,
-    KEYWORD_TYPEOF,
-    KEYWORD_TYPEOF_UNQUAL,
-    KEYWORD_UNION,
-    KEYWORD_UNSIGNED,
-    KEYWORD_VOID,
-    KEYWORD_VOLATILE,
-    KEYWORD_WHILE,
-    KEYWORD__ALIGNAS,
-    KEYWORD__ALIGNOF,
-    KEYWORD__ATOMIC,
-    KEYWORD__BITINT,
-    KEYWORD__BOOL,
-    KEYWORD__COMPLEX,
-    KEYWORD__DECIMAL128,
-    KEYWORD__DECIMAL32,
-    KEYWORD__DECIMAL64,
-    KEYWORD__GENERIC,
-    KEYWORD__IMAGINARY,
-    KEYWORD__NORETURN,
-    KEYWORD__STATIC_ASSERT,
-    KEYWORD__THREAD_LOCAL,
+    Keyword_Alignas,
+    Keyword_Alignof,
+    Keyword_Auto,
+    Keyword_Bool,
+    Keyword_Break,
+    Keyword_Case,
+    Keyword_Char,
+    Keyword_Const,
+    Keyword_Constexpr,
+    Keyword_Continue,
+    Keyword_Default,
+    Keyword_Do,
+    Keyword_Double,
+    Keyword_Else,
+    Keyword_Enum,
+    Keyword_Extern,
+    Keyword_False,
+    Keyword_Float,
+    Keyword_For,
+    Keyword_Goto,
+    Keyword_If,
+    Keyword_Inline,
+    Keyword_Int,
+    Keyword_Long,
+    Keyword_Nullptr,
+    Keyword_Register,
+    Keyword_Restrict,
+    Keyword_Return,
+    Keyword_Short,
+    Keyword_Signed,
+    Keyword_Sizeof,
+    Keyword_Static,
+    Keyword_StaticAssert,
+    Keyword_Struct,
+    Keyword_Switch,
+    Keyword_ThreadLocal,
+    Keyword_True,
+    Keyword_Typedef,
+    Keyword_Typeof,
+    Keyword_TypeofUnqual,
+    Keyword_Union,
+    Keyword_Unsigned,
+    Keyword_Void,
+    Keyword_Volatile,
+    Keyword_While,
+    Keyword__Alignas,
+    Keyword__Alignof,
+    Keyword__Atomic,
+    Keyword__Bitint,
+    Keyword__Bool,
+    Keyword__Complex,
+    Keyword__Decimal128,
+    Keyword__Decimal32,
+    Keyword__Decimal64,
+    Keyword__Generic,
+    Keyword__Imaginary,
+    Keyword__Noreturn,
+    Keyword__StaticAssert,
+    Keyword__ThreadLocal,
 
-    KEYWORD_COUNT,
+    Keyword_Count,
 } KeywordType;
 
-static String KEYWORD_STRINGS[KEYWORD_COUNT] = {
-    [KEYWORD_ALIGNAS]        = SV("alignas"),
-    [KEYWORD_ALIGNOF]        = SV("alignof"),
-    [KEYWORD_AUTO]           = SV("auto"),
-    [KEYWORD_BOOL]           = SV("bool"),
-    [KEYWORD_BREAK]          = SV("break"),
-    [KEYWORD_CASE]           = SV("case"),
-    [KEYWORD_CHAR]           = SV("char"),
-    [KEYWORD_CONST]          = SV("const"),
-    [KEYWORD_CONSTEXPR]      = SV("constexpr"),
-    [KEYWORD_CONTINUE]       = SV("continue"),
-    [KEYWORD_DEFAULT]        = SV("default"),
-    [KEYWORD_DO]             = SV("do"),
-    [KEYWORD_DOUBLE]         = SV("double"),
-    [KEYWORD_ELSE]           = SV("else"),
-    [KEYWORD_ENUM]           = SV("enum"),
-    [KEYWORD_EXTERN]         = SV("extern"),
-    [KEYWORD_FALSE]          = SV("false"),
-    [KEYWORD_FLOAT]          = SV("float"),
-    [KEYWORD_FOR]            = SV("for"),
-    [KEYWORD_GOTO]           = SV("goto"),
-    [KEYWORD_IF]             = SV("if"),
-    [KEYWORD_INLINE]         = SV("inline"),
-    [KEYWORD_INT]            = SV("int"),
-    [KEYWORD_LONG]           = SV("long"),
-    [KEYWORD_NULLPTR]        = SV("nullptr"),
-    [KEYWORD_REGISTER]       = SV("register"),
-    [KEYWORD_RESTRICT]       = SV("restrict"),
-    [KEYWORD_RETURN]         = SV("return"),
-    [KEYWORD_SHORT]          = SV("short"),
-    [KEYWORD_SIGNED]         = SV("signed"),
-    [KEYWORD_SIZEOF]         = SV("sizeof"),
-    [KEYWORD_STATIC]         = SV("static"),
-    [KEYWORD_STATIC_ASSERT]  = SV("static_assert"),
-    [KEYWORD_STRUCT]         = SV("struct"),
-    [KEYWORD_SWITCH]         = SV("switch"),
-    [KEYWORD_THREAD_LOCAL]   = SV("thread_local"),
-    [KEYWORD_TRUE]           = SV("true"),
-    [KEYWORD_TYPEDEF]        = SV("typedef"),
-    [KEYWORD_TYPEOF]         = SV("typeof"),
-    [KEYWORD_TYPEOF_UNQUAL]  = SV("typeof_unqual"),
-    [KEYWORD_UNION]          = SV("union"),
-    [KEYWORD_UNSIGNED]       = SV("unsigned"),
-    [KEYWORD_VOID]           = SV("void"),
-    [KEYWORD_VOLATILE]       = SV("volatile"),
-    [KEYWORD_WHILE]          = SV("while"),
-    [KEYWORD__ALIGNAS]       = SV("_Alignas"),
-    [KEYWORD__ALIGNOF]       = SV("_Alignof"),
-    [KEYWORD__ATOMIC]        = SV("_Atomic"),
-    [KEYWORD__BITINT]        = SV("_BitInt"),
-    [KEYWORD__BOOL]          = SV("_Bool"),
-    [KEYWORD__COMPLEX]       = SV("_Complex"),
-    [KEYWORD__DECIMAL128]    = SV("_Decimal128"),
-    [KEYWORD__DECIMAL32]     = SV("_Decimal32"),
-    [KEYWORD__DECIMAL64]     = SV("_Decimal64"),
-    [KEYWORD__GENERIC]       = SV("_Generic"),
-    [KEYWORD__IMAGINARY]     = SV("_Imaginary"),
-    [KEYWORD__NORETURN]      = SV("_Noreturn"),
-    [KEYWORD__STATIC_ASSERT] = SV("_Static_assert"),
-    [KEYWORD__THREAD_LOCAL]  = SV("_Thread_local"),
+static String KEYWORD_STRINGS[Keyword_Count] = {
+    [Keyword_Alignas]               = SV("alignas"),
+    [Keyword_Alignof]               = SV("alignof"),
+    [Keyword_Auto]                  = SV("auto"),
+    [Keyword_Bool]                  = SV("bool"),
+    [Keyword_Break]                 = SV("break"),
+    [Keyword_Case]                  = SV("case"),
+    [Keyword_Char]                  = SV("char"),
+    [Keyword_Const]                 = SV("const"),
+    [Keyword_Constexpr]             = SV("constexpr"),
+    [Keyword_Continue]              = SV("continue"),
+    [Keyword_Default]               = SV("default"),
+    [Keyword_Do]                    = SV("do"),
+    [Keyword_Double]                = SV("double"),
+    [Keyword_Else]                  = SV("else"),
+    [Keyword_Enum]                  = SV("enum"),
+    [Keyword_Extern]                = SV("extern"),
+    [Keyword_False]                 = SV("false"),
+    [Keyword_Float]                 = SV("float"),
+    [Keyword_For]                   = SV("for"),
+    [Keyword_Goto]                  = SV("goto"),
+    [Keyword_If]                    = SV("if"),
+    [Keyword_Inline]                = SV("inline"),
+    [Keyword_Int]                   = SV("int"),
+    [Keyword_Long]                  = SV("long"),
+    [Keyword_Nullptr]               = SV("nullptr"),
+    [Keyword_Register]              = SV("register"),
+    [Keyword_Restrict]              = SV("restrict"),
+    [Keyword_Return]                = SV("return"),
+    [Keyword_Short]                 = SV("short"),
+    [Keyword_Signed]                = SV("signed"),
+    [Keyword_Sizeof]                = SV("sizeof"),
+    [Keyword_Static]                = SV("static"),
+    [Keyword_StaticAssert]          = SV("static_assert"),
+    [Keyword_Struct]                = SV("struct"),
+    [Keyword_Switch]                = SV("switch"),
+    [Keyword_ThreadLocal]           = SV("thread_local"),
+    [Keyword_True]                  = SV("true"),
+    [Keyword_Typedef]               = SV("typedef"),
+    [Keyword_Typeof]                = SV("typeof"),
+    [Keyword_TypeofUnqual]          = SV("typeof_unqual"),
+    [Keyword_Union]                 = SV("union"),
+    [Keyword_Unsigned]              = SV("unsigned"),
+    [Keyword_Void]                  = SV("void"),
+    [Keyword_Volatile]              = SV("volatile"),
+    [Keyword_While]                 = SV("while"),
+    [Keyword__Alignas]              = SV("_Alignas"),
+    [Keyword__Alignof]              = SV("_Alignof"),
+    [Keyword__Atomic]               = SV("_Atomic"),
+    [Keyword__Bitint]               = SV("_BitInt"),
+    [Keyword__Bool]                 = SV("_Bool"),
+    [Keyword__Complex]              = SV("_Complex"),
+    [Keyword__Decimal128]           = SV("_Decimal128"),
+    [Keyword__Decimal32]            = SV("_Decimal32"),
+    [Keyword__Decimal64]            = SV("_Decimal64"),
+    [Keyword__Generic]              = SV("_Generic"),
+    [Keyword__Imaginary]            = SV("_Imaginary"),
+    [Keyword__Noreturn]             = SV("_Noreturn"),
+    [Keyword__StaticAssert]         = SV("_Static_assert"),
+    [Keyword__ThreadLocal]          = SV("_Thread_local"),
 };
 
-static_assert(array_len(KEYWORD_STRINGS) == KEYWORD_COUNT, "Keyword count has changed");
+static_assert(array_len(KEYWORD_STRINGS) == Keyword_Count, "Keyword count has changed");
 
 typedef struct {
     KeywordType type;
@@ -277,7 +279,7 @@ static inline bool match_token_str(Lexer *lexer, TokenType expected, String toke
 static bool identifier_to_keyword(Token identifier, Keyword *keyword);
 
 static bool identifier_to_keyword(Token identifier, Keyword *keyword) {
-    for (size_t i = 0; i < KEYWORD_COUNT; i++) {
+    for (size_t i = 0; i < Keyword_Count; i++) {
         if (string_eq(identifier.string, KEYWORD_STRINGS[i])) {
             *keyword = (Keyword){
                 .type = i,
@@ -338,7 +340,7 @@ static bool tokenize_string(Lexer *lexer) {
     }
 
     lexer->token_buf[1] = (Token){
-        .type = TOK_STRING,
+        .type = Tok_String,
         .string = (String){
             .data = &lexer->string.data[start_index],
             .length = lexer->end - start_index
@@ -386,7 +388,7 @@ static bool tokenize_number(Lexer *lexer) {
             }
 
             lexer->token_buf[1] = (Token){
-                .type = TOK_FLOATING,
+                .type = Tok_Floating,
                 .string = number_str,
                 .floating = number
             };
@@ -397,7 +399,7 @@ static bool tokenize_number(Lexer *lexer) {
     // parsing as integer
     String num = string_slice(lexer->string, number_start, lexer->end);
     lexer->token_buf[1] = (Token){
-        .type = TOK_INTEGER,
+        .type = Tok_Integer,
         .string = num,
         .integer = 0
     };
@@ -424,7 +426,7 @@ static bool tokenize_identifier(Lexer *lexer) {
     }
 
     lexer->token_buf[1] = (Token){
-        .type = TOK_IDENTIFIER,
+        .type = Tok_Identifier,
         .string = string_slice(lexer->string, identifier_start, lexer->end),
     };
     return true;
@@ -444,38 +446,38 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
     char ch = lexer_consume_char(lexer);
     // TODO: do C lexing here
     switch(ch) {
-        case '\0': lexer->token_buf[1] = TOK_NEW(lexer, TOK_EOF);            break;
-        case '(':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_PAREN);     break;
-        case ')':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_PAREN);    break;
-        case '{':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_BRACE);     break;
-        case '}':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_BRACE);    break;
-        case '[':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_OPEN_BRACKET);   break;
-        case ']':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_CLOSE_BRACKET);  break;
-        case ',':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_COMMA);          break;
-        case '\'': lexer->token_buf[1] = TOK_NEW(lexer, TOK_SINGLEQUOTE);    break;
-        case '\\': lexer->token_buf[1] = TOK_NEW(lexer, TOK_BACKSLASH);      break;
-        case '.':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_DOT);            break;
-        case '?':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_QUESTION);       break;
-        case ':':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_COLON);          break;
-        case ';':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_SEMICOLON);      break;
-        case '#':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_HASH);           break;
+        case '\0': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Eof);            break;
+        case '(':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_OpenParen);     break;
+        case ')':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_CloseParen);    break;
+        case '{':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_OpenBrace);     break;
+        case '}':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_CloseBrace);    break;
+        case '[':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_OpenBracket);   break;
+        case ']':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_CloseBracket);  break;
+        case ',':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Comma);          break;
+        case '\'': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Singlequote);    break;
+        case '\\': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Backslash);      break;
+        case '.':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Dot);            break;
+        case '?':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Question);       break;
+        case ':':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Colon);          break;
+        case ';':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Semicolon);      break;
+        case '#':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Hash);           break;
         case '-':  {
             if (lexer_peek_char(lexer) == '-') {
                lexer->end++;
-               lexer->token_buf[1] = TOK_NEW(lexer, TOK_MINUS_MINUS);
+               lexer->token_buf[1] = TOK_NEW(lexer, Tok_MinusMinus);
             } else {
-               lexer->token_buf[1] = TOK_NEW(lexer, TOK_MINUS);
+               lexer->token_buf[1] = TOK_NEW(lexer, Tok_Minus);
             }
         } break;
         case '+':  {
             if (lexer_peek_char(lexer) == '+') {
                 lexer->end++;
-                lexer->token_buf[1] = TOK_NEW(lexer, TOK_PLUS_PLUS);
+                lexer->token_buf[1] = TOK_NEW(lexer, Tok_PlusPlus);
             } else {
-                lexer->token_buf[1] = TOK_NEW(lexer, TOK_PLUS);
+                lexer->token_buf[1] = TOK_NEW(lexer, Tok_Plus);
             }
         } break;
-        case '*': lexer->token_buf[1] = TOK_NEW(lexer, TOK_STAR); break;
+        case '*': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Star); break;
         case '/': {
             if (lexer_peek_char(lexer) == '/') {
                 while (lexer_peek_char(lexer) != '\n') lexer->end++;
@@ -494,28 +496,28 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
                 // TODO: remove recursive lexing, can overflow if too many comments follow each other
                 if (!next_token_impl(lexer, tok)) return false;
             } else {
-                lexer->token_buf[1] = TOK_NEW(lexer, TOK_SLASH);
+                lexer->token_buf[1] = TOK_NEW(lexer, Tok_Slash);
             }
         } break;
-        case '<':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_LESSER); break;
-        case '>':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_GREATER); break;
-        case '=':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_EQUALS); break;
-        case '!':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_BANG); break;
-        case '%':  lexer->token_buf[1] = TOK_NEW(lexer, TOK_MODULO); break;
+        case '<':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Lesser); break;
+        case '>':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Greater); break;
+        case '=':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Equals); break;
+        case '!':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Bang); break;
+        case '%':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Modulo); break;
         case '&':  {
             if (lexer_peek_char(lexer) == '&') {
                lexer->end++;
-               lexer->token_buf[1] = TOK_NEW(lexer, TOK_AND);
+               lexer->token_buf[1] = TOK_NEW(lexer, Tok_And);
             } else {
-               lexer->token_buf[1] = TOK_NEW(lexer, TOK_BIT_AND);
+               lexer->token_buf[1] = TOK_NEW(lexer, Tok_BitAnd);
             }
         } break;
         case '|':  {
             if (lexer_peek_char(lexer) == '|') {
                lexer->end++;
-               lexer->token_buf[1] = TOK_NEW(lexer, TOK_OR);
+               lexer->token_buf[1] = TOK_NEW(lexer, Tok_Or);
             } else {
-               lexer->token_buf[1] = TOK_NEW(lexer, TOK_BIT_OR);
+               lexer->token_buf[1] = TOK_NEW(lexer, Tok_BitOr);
             }
         } break;
         case '_': {
@@ -546,7 +548,7 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
 
 
 static inline bool consume_token(Lexer *lexer, Token *tok)  {
-    if (lexer->token_buf[1].type == TOK_NONE) {
+    if (lexer->token_buf[1].type == Tok_None) {
         if (!next_token_impl(lexer, tok)) return false;
     }
     return next_token_impl(lexer, tok);
@@ -560,11 +562,11 @@ static inline Token next_token(Lexer *lexer) {
 }
 
 static inline bool peek_token(Lexer *lexer, Token *tok) {
-    if (lexer->token_buf[1].type == TOK_NONE) {
+    if (lexer->token_buf[1].type == Tok_None) {
         if (!next_token_impl(lexer, tok)) return false;
     }
     *tok = lexer->token_buf[1];
-    return lexer->token_buf[1].type != TOK_EOF;
+    return lexer->token_buf[1].type != Tok_Eof;
 }
 
 static inline bool match_token(Lexer *lexer, TokenType expected) {

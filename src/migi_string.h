@@ -17,8 +17,8 @@
 
 // TODO: forward declare all functions
 // TODO: dont pass in pointers to string_builder for functions that dont modify it
-// TODO: implement string_split_first()
-// TODO: implement string_split_foreach()
+// TODO: implement string_replace()
+// TODO: implement string_reverse()
 
 typedef struct {
     const char *data;
@@ -351,6 +351,90 @@ static String string_to_upper(Arena *arena, String str) {
     }
     return (String){upper, str.length};
 }
+
+typedef struct {
+    bool is_over;
+    String string;
+} SplitIterator;
+
+static SplitIterator string_split_first(String *str, String split_at) {
+    SplitIterator it = {0};
+
+    if (str->length == 0 || split_at.length == 0) {
+        it.is_over = true;
+        it.string = *str;
+        return it;
+    }
+
+    int64_t index = string_find(*str, split_at);
+    if (index == -1) {
+        it.is_over = true;
+        it.string = *str;
+        return it;
+    }
+
+    it.string = string_slice(*str, 0, index);
+    *str = string_skip(*str, index + split_at.length);
+    return it;
+}
+
+
+// Splits up to the first occurrence of any of the characters of delimiter
+// Always returns the nearest match if multiple characters are found
+// Eg: string_split_chars_first("a+-b", "-+") will return "a", then "", and finally "b"
+static SplitIterator string_split_chars_first(String *str, String delims) {
+    SplitIterator it = {0};
+
+    if (str->length == 0 || delims.length == 0) {
+        it.is_over = true;
+        it.string = *str;
+        return it;
+    }
+
+    int64_t first_match = INT64_MAX;
+    int64_t last_match = INT64_MIN;
+    for (size_t i = 0; i < delims.length; i++) {
+        int64_t new_index = string_find_char(*str, delims.data[i]);
+        if (new_index != -1) {
+            first_match = min(first_match, new_index);
+            last_match = max(last_match, new_index);
+        }
+    }
+    if ((first_match == -1 || first_match == INT64_MAX) && (last_match < 0)) {
+        it.is_over = true;
+        it.string = *str;
+        return it;
+    }
+
+    it.string = string_slice(*str, 0, first_match);
+    *str = string_skip(*str, first_match + 1);
+    return it;
+}
+
+// Iterator-like macros to loop over each string split
+// A bit cursed, so use with care
+#define string_split_foreach(str, split_at, it)                                          \
+    SplitIterator make_unique(si__) = {0};                                               \
+    String make_unique(str0__) = (str);                                                  \
+    String it;                                                                           \
+    int make_unique(cnt__) = 0;                                                          \
+    while ((make_unique(si__) = string_split_first(&make_unique(str0__), (split_at))),   \
+           (it = make_unique(si__).string),                                              \
+           (make_unique(cnt__) = make_unique(si__).is_over ? make_unique(cnt__) + 1: 0), \
+           (!make_unique(si__).is_over || make_unique(cnt__) < 2))                       \
+
+
+#define string_split_chars_foreach(str, delims, it)                                        \
+    SplitIterator make_unique(si__) = {0};                                                 \
+    String make_unique(str0__) = (str);                                                    \
+    String it;                                                                             \
+    int make_unique(cnt__) = 0;                                                            \
+    while ((make_unique(si__) = string_split_chars_first(&make_unique(str0__), (delims))), \
+           (it = make_unique(si__).string),                                                \
+           (make_unique(cnt__) = make_unique(si__).is_over ? make_unique(cnt__) + 1: 0),   \
+           (!make_unique(si__).is_over || make_unique(cnt__) < 2))                         \
+
+
 
 // TODO: use linux syscalls instead of C stdlib
 static bool read_file(StringBuilder *builder, String filepath) {
