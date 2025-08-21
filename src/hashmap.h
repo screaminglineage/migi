@@ -137,15 +137,18 @@ typedef enum {
     Key_Other
 } HashmapKeyType;
 
-static bool hm_internal_index(HashmapHeader_ *header, void *data, size_t entry_size,
-        void *key, size_t key_size, HashmapKeyType key_type, size_t *entry_index /*, int64_t *key_hash */) {
-    TIME_FUNCTION;
-    uint64_t hash = hash_fnv((byte *)key, key_size);
-    // if (key_hash) {
-    //     *key_hash = hash;
-    // }
+typedef struct {
+    uint64_t hash;
+    size_t entry_index;
+    bool is_present;
+} HashmapItem;
 
-    size_t i = hash & (header->capacity - 1);
+static HashmapItem hm_internal_index(HashmapHeader_ *header, void *data, size_t entry_size,
+                                      void *key, size_t key_size, HashmapKeyType key_type) {
+    TIME_FUNCTION;
+    HashmapItem result = {0};
+    result.hash = hash_fnv((byte *)key, key_size);
+    size_t i = result.hash & (header->capacity - 1);
     size_t dist = 0;
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
@@ -153,31 +156,33 @@ static bool hm_internal_index(HashmapHeader_ *header, void *data, size_t entry_s
 #endif
 
     while (true) {
-        if (header->entries[i].index == 0) return false;
+        if (header->entries[i].index == 0) {
+            result.is_present = false;
+            break;
+        }
 
         // return if key was found
         void *map_key = data + (header->entries[i].index * entry_size);
-        switch (key_type) {
-            case Key_String: {
-                String map_key_str = *(String *)map_key;
-                String new_key = (String){.data = key, .length = key_size};
-                if (string_eq(new_key, map_key_str)) {
-                    *entry_index = i;
-                    return true;
-                }
-            } break;
-            case Key_Other: {
-                if (migi_mem_eq(key, map_key, key_size)) {
-                    *entry_index = i;
-                    return true;
-                }
-            } break;
-            default: migi_unreachable();
+        if (key_type == Key_String) {
+            String map_key_str = *(String *)map_key;
+            String new_key = (String){.data = key, .length = key_size};
+            if (string_eq(new_key, map_key_str)) {
+                result.is_present = true;
+                result.entry_index = i;
+                break;
+            }
+        } else if (key_type == Key_Other) {
+            if (migi_mem_eq(key, map_key, key_size)) {
+                result.is_present = true;
+                result.entry_index = i;
+                break;
+            }
         }
-
         size_t cur_desired = header->entries[i].hash & (header->capacity - 1);
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
-        if (cur_dist < dist) return false;
+        if (cur_dist < dist) {
+            result.is_present = false;
+        }
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
         _hashmap_probes++;
@@ -186,6 +191,7 @@ static bool hm_internal_index(HashmapHeader_ *header, void *data, size_t entry_s
         dist++;
         i = (i + 1) & (header->capacity - 1);
     }
+    return result;
 }
 
 static void *hm_put_impl(Arena *a, HashmapHeader_ *header, void *data, size_t entry_size, void *key, size_t key_size, HashmapKeyType key_type) {
@@ -195,16 +201,14 @@ static void *hm_put_impl(Arena *a, HashmapHeader_ *header, void *data, size_t en
         new_data = hm_grow(a, header, data, entry_size);
     }
 
-    size_t index = 0;
-    if (!hm_internal_index(header, data, entry_size, key, key_size, key_type, &index)) {
-        // TODO: calculating hash again, even though hm_internal_index just did it
-        uint64_t hash = hash_fnv((byte *)key, key_size);
+    HashmapItem item = hm_internal_index(header, data, entry_size, key, key_size, key_type);
+    if (!item.is_present) {
         // new items are always inserted at the end of the table
         header->size++;
-        hm_internal_insert_entry(header, (HashEntry_){ .hash = hash, .index = header->size });
+        hm_internal_insert_entry(header, (HashEntry_){ .hash = item.hash, .index = header->size });
         header->temp_index = header->size;
     } else {
-        header->temp_index = header->entries[index].index;
+        header->temp_index = header->entries[item.entry_index].index;
     }
     return new_data;
 }
@@ -215,8 +219,8 @@ static void hm_delete_impl(HashmapHeader_ *header, void *data, size_t entry_size
         header->temp_index = 0;
         return;
     };
-    size_t entry = 0;
-    if (!hm_internal_index(header, data, entry_size, key, key_size, key_type, &entry)) {
+    HashmapItem item = hm_internal_index(header, data, entry_size, key, key_size, key_type);
+    if (!item.is_present) {
         header->temp_index = 0;
         return;
     }
@@ -227,25 +231,25 @@ static void hm_delete_impl(HashmapHeader_ *header, void *data, size_t entry_size
     bool exists = false;
     if (key_type == Key_String) {
         String *last_key_str = (String *)last_key;
-        exists = hm_internal_index(header, data, entry_size, (void *)last_key_str->data, key_size, key_type, &last_entry);
+        exists = hm_internal_index(header, data, entry_size, (void *)last_key_str->data, key_size, key_type).is_present;
     } else {
-        exists = hm_internal_index(header, data, entry_size, last_key, key_size, key_type, &last_entry);
+        exists = hm_internal_index(header, data, entry_size, last_key, key_size, key_type).is_present;
     }
     assertf(exists, "hashmap should always have a last entry");
 
-    header->entries[last_entry].index = header->entries[entry].index;
-    header->temp_index = header->entries[entry].index;
+    header->entries[last_entry].index = header->entries[item.entry_index].index;
+    header->temp_index = header->entries[item.entry_index].index;
     assertf(header->temp_index != 0, "nothing can map to the 0 value of the data array");
 
     header->size--;
-    hm_internal_erase(header, entry);
+    hm_internal_erase(header, item.entry_index);
 }
 
 // Returns the default value at index 0 if not found
 static void hm_get_pair_impl(HashmapHeader_ *header, void *data, size_t entry_size, void *key, size_t key_size, HashmapKeyType key_type) {
-    size_t entry;
-    if (hm_internal_index(header, data, entry_size, key, key_size, key_type, &entry)) {
-        header->temp_index = header->entries[entry].index;
+    HashmapItem item = hm_internal_index(header, data, entry_size, key, key_size, key_type);
+    if (item.is_present) {
+        header->temp_index = header->entries[item.entry_index].index;
     } else {
         header->temp_index = 0;
     }

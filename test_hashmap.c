@@ -688,11 +688,28 @@ void profile_hashmap_deletion_times() {
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
 }
 
+void profile_huge_strings() {
+    typedef struct {
+        HASHMAP_HEADER;
+        KVStrInt *data;
+    } MapStrInt;
+
+    Arena a = {0};
+    MapStrInt map = {0};
+    begin_profiling();
+    for (size_t i = 0; i < 1024; i++) {
+        String key = random_string(&a, 1024*1024);
+        hms_put(&a, &map, key, 100);
+    }
+    end_profiling_and_print_stats();
+}
+
 int main() {
-    frequency_analysis();
+    // frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
-    // profile_search_fail();
+    profile_search_fail();
+    profile_huge_strings();
     // test_small_hashmap_collision();
     // test_basic();
     // test_basic_struct_key();
