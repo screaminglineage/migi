@@ -615,8 +615,11 @@ void test_string_split_first() {
 }
 
 int main() {
+<<<<<<< HEAD
     test_string_split_first();
 
+=======
+>>>>>>> hashmap-generic-key
     printf("\nExiting successfully\n");
     return 0;
 }
