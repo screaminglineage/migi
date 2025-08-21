@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-#define ENABLE_PROFILING
+// #define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -705,11 +705,11 @@ void profile_huge_strings() {
 }
 
 int main() {
-    // frequency_analysis();
+    frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
-    profile_search_fail();
-    profile_huge_strings();
+    // profile_search_fail();
+    // profile_huge_strings();
     // test_small_hashmap_collision();
     // test_basic();
     // test_basic_struct_key();
