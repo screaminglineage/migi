@@ -100,14 +100,13 @@ void test_linear_arena_regular(LinearArena *arena) {
     unused(x);
     int *c = lnr_arena_realloc(arena, int, a, count, 2 * count);
 
-    assertf(migi_mem_eq(a, c, count), "a and c are equal upto count");
+    assertf(mem_eq(a, c, count), "a and c are equal upto count");
     assertf(a != c, "a and c are separate allocations!");
 
     assertf(arena->length == (size_t)(4 * getpagesize()),
             "4 allocations are left");
     int *b = lnr_arena_pop(arena, int, count);
-    unused(b);
-    // b[0] = 100; // This will segfault since the memory has been decommitted
+    b[0] = 100; // memory can still be accessed
 
     assertf(arena->length == (size_t)(3 * getpagesize()),
             "3 allocations are left");
@@ -132,7 +131,7 @@ void test_linear_arena_rewind() {
     random_bytes(mem, size);
     lnr_arena_rewind(&arena1, checkpoint);
     assertf(old_capacity == arena1.capacity &&
-                migi_mem_eq(arena1.data, arena2.data, arena1.length),
+                mem_eq(arena1.data, arena2.data, arena1.length),
             "rewinded arena is equivalent to old one");
 }
 
@@ -193,7 +192,7 @@ void test_arena() {
     double *f = arena_push(&arena, double, 100);
     random_array(f, double, 100);
     double *g = arena_realloc(&arena, double, f, 100, 500);
-    assertf(f == g && migi_mem_eq(f, g, 100), "previous allocation was reused");
+    assertf(f == g && mem_eq(f, g, 100), "previous allocation was reused");
 
     arena_rewind(&arena, checkpoint);
     assertf(arena.tail == saved_tail && arena.tail->length == saved_tail_length,
@@ -268,7 +267,7 @@ void test_random() {
         printf("%d %d %s\n", b[i].a, b[i].b, b[i].foo);
     }
 
-    assertf(migi_mem_eq(buf1, buf2, size),
+    assertf(mem_eq(buf1, buf2, size),
             "random with same seed must have same data");
 
     for (size_t i = 0; i < 10; i++) {
@@ -581,7 +580,7 @@ void test_return_slice() {
     Arena a = {0};
     IntSlice slice = return_slice(&a);
     int arr[] = {1,2,3,4,5};
-    assert(slice.length == array_len(arr) && migi_mem_eq(slice.data, arr, slice.length));
+    assert(slice.length == array_len(arr) && mem_eq(slice.data, arr, slice.length));
 }
 
 void test_string_split_first() {
@@ -615,11 +614,7 @@ void test_string_split_first() {
 }
 
 int main() {
-<<<<<<< HEAD
-    test_string_split_first();
-
-=======
->>>>>>> hashmap-generic-key
+    test_linear_arena();
     printf("\nExiting successfully\n");
     return 0;
 }

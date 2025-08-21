@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-// #define ENABLE_PROFILING
+#define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -15,7 +15,6 @@
 // #define HASHMAP_TRACK_MAX_PROBE_LENGTH
 #include "hashmap.h"
 #include "migi.h"
-#include "migi_lists.h"
 #include "migi_random.h"
 #include "migi_string.h"
 
@@ -76,18 +75,18 @@ void test_basic() {
     }
     printf("\n");
 
-    assert(migi_mem_eq_single(&hm.data[0], &((KVStrPoint){0})));
-    assert(migi_mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){1, 2})})));
-    assert(migi_mem_eq_single(&hm.data[2], &((KVStrPoint){SV("bar"), ((Point){3, 4})})));
-    assert(migi_mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
-    assert(migi_mem_eq_single(&hm.data[4], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.data[0], &((KVStrPoint){0})));
+    assert(mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){1, 2})})));
+    assert(mem_eq_single(&hm.data[2], &((KVStrPoint){SV("bar"), ((Point){3, 4})})));
+    assert(mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.data[4], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
 
     KVStrPoint deleted = hms_pop(&hm, SV("bar"));
 
     assert(string_eq(deleted.key, SV("bar")) && deleted.value.x == 3 && deleted.value.y == 4);
 
     KVStrPoint t = hms_get_pair(&hm, SV("bar"));
-    assertf(migi_mem_eq_single(&t, &(KVStrPoint){0}), "empty returned for deleted keys");
+    assertf(mem_eq_single(&t, &(KVStrPoint){0}), "empty returned for deleted keys");
 
     KVStrPoint bla = hms_get_pair(&hm, SV("bla"));
     assert(string_eq(bla.key, SV("bla")) && bla.value.x == 7 && bla.value.y == 8);
@@ -102,10 +101,10 @@ void test_basic() {
         printf("%.*s: (Point){%d %d}\n", SV_FMT(pair->key), pair->value.x,
                 pair->value.y);
     }
-    assert(migi_mem_eq_single(&hm.data[0], &((KVStrPoint){0})));
-    assert(migi_mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){10, 20})})));
-    assert(migi_mem_eq_single(&hm.data[2], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
-    assert(migi_mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.data[0], &((KVStrPoint){0})));
+    assert(mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){10, 20})})));
+    assert(mem_eq_single(&hm.data[2], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
 }
 
 void test_default_values() {
@@ -239,13 +238,13 @@ void test_small_hashmap_collision() {
     hms_put(&a, &map, SV("c"), 3);
 
     KVStrInt kv = hms_pop(&map, SV("a"));
-    assert(migi_mem_eq_single(&kv, &((KVStrInt){SV("a"), 1})));
+    assert(mem_eq_single(&kv, &((KVStrInt){SV("a"), 1})));
 
     kv = hms_get_pair(&map, SV("b"));
-    assert(migi_mem_eq_single(&kv, &((KVStrInt){SV("b"), 2})));
+    assert(mem_eq_single(&kv, &((KVStrInt){SV("b"), 2})));
 
     kv = hms_get_pair(&map, SV("c"));
-    assert(migi_mem_eq_single(&kv, &((KVStrInt){SV("c"), 3})));
+    assert(mem_eq_single(&kv, &((KVStrInt){SV("c"), 3})));
 }
 
 void test_type_safety() {
@@ -299,12 +298,12 @@ void test_type_safety() {
     unused(del_int);
     // KVStrPoint del_point = hms_pop(&a, &map, SV("abcd"));
 
-    assert(migi_mem_eq_single(&map.data[0], &((KVStrPoint){0})));
-    assert(migi_mem_eq_single(&map.data[1], &((KVStrInt){SV("ijkl"), 100})));
+    assert(mem_eq_single(&map.data[0], &((KVStrPoint){0})));
+    assert(mem_eq_single(&map.data[1], &((KVStrInt){SV("ijkl"), 100})));
 
-    assert(migi_mem_eq_single(&map2.data[0], &((KVStrPoint){0})));
-    assert(migi_mem_eq_single(&map2.data[1], &((KVStrPoint){SV("abcd"), ((Point){1, 2})})));
-    assert(migi_mem_eq_single(&map2.data[2], &((KVStrPoint){SV("efgh"), ((Point){3, 4})})));
+    assert(mem_eq_single(&map2.data[0], &((KVStrPoint){0})));
+    assert(mem_eq_single(&map2.data[1], &((KVStrPoint){SV("abcd"), ((Point){1, 2})})));
+    assert(mem_eq_single(&map2.data[2], &((KVStrPoint){SV("efgh"), ((Point){3, 4})})));
 
 
     hm_foreach(&map, pair) {
@@ -405,7 +404,7 @@ void test_basic_struct_key() {
     assert(p0.x == 3 && p0.y == 4);
 
     KVFooPoint *pair = hm_get_pair_ptr(&hm, ((Foo){ 5, 6, 1.73f }));
-    assert(migi_mem_eq_single(&pair->key, &((Foo){ 5, 6, 1.73f })) && pair->value.x == 5 && pair->value.y == 6);
+    assert(mem_eq_single(&pair->key, &((Foo){ 5, 6, 1.73f })) && pair->value.x == 5 && pair->value.y == 6);
 
     KVFooPoint pair1 = hm_get_pair(&hm, ((Foo){100, 100, 0}));
     assert(pair1.key.a == 0 && pair1.key.b == 0 && pair1.key.f == 0.0f && pair1.value.x == 0 && pair1.value.y == 0);
@@ -424,23 +423,23 @@ void test_basic_struct_key() {
     }
     printf("\n");
 
-    assert(migi_mem_eq_single(&hm.data[0], &((KVFooPoint){0})));
-    assert(migi_mem_eq_single(&hm.data[1], &((KVFooPoint){(Foo){1, 2, 3.14f}, ((Point){1, 2})})));
-    assert(migi_mem_eq_single(&hm.data[2], &((KVFooPoint){(Foo){3, 4, 1.14f}, ((Point){3, 4})})));
-    assert(migi_mem_eq_single(&hm.data[3], &((KVFooPoint){(Foo){5, 6, 1.73f}, ((Point){5, 6})})));
-    assert(migi_mem_eq_single(&hm.data[4], &((KVFooPoint){(Foo){7, 8, 1.61f}, ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.data[0], &((KVFooPoint){0})));
+    assert(mem_eq_single(&hm.data[1], &((KVFooPoint){(Foo){1, 2, 3.14f}, ((Point){1, 2})})));
+    assert(mem_eq_single(&hm.data[2], &((KVFooPoint){(Foo){3, 4, 1.14f}, ((Point){3, 4})})));
+    assert(mem_eq_single(&hm.data[3], &((KVFooPoint){(Foo){5, 6, 1.73f}, ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.data[4], &((KVFooPoint){(Foo){7, 8, 1.61f}, ((Point){7, 8})})));
 
     Foo key_to_delete = (Foo){3, 4, 1.14f};
     KVFooPoint deleted = hm_pop(&hm, key_to_delete);
 
-    assert(migi_mem_eq_single(&deleted.key, &key_to_delete) && deleted.value.x == 3 && deleted.value.y == 4);
+    assert(mem_eq_single(&deleted.key, &key_to_delete) && deleted.value.x == 3 && deleted.value.y == 4);
 
     KVFooPoint t = hm_get_pair(&hm, key_to_delete);
-    assertf(migi_mem_eq_single(&t, &(KVFooPoint){0}), "empty returned for deleted keys");
+    assertf(mem_eq_single(&t, &(KVFooPoint){0}), "empty returned for deleted keys");
 
     Foo bla_key = (Foo){7, 8, 1.61f};
     KVFooPoint bla = hm_get_pair(&hm, bla_key);
-    assert(migi_mem_eq_single(&bla.key, &bla_key) && bla.value.x == 7 && bla.value.y == 8);
+    assert(mem_eq_single(&bla.key, &bla_key) && bla.value.x == 7 && bla.value.y == 8);
 
     hm_delete(&hm, ((Foo){300, 400, 1e-6f}));
 
@@ -453,10 +452,10 @@ void test_basic_struct_key() {
         printf("(Foo){%d %d %.2f}: (Point){%d %d}\n", f.a, f.b, f.f,
                 pair->value.x, pair->value.y);
     }
-    assert(migi_mem_eq_single(&hm.data[0], &((KVFooPoint){0})));
-    assert(migi_mem_eq_single(&hm.data[1], &((KVFooPoint){(Foo){1, 2, 3.14f}, ((Point){10, 20})})));
-    assert(migi_mem_eq_single(&hm.data[2], &((KVFooPoint){(Foo){7, 8, 1.61f}, ((Point){7, 8})})));
-    assert(migi_mem_eq_single(&hm.data[3], &((KVFooPoint){(Foo){5, 6, 1.73f}, ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.data[0], &((KVFooPoint){0})));
+    assert(mem_eq_single(&hm.data[1], &((KVFooPoint){(Foo){1, 2, 3.14f}, ((Point){10, 20})})));
+    assert(mem_eq_single(&hm.data[2], &((KVFooPoint){(Foo){7, 8, 1.61f}, ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.data[3], &((KVFooPoint){(Foo){5, 6, 1.73f}, ((Point){5, 6})})));
 }
 
 
@@ -526,25 +525,25 @@ void test_basic_primitive_key() {
     printf("\n");
 
     // check internal array layout
-    assert(migi_mem_eq_single(&hm.data[0], &((KVIntPoint){0})));
-    assert(migi_mem_eq_single(&hm.data[1], &((KVIntPoint){1, ((Point){1, 2})})));
-    assert(migi_mem_eq_single(&hm.data[2], &((KVIntPoint){3, ((Point){3, 4})})));
-    assert(migi_mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
-    assert(migi_mem_eq_single(&hm.data[4], &((KVIntPoint){7, ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.data[0], &((KVIntPoint){0})));
+    assert(mem_eq_single(&hm.data[1], &((KVIntPoint){1, ((Point){1, 2})})));
+    assert(mem_eq_single(&hm.data[2], &((KVIntPoint){3, ((Point){3, 4})})));
+    assert(mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.data[4], &((KVIntPoint){7, ((Point){7, 8})})));
 
     // pop a key
     int key_to_delete = 3;
     KVIntPoint deleted = hm_pop(&hm, key_to_delete);
-    assert(migi_mem_eq_single(&deleted.key, &((int){3})) && deleted.value.x == 3 && deleted.value.y == 4);
+    assert(mem_eq_single(&deleted.key, &((int){3})) && deleted.value.x == 3 && deleted.value.y == 4);
 
     // after pop, getting the pair for the deleted key should return empty/default
     KVIntPoint t = hm_get_pair(&hm, key_to_delete);
-    assertf(migi_mem_eq_single(&t, &(KVIntPoint){0}), "empty returned for deleted keys");
+    assertf(mem_eq_single(&t, &(KVIntPoint){0}), "empty returned for deleted keys");
 
     // check another key still present
     int bla_key = 7;
     KVIntPoint bla = hm_get_pair(&hm, bla_key);
-    assert(migi_mem_eq_single(&bla.key, &((int){7})) && bla.value.x == 7 && bla.value.y == 8);
+    assert(mem_eq_single(&bla.key, &((int){7})) && bla.value.x == 7 && bla.value.y == 8);
 
     // delete non-existent key (no-op)
     hm_delete(&hm, 300);
@@ -560,10 +559,10 @@ void test_basic_primitive_key() {
     }
 
     // final layout checks (matching original expectations)
-    assert(migi_mem_eq_single(&hm.data[0], &((KVIntPoint){0})));
-    assert(migi_mem_eq_single(&hm.data[1], &((KVIntPoint){1, ((Point){10, 20})})));
-    assert(migi_mem_eq_single(&hm.data[2], &((KVIntPoint){7, ((Point){7, 8})})));
-    assert(migi_mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.data[0], &((KVIntPoint){0})));
+    assert(mem_eq_single(&hm.data[1], &((KVIntPoint){1, ((Point){10, 20})})));
+    assert(mem_eq_single(&hm.data[2], &((KVIntPoint){7, ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
 }
 
 
@@ -701,8 +700,30 @@ void profile_huge_strings() {
     end_profiling_and_print_stats();
 }
 
+void test_reserve() {
+    typedef struct {
+        String key;
+        int value;
+    } KV;
+
+    typedef struct {
+        HASHMAP_HEADER;
+        KV *data;
+    } Map;
+
+    Arena a = {0};
+    Map map = {0};
+    hm_reserve(&a, &map, 500);
+
+    size_t reserved = map.capacity;
+    for (size_t i = 0; i < 500; i++) {
+        hms_put(&a, &map, SV("a"), i);
+        assertf(map.capacity == reserved, "expected `%zu` but got `%zu`", reserved, map.capacity);
+    }
+}
+
 int main() {
-    frequency_analysis();
+    // frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
     // profile_search_fail();
@@ -713,6 +734,7 @@ int main() {
     // test_basic_primitive_key();
     // test_default_values();
     // test_type_safety();
+    // test_reserve();
 
     printf("\nexiting successfully\n");
 

@@ -119,7 +119,7 @@ static String string_from_cstr(const char *cstr) {
 
 static bool string_eq(String a, String b) {
     if (a.length != b.length) return false;
-    return !a.length || migi_mem_eq(a.data, b.data, a.length);
+    return !a.length || mem_eq(a.data, b.data, a.length);
 }
 
 bool _string_eq_any(String to_match, String *matches, size_t matches_len) {
@@ -154,7 +154,7 @@ static int64_t string_find(String haystack, String needle) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
     for (size_t i = 0; i <= haystack.length - needle.length; i++) {
-        if (migi_mem_eq(haystack.data + i, needle.data, needle.length)) {
+        if (mem_eq(haystack.data + i, needle.data, needle.length)) {
             return i;
         }
     }
@@ -167,7 +167,7 @@ static int64_t string_find_rev(String haystack, String needle) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
     for (int i = haystack.length - needle.length; i >= 0; i--) {
-        if (migi_mem_eq(haystack.data + i, needle.data, needle.length)) {
+        if (mem_eq(haystack.data + i, needle.data, needle.length)) {
             return i;
         }
     }
@@ -210,7 +210,7 @@ static int string_find_suffix(String str, String suffix) {
     if (!str.data) return -1;
 
     int start = str.length - suffix.length;
-    return (migi_mem_eq(str.data + start, suffix.data, suffix.length))? start: -1;
+    return (mem_eq(str.data + start, suffix.data, suffix.length))? start: -1;
 }
 
 static bool string_starts_with(String str, String prefix) {
@@ -219,7 +219,7 @@ static bool string_starts_with(String str, String prefix) {
     if (!prefix.data) return true;
     if (!str.data) return false;
 
-    return migi_mem_eq(str.data, prefix.data, prefix.length);
+    return mem_eq(str.data, prefix.data, prefix.length);
 }
 
 static bool string_ends_with(String str, String suffix) {

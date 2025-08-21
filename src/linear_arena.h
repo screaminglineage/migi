@@ -75,16 +75,6 @@ static void *lnr_arena_pop_bytes(LinearArena *arena, size_t size) {
     if (arena->capacity == 0) return arena->data;
     size_t extra = clamp_top(size, arena->length);
     arena->length -= extra;
-
-    // TODO: when should decommitting be done and how much memory should be decommitted?
-    // NOTE: currently decommits when 4 empty pages are present between length and capacity
-    if ((arena->capacity - arena->length) >= 4*OS_PAGE_SIZE) {
-        size_t new_capacity = align_page_size(arena->length);
-        size_t extra_length = arena->capacity - new_capacity;
-        memory_decommit(arena->data + new_capacity, extra_length);
-        arena->capacity = new_capacity;
-    }
-
     return arena->data + arena->length;
 }
 
@@ -96,7 +86,6 @@ static void *lnr_arena_memdup_bytes(LinearArena *arena, void *old, size_t size, 
     return memcpy(lnr_arena_push_bytes(arena, size, align), old, size);
 }
 
-// TODO: check if alignment needs to be factored in anywhere
 static void *lnr_arena_realloc_bytes(LinearArena *arena, void *old, size_t old_size, size_t new_size, size_t align) {
     TIME_FUNCTION;
     if (old == NULL || old_size == 0) return lnr_arena_push_bytes(arena, new_size, align);
@@ -113,7 +102,16 @@ static void *lnr_arena_realloc_bytes(LinearArena *arena, void *old, size_t old_s
 
 static void lnr_arena_free(LinearArena *arena) {
     if (arena->total > 0) memory_release(arena->data, arena->total);
-    migi_mem_clear(arena, 1);
+    mem_clear(arena, 1);
+}
+
+
+// Decommits all pages beyond the end of allocations
+static void lnr_arena_trim(LinearArena *arena) {
+    size_t new_capacity = align_page_size(arena->length);
+    size_t extra_length = arena->capacity - new_capacity;
+    memory_decommit(arena->data + new_capacity, extra_length);
+    arena->capacity = new_capacity;
 }
 
 static uint64_t lnr_arena_save(LinearArena *arena) {
@@ -122,6 +120,7 @@ static uint64_t lnr_arena_save(LinearArena *arena) {
 
 static void lnr_arena_rewind(LinearArena *arena, uint64_t length) {
     lnr_arena_pop_bytes(arena, abs_difference(arena->length, length));
+    lnr_arena_trim(arena);
 }
 
 // Convenience macros which multiply size with the sizeof(type)

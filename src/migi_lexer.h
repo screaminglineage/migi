@@ -21,7 +21,7 @@
 // TODO: check for \r\n newlines while parsing as well (only for skipping comments for now)
 
 typedef enum {
-    Tok_None = 0,
+    Tok_Invalid = 0,
     Tok_Eof,
     Tok_OpenParen,
     Tok_CloseParen,
@@ -62,7 +62,7 @@ typedef enum {
 } TokenType;
 
 static String TOKEN_STRINGS[] = {
-    [Tok_None]                = SV("none"),
+    [Tok_Invalid]             = SV("invalid token"),
     [Tok_Eof]                 = SV("end of file"),
     [Tok_OpenParen]           = SV("("),
     [Tok_CloseParen]          = SV(")"),
@@ -118,140 +118,6 @@ typedef struct {
     Token token_buf[2];
 } Lexer;
 
-typedef enum {
-    Keyword_Alignas,
-    Keyword_Alignof,
-    Keyword_Auto,
-    Keyword_Bool,
-    Keyword_Break,
-    Keyword_Case,
-    Keyword_Char,
-    Keyword_Const,
-    Keyword_Constexpr,
-    Keyword_Continue,
-    Keyword_Default,
-    Keyword_Do,
-    Keyword_Double,
-    Keyword_Else,
-    Keyword_Enum,
-    Keyword_Extern,
-    Keyword_False,
-    Keyword_Float,
-    Keyword_For,
-    Keyword_Goto,
-    Keyword_If,
-    Keyword_Inline,
-    Keyword_Int,
-    Keyword_Long,
-    Keyword_Nullptr,
-    Keyword_Register,
-    Keyword_Restrict,
-    Keyword_Return,
-    Keyword_Short,
-    Keyword_Signed,
-    Keyword_Sizeof,
-    Keyword_Static,
-    Keyword_StaticAssert,
-    Keyword_Struct,
-    Keyword_Switch,
-    Keyword_ThreadLocal,
-    Keyword_True,
-    Keyword_Typedef,
-    Keyword_Typeof,
-    Keyword_TypeofUnqual,
-    Keyword_Union,
-    Keyword_Unsigned,
-    Keyword_Void,
-    Keyword_Volatile,
-    Keyword_While,
-    Keyword__Alignas,
-    Keyword__Alignof,
-    Keyword__Atomic,
-    Keyword__Bitint,
-    Keyword__Bool,
-    Keyword__Complex,
-    Keyword__Decimal128,
-    Keyword__Decimal32,
-    Keyword__Decimal64,
-    Keyword__Generic,
-    Keyword__Imaginary,
-    Keyword__Noreturn,
-    Keyword__StaticAssert,
-    Keyword__ThreadLocal,
-
-    Keyword_Count,
-} KeywordType;
-
-static String KEYWORD_STRINGS[Keyword_Count] = {
-    [Keyword_Alignas]               = SV("alignas"),
-    [Keyword_Alignof]               = SV("alignof"),
-    [Keyword_Auto]                  = SV("auto"),
-    [Keyword_Bool]                  = SV("bool"),
-    [Keyword_Break]                 = SV("break"),
-    [Keyword_Case]                  = SV("case"),
-    [Keyword_Char]                  = SV("char"),
-    [Keyword_Const]                 = SV("const"),
-    [Keyword_Constexpr]             = SV("constexpr"),
-    [Keyword_Continue]              = SV("continue"),
-    [Keyword_Default]               = SV("default"),
-    [Keyword_Do]                    = SV("do"),
-    [Keyword_Double]                = SV("double"),
-    [Keyword_Else]                  = SV("else"),
-    [Keyword_Enum]                  = SV("enum"),
-    [Keyword_Extern]                = SV("extern"),
-    [Keyword_False]                 = SV("false"),
-    [Keyword_Float]                 = SV("float"),
-    [Keyword_For]                   = SV("for"),
-    [Keyword_Goto]                  = SV("goto"),
-    [Keyword_If]                    = SV("if"),
-    [Keyword_Inline]                = SV("inline"),
-    [Keyword_Int]                   = SV("int"),
-    [Keyword_Long]                  = SV("long"),
-    [Keyword_Nullptr]               = SV("nullptr"),
-    [Keyword_Register]              = SV("register"),
-    [Keyword_Restrict]              = SV("restrict"),
-    [Keyword_Return]                = SV("return"),
-    [Keyword_Short]                 = SV("short"),
-    [Keyword_Signed]                = SV("signed"),
-    [Keyword_Sizeof]                = SV("sizeof"),
-    [Keyword_Static]                = SV("static"),
-    [Keyword_StaticAssert]          = SV("static_assert"),
-    [Keyword_Struct]                = SV("struct"),
-    [Keyword_Switch]                = SV("switch"),
-    [Keyword_ThreadLocal]           = SV("thread_local"),
-    [Keyword_True]                  = SV("true"),
-    [Keyword_Typedef]               = SV("typedef"),
-    [Keyword_Typeof]                = SV("typeof"),
-    [Keyword_TypeofUnqual]          = SV("typeof_unqual"),
-    [Keyword_Union]                 = SV("union"),
-    [Keyword_Unsigned]              = SV("unsigned"),
-    [Keyword_Void]                  = SV("void"),
-    [Keyword_Volatile]              = SV("volatile"),
-    [Keyword_While]                 = SV("while"),
-    [Keyword__Alignas]              = SV("_Alignas"),
-    [Keyword__Alignof]              = SV("_Alignof"),
-    [Keyword__Atomic]               = SV("_Atomic"),
-    [Keyword__Bitint]               = SV("_BitInt"),
-    [Keyword__Bool]                 = SV("_Bool"),
-    [Keyword__Complex]              = SV("_Complex"),
-    [Keyword__Decimal128]           = SV("_Decimal128"),
-    [Keyword__Decimal32]            = SV("_Decimal32"),
-    [Keyword__Decimal64]            = SV("_Decimal64"),
-    [Keyword__Generic]              = SV("_Generic"),
-    [Keyword__Imaginary]            = SV("_Imaginary"),
-    [Keyword__Noreturn]             = SV("_Noreturn"),
-    [Keyword__StaticAssert]         = SV("_Static_assert"),
-    [Keyword__ThreadLocal]          = SV("_Thread_local"),
-};
-
-static_assert(array_len(KEYWORD_STRINGS) == Keyword_Count, "Keyword count has changed");
-
-typedef struct {
-    KeywordType type;
-    String string;
-} Keyword;
-
-
 // Consume the next token
 static inline bool consume_token(Lexer *lexer, Token *tok);
 
@@ -275,24 +141,7 @@ static inline bool match_token_str(Lexer *lexer, TokenType expected, String toke
 #define match_token_any(lexer, ...) \
     (_match_token_any((lexer), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
-// Try to convert an indentifier to a keyword
-static bool identifier_to_keyword(Token identifier, Keyword *keyword);
-
-static bool identifier_to_keyword(Token identifier, Keyword *keyword) {
-    for (size_t i = 0; i < Keyword_Count; i++) {
-        if (string_eq(identifier.string, KEYWORD_STRINGS[i])) {
-            *keyword = (Keyword){
-                .type = i,
-                .string = KEYWORD_STRINGS[i],
-            };
-            return true;
-        }
-    }
-    return false;
-}
-
-
-#define TOK_NEW(lexer, tok_type)                      \
+#define lexer_new_token(lexer, tok_type)                      \
     ((Token){                                         \
      .type   = (tok_type),                            \
      .string = (String){                              \
@@ -438,86 +287,78 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
 
     lexer->token_buf[0] = lexer->token_buf[1];
     while (true) {
-        if (!isspace(lexer_peek_char(lexer))) break;
-        lexer->end++;
+        if (isspace(lexer_peek_char(lexer))) {
+            while (isspace(lexer_peek_char(lexer)))  lexer->end++;
+        } else if (lexer_peek_char(lexer) == '/') {
+            if (lexer_peek_next_char(lexer) == '/') {
+                while (lexer_peek_char(lexer) != '\n') lexer->end++;
+            } else if (lexer_peek_next_char(lexer) == '*') {
+                while (!(lexer_peek_char(lexer) == '*' && lexer_peek_next_char(lexer) == '/')) {
+                    lexer->end++;
+                }
+                lexer->end++;
+                lexer->end++;
+            }
+        } else {
+            break;
+        }
     }
     lexer->start = lexer->end;
 
     char ch = lexer_consume_char(lexer);
-    // TODO: do C lexing here
     switch(ch) {
-        case '\0': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Eof);            break;
-        case '(':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_OpenParen);     break;
-        case ')':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_CloseParen);    break;
-        case '{':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_OpenBrace);     break;
-        case '}':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_CloseBrace);    break;
-        case '[':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_OpenBracket);   break;
-        case ']':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_CloseBracket);  break;
-        case ',':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Comma);          break;
-        case '\'': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Singlequote);    break;
-        case '\\': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Backslash);      break;
-        case '.':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Dot);            break;
-        case '?':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Question);       break;
-        case ':':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Colon);          break;
-        case ';':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Semicolon);      break;
-        case '#':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Hash);           break;
+        case '\0': lexer->token_buf[1] = lexer_new_token(lexer, Tok_Eof);          break;
+        case '(':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_OpenParen);    break;
+        case ')':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_CloseParen);   break;
+        case '{':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_OpenBrace);    break;
+        case '}':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_CloseBrace);   break;
+        case '[':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_OpenBracket);  break;
+        case ']':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_CloseBracket); break;
+        case ',':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Comma);        break;
+        case '\'': lexer->token_buf[1] = lexer_new_token(lexer, Tok_Singlequote);  break;
+        case '\\': lexer->token_buf[1] = lexer_new_token(lexer, Tok_Backslash);    break;
+        case '.':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Dot);          break;
+        case '?':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Question);     break;
+        case ':':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Colon);        break;
+        case ';':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Semicolon);    break;
+        case '#':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Hash);         break;
         case '-':  {
             if (lexer_peek_char(lexer) == '-') {
                lexer->end++;
-               lexer->token_buf[1] = TOK_NEW(lexer, Tok_MinusMinus);
+               lexer->token_buf[1] = lexer_new_token(lexer, Tok_MinusMinus);
             } else {
-               lexer->token_buf[1] = TOK_NEW(lexer, Tok_Minus);
+               lexer->token_buf[1] = lexer_new_token(lexer, Tok_Minus);
             }
         } break;
         case '+':  {
             if (lexer_peek_char(lexer) == '+') {
                 lexer->end++;
-                lexer->token_buf[1] = TOK_NEW(lexer, Tok_PlusPlus);
+                lexer->token_buf[1] = lexer_new_token(lexer, Tok_PlusPlus);
             } else {
-                lexer->token_buf[1] = TOK_NEW(lexer, Tok_Plus);
+                lexer->token_buf[1] = lexer_new_token(lexer, Tok_Plus);
             }
         } break;
-        case '*': lexer->token_buf[1] = TOK_NEW(lexer, Tok_Star); break;
-        case '/': {
-            if (lexer_peek_char(lexer) == '/') {
-                while (lexer_peek_char(lexer) != '\n') lexer->end++;
-                lexer->start = lexer->end;
-                // TODO: remove recursive lexing, can overflow if too many comments follow each other
-                if (!next_token_impl(lexer, tok)) return false;
-
-            } else if (lexer_peek_char(lexer) == '*') {
-                while (!(lexer_peek_char(lexer) == '*'
-                        && lexer_peek_next_char(lexer) == '/'))
-                    lexer->end++;
-
-                lexer->end++;
-                lexer->end++;
-                lexer->start = lexer->end;
-                // TODO: remove recursive lexing, can overflow if too many comments follow each other
-                if (!next_token_impl(lexer, tok)) return false;
-            } else {
-                lexer->token_buf[1] = TOK_NEW(lexer, Tok_Slash);
-            }
-        } break;
-        case '<':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Lesser); break;
-        case '>':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Greater); break;
-        case '=':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Equals); break;
-        case '!':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Bang); break;
-        case '%':  lexer->token_buf[1] = TOK_NEW(lexer, Tok_Modulo); break;
+        case '*':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Star);    break;
+        case '/':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Slash);   break;
+        case '<':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Lesser);  break;
+        case '>':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Greater); break;
+        case '=':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Equals);  break;
+        case '!':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Bang);    break;
+        case '%':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Modulo);  break;
         case '&':  {
             if (lexer_peek_char(lexer) == '&') {
                lexer->end++;
-               lexer->token_buf[1] = TOK_NEW(lexer, Tok_And);
+               lexer->token_buf[1] = lexer_new_token(lexer, Tok_And);
             } else {
-               lexer->token_buf[1] = TOK_NEW(lexer, Tok_BitAnd);
+               lexer->token_buf[1] = lexer_new_token(lexer, Tok_BitAnd);
             }
         } break;
         case '|':  {
             if (lexer_peek_char(lexer) == '|') {
                lexer->end++;
-               lexer->token_buf[1] = TOK_NEW(lexer, Tok_Or);
+               lexer->token_buf[1] = lexer_new_token(lexer, Tok_Or);
             } else {
-               lexer->token_buf[1] = TOK_NEW(lexer, Tok_BitOr);
+               lexer->token_buf[1] = lexer_new_token(lexer, Tok_BitOr);
             }
         } break;
         case '_': {
@@ -548,7 +389,7 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
 
 
 static inline bool consume_token(Lexer *lexer, Token *tok)  {
-    if (lexer->token_buf[1].type == Tok_None) {
+    if (lexer->token_buf[1].type == Tok_Invalid) {
         if (!next_token_impl(lexer, tok)) return false;
     }
     return next_token_impl(lexer, tok);
@@ -562,7 +403,7 @@ static inline Token next_token(Lexer *lexer) {
 }
 
 static inline bool peek_token(Lexer *lexer, Token *tok) {
-    if (lexer->token_buf[1].type == Tok_None) {
+    if (lexer->token_buf[1].type == Tok_Invalid) {
         if (!next_token_impl(lexer, tok)) return false;
     }
     *tok = lexer->token_buf[1];
