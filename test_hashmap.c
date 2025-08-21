@@ -10,7 +10,7 @@
 
 #include "arena.h"
 
-// #define HASHMAP_INIT_CAP 2
+// #define HASHMAP_INIT_CAP 4
 // #define HASHMAP_LOAD_FACTOR 0.25
 // #define HASHMAP_TRACK_MAX_PROBE_LENGTH
 #include "hashmap.h"
@@ -175,7 +175,7 @@ void frequency_analysis() {
     StringBuilder sb = {0};
     read_file(&sb, SV("shakespeare.txt"));
     // read_file(&sb, SV("gatsby.txt"));
-    // read_file(&sb, SV("test_hashmap.c"));
+    // read_file(&sb, SV("hashmap_test.txt"));
     String contents = sb_to_string(&sb);
 
     Arena a = {0};
@@ -270,6 +270,7 @@ void test_type_safety() {
     Arena a = {0};
     MapStrInt map = {0};
     *hms_entry(&a, &map, SV("abcd")) = 12;
+
     hms_put(&a, &map, SV("ijkl"), 100);
     // hms_put(&a, &map, SV("ijkl"), ((Point){1, 1}));
 
@@ -333,7 +334,7 @@ String random_string(Arena *a, size_t length) {
 // This is extremely slow on a regular linear probing due to having to search
 // the entire table and then failing.
 // The robin hood linear probing approach is MUCH faster in this case
-void test_search_fail() {
+void profile_search_fail() {
     Arena a = {0};
     MapStrInt map = {0};
 
@@ -691,7 +692,8 @@ int main() {
     frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
-    // test_search_fail();
+    // profile_search_fail();
+    // test_small_hashmap_collision();
     // test_basic();
     // test_basic_struct_key();
     // test_basic_primitive_key();
