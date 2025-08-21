@@ -42,7 +42,6 @@ static u64 global_parent_index = 0;
 
 #ifdef ENABLE_PROFILING
 
-// TODO: come up with a better name for this
 typedef struct {
     u64 start_time;
     u64 elapsed_inclusive;

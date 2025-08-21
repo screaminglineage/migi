@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-// #define ENABLE_PROFILING
+#define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -701,8 +701,30 @@ void profile_huge_strings() {
     end_profiling_and_print_stats();
 }
 
+void test_reserve() {
+    typedef struct {
+        String key;
+        int value;
+    } KV;
+
+    typedef struct {
+        HASHMAP_HEADER;
+        KV *data;
+    } Map;
+
+    Arena a = {0};
+    Map map = {0};
+    hm_reserve(&a, &map, 500);
+
+    size_t reserved = map.capacity;
+    for (size_t i = 0; i < 500; i++) {
+        hms_put(&a, &map, SV("a"), i);
+        assertf(map.capacity == reserved, "expected `%zu` but got `%zu`", reserved, map.capacity);
+    }
+}
+
 int main() {
-    frequency_analysis();
+    // frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
     // profile_search_fail();
@@ -713,6 +735,7 @@ int main() {
     // test_basic_primitive_key();
     // test_default_values();
     // test_type_safety();
+    // test_reserve();
 
     printf("\nexiting successfully\n");
 

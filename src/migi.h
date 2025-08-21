@@ -100,6 +100,7 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 // assert is implemented as an expression and so it must be
 // replaced by the expression passed in
 // this also keeps the expression even if asserts are disabled
+// TODO: make assert completely empty here, will require going through every usage of assert to remove those that do side-effects
    #define assert(expr) ((void)(expr))
    #define assertf(expr, ...) ((void)(expr))
 

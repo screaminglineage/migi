@@ -96,7 +96,6 @@ static void *lnr_arena_memdup_bytes(LinearArena *arena, void *old, size_t size, 
     return memcpy(lnr_arena_push_bytes(arena, size, align), old, size);
 }
 
-// TODO: check if alignment needs to be factored in anywhere
 static void *lnr_arena_realloc_bytes(LinearArena *arena, void *old, size_t old_size, size_t new_size, size_t align) {
     TIME_FUNCTION;
     if (old == NULL || old_size == 0) return lnr_arena_push_bytes(arena, new_size, align);
