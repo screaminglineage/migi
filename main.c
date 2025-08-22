@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 
@@ -30,13 +31,13 @@
 #include "migi_random.h"
 #include "migi_string.h"
 
-#pragma GCC diagnostic pop
+#define POOL_ALLOC_COUNT_ALLOCATIONS
+#include "pool_allocator.h"
 
-typedef struct {
-    int *data;
-    size_t length;
-    size_t capacity;
-} Ints;
+#include "migi_temp.h"
+#include "gen/String_printer.gen.c"
+
+#pragma GCC diagnostic pop
 
 bool baz_error(int x) {
     return_if_false(x != 0, printf("%s: failed\n", __func__));
@@ -85,9 +86,8 @@ void test_linear_arena_regular(LinearArena *arena) {
     // unaligned read check
     {
         uint64_t save = lnr_arena_save(arena);
-        lnr_arena_new(arena, char);
-        uint64_t *u = lnr_arena_new(arena, uint64_t);
-        *u = 12;
+        lnr_arena_push(arena, char, 1);
+        *lnr_arena_new(arena, uint64_t) = 12;
         lnr_arena_pop(arena, uint64_t, 1);
         lnr_arena_rewind(arena, save);
     }
@@ -159,24 +159,23 @@ void test_arena() {
     ArenaCheckpoint save = arena_save(&arena);
     {
         // unaligned read check
-        arena_new(&arena, char);
-        uint64_t *u = arena_new(&arena, uint64_t);
-        *u = 12;
+        arena_push(&arena, char, 1);
+        *arena_new(&arena, uint64_t) = 12;
         arena_pop_current(&arena, uint64_t, 1);
         arena_rewind(&arena, save);
     }
 
-    char *a = arena_push(&arena, char, ARENA_DEFAULT_CAP);
+    char *a = arena_push(&arena, char, ARENA_DEFAULT_ZONE_CAP);
     a[0] = 1;
 
-    char *b = arena_push(&arena, char, ARENA_DEFAULT_CAP);
+    char *b = arena_push(&arena, char, ARENA_DEFAULT_ZONE_CAP);
     b[256] = 124;
     printf("%d %d\n", a[0], b[256]);
 
     arena_reset(&arena);
-    char *c = arena_push(&arena, char, ARENA_DEFAULT_CAP * 1.25);
+    char *c = arena_push(&arena, char, ARENA_DEFAULT_ZONE_CAP * 1.25);
     c[26] = 14;
-    int *d = arena_realloc(&arena, int, NULL, 0, ARENA_DEFAULT_CAP);
+    int *d = arena_realloc(&arena, int, NULL, 0, ARENA_DEFAULT_ZONE_CAP);
     d[30] = 14;
     printf("%d %d\n", c[26], d[30]);
 
@@ -185,7 +184,7 @@ void test_arena() {
     ArenaCheckpoint checkpoint = arena_save(&arena);
 
     int *e =
-        arena_realloc(&arena, int, d, ARENA_DEFAULT_CAP, ARENA_DEFAULT_CAP * 2);
+        arena_realloc(&arena, int, d, ARENA_DEFAULT_ZONE_CAP, ARENA_DEFAULT_ZONE_CAP * 2);
     assertf(e != d, "new zone created since size of e was greater than the "
                     "default arena capacity");
 
@@ -296,6 +295,12 @@ void test_random() {
 }
 
 void test_dynamic_array() {
+    typedef struct {
+        int *data;
+        size_t length;
+        size_t capacity;
+    } Ints;
+
     Ints ints = {0};
     Ints ints_new = {0};
 
@@ -474,7 +479,7 @@ void profile_arenas() {
         LinearArena a = {0};
         begin_profiling();
         for (int i = 0; i < 10000; i++) {
-            lnr_arena_new(&a, char);
+            lnr_arena_push(&a, char, 1);
             lnr_arena_pop(&a, char, 1);
         }
         end_profiling_and_print_stats();
@@ -484,7 +489,7 @@ void profile_arenas() {
         Arena a = {0};
         begin_profiling();
         for (int i = 0; i < 10000; i++) {
-            arena_new(&a, char);
+            arena_push(&a, char, 1);
             arena_pop_current(&a, char, 1);
         }
         end_profiling_and_print_stats();
@@ -494,10 +499,8 @@ void profile_arenas() {
 void test_string() {
     Arena a = {0};
     {
-        assert(string_eq(string_to_lower(&a, SV("HELLO world!!!")),
-                         SV("hello world!!!")));
-        assert(string_eq(string_to_upper(&a, SV("FOO bar baz!")),
-                         SV("FOO BAR BAZ!")));
+        assert(string_eq(string_to_lower(&a, SV("HELLO world!!!")), SV("hello world!!!")));
+        assert(string_eq(string_to_upper(&a, SV("FOO bar baz!")),   SV("FOO BAR BAZ!")));
     }
 
     {
@@ -544,6 +547,26 @@ void test_string() {
         assert(string_find_rev(SV("abc"),    SV(""))       == 3);
         assert(string_find_rev(SV(""),       SV("a"))      == -1);
         assert(string_find_rev(SV("aaaaa"),  SV("aa"))     == 3);
+    }
+
+    // string_reverse
+    {
+        assert(string_eq(string_reverse(&a, SV("")), SV("")));
+        assert(string_eq(string_reverse(&a, SV("hello world")), SV("dlrow olleh")));
+    }
+
+    // string_replace
+    {
+        assert(string_eq(string_replace(&a, SV(""),              SV(""),      SV("")),     SV("")));
+        assert(string_eq(string_replace(&a, SV("foo"),           SV(""),      SV("bar")),  SV("foo")));
+        assert(string_eq(string_replace(&a, SV("foo"),           SV("bar"),   SV("")),     SV("foo")));
+        assert(string_eq(string_replace(&a, SV("foo"),           SV("foo"),   SV("")),     SV("")));
+        assert(string_eq(string_replace(&a, SV("hello world!!"), SV("ll"),    SV("yy")),   SV("heyyo world!!")));
+        assert(string_eq(string_replace(&a, SV("aaa"),           SV("a"),     SV("bar")),  SV("barbarbar")));
+        assert(string_eq(string_replace(&a, SV("hello world"),   SV("l"),     SV("x")),    SV("hexxo worxd")));
+        assert(string_eq(string_replace(&a, SV("start starry starred restart started"),
+                                                                 SV("start"), SV("part")),
+                                                                                           SV("part starry starred repart parted")));
     }
 
     todof("Add tests for other string functions");
@@ -613,8 +636,69 @@ void test_string_split_first() {
     }
 }
 
+
+typedef struct {
+    int foo[512];
+    float bar[512];
+    char baz[512];
+} LargeStruct;
+
+typedef PoolAllocator(LargeStruct) StructPool;
+
+void test_pool_allocator_impl(StructPool *p) {
+    LargeStruct *allocs[10] = {0};
+    for (size_t i = 0; i < array_len(allocs); i++) {
+        allocs[i] = pool_alloc(p);
+        random_bytes((byte *)&allocs[i]->foo, sizeof(allocs[i]->foo));
+        random_bytes((byte *)&allocs[i]->bar, sizeof(allocs[i]->bar));
+        random_bytes((byte *)&allocs[i]->baz, sizeof(allocs[i]->baz));
+    }
+    assert(p->p.length == 10);
+
+    pool_free(p, allocs[1]);
+    pool_free(p, allocs[9]);
+    pool_free(p, allocs[4]);
+    pool_free(p, allocs[0]);
+    assert(p->p.length == 6);
+
+
+    LargeStruct *a1 = pool_alloc(p);
+    LargeStruct *a2 = pool_alloc(p);
+    LargeStruct *a3 = pool_alloc(p);
+    LargeStruct *a4 = pool_alloc(p);
+
+    assert(a4 == allocs[1]);
+    assert(a3 == allocs[9]);
+    assert(a2 == allocs[4]);
+    assert(a1 == allocs[0]);
+    assert(p->p.length == 10);
+}
+
+void test_pool_allocator() {
+    StructPool p = {0};
+    test_pool_allocator_impl(&p);
+    assert(p.p.length == 10);
+}
+
+void test_temp_allocator() {
+    ArenaCheckpoint c = temp_save();
+    for (size_t i = 0; i < 1000; i++) {
+        assert(string_eq(SV("3-2-1 go!"), temp_format("%d-%d-%d go!", 3, 2, 1)));
+        int *a = temp_alloc(int, 25);
+        for (size_t i = 0; i < 25; i++) {
+            a[i] = i;
+        }
+    }
+    temp_rewind(c);
+
+    assert(temp_allocator_global_arena.tail == temp_allocator_global_arena.head);
+    assert(temp_allocator_global_arena.tail->length == 0);
+}
+
 int main() {
-    test_linear_arena();
+    test_temp_allocator();
+
+
     printf("\nExiting successfully\n");
     return 0;
 }

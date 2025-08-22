@@ -37,16 +37,17 @@ typedef enum {
     Tok_Greater,
     Tok_Equals,
     Tok_MinusMinus,
+    Tok_MinusEquals,
     Tok_PlusPlus,
+    Tok_PlusEquals,
     Tok_Question,
     Tok_Colon,
     Tok_Semicolon,
     Tok_Comma,
-    Tok_Doublequote,
-    Tok_Singlequote,
     Tok_Backslash,
     Tok_Dot,
     Tok_String,
+    Tok_Char,
     Tok_Floating,
     Tok_Integer,
     Tok_Identifier,
@@ -78,16 +79,17 @@ static String TOKEN_STRINGS[] = {
     [Tok_Greater]             = SV(">"),
     [Tok_Equals]              = SV("="),
     [Tok_MinusMinus]          = SV("--"),
+    [Tok_MinusEquals]         = SV("-="),
     [Tok_PlusPlus]            = SV("++"),
+    [Tok_PlusEquals]          = SV("+="),
     [Tok_Question]            = SV("?"),
     [Tok_Colon]               = SV(":"),
     [Tok_Semicolon]           = SV(";"),
     [Tok_Comma]               = SV("),"),
-    [Tok_Doublequote]         = SV("\""),
-    [Tok_Singlequote]         = SV("\'"),
     [Tok_Backslash]           = SV("\\"),
     [Tok_Dot]                 = SV("."),
     [Tok_String]              = SV("string literal"),
+    [Tok_Char]                = SV("character literal"),
     [Tok_Floating]            = SV("floating point literal"),
     [Tok_Integer]             = SV("integer literal"),
     [Tok_Identifier]          = SV("identifier"),
@@ -121,14 +123,14 @@ typedef struct {
 // Consume the next token
 static inline bool consume_token(Lexer *lexer, Token *tok);
 
-// Advance lexer to next token, asserting that it is valid
+// Consume the next token, asserting that its valid
 static inline Token next_token(Lexer *lexer);
 
 // Get the next token without consuming it
 static inline bool peek_token(Lexer *lexer, Token *tok);
 
 // Check if the next token is the same as expected and consume it
-// Doesn't consume the token if its different
+// The next token is always consumed even if it doesn't match
 static inline bool expect_token(Lexer *lexer, TokenType expected);
 static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str);
 
@@ -141,7 +143,7 @@ static inline bool match_token_str(Lexer *lexer, TokenType expected, String toke
 #define match_token_any(lexer, ...) \
     (_match_token_any((lexer), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
-#define lexer_new_token(lexer, tok_type)                      \
+#define lexer_new_token(lexer, tok_type)              \
     ((Token){                                         \
      .type   = (tok_type),                            \
      .string = (String){                              \
@@ -173,10 +175,52 @@ static inline char lexer_consume_char(Lexer *lexer) {
     return lexer->string.data[lexer->end++];
 }
 
+char escape_char(char ch) {
+    switch (ch) {
+        case 'n':   return '\n';
+        case 'r':   return '\r';
+        case 't':   return '\t';
+        case 'v':   return '\v';
+        case 'f':   return '\f';
+        case 'b':   return '\b';
+        case '0':   return '\0';
+        case '\\':  return '\\';
+        case '\'':  return '\'';
+        default: todof("unknown escape character, `%c`", ch);
+    }
+}
+
+// TODO: handle `\x` and other multi-character escape sequences
+static bool tokenize_char(Lexer *lexer) {
+    Token tok = {.type = Tok_Char};
+    char ch = lexer_consume_char(lexer);
+
+    if (ch == '\0') {
+        fprintf(stderr, "error: unmatched '\'' at index: %zu\n", lexer->start);
+        return false;
+    }
+
+    if (ch == '\\') {
+        tok.integer = escape_char(lexer_peek_char(lexer));
+        lexer->end++;
+    } else {
+        tok.integer = ch;
+    } 
+
+    if (lexer_peek_char(lexer) != '\'') {
+        fprintf(stderr, "error: character literal with multiple characters at index: %zu\n", lexer->start);
+        return false;
+    }
+
+    tok.string = string_slice(lexer->string, lexer->start, lexer->end);
+    lexer->token_buf[1] = tok;
+    return true;
+}
+
 static bool tokenize_string(Lexer *lexer) {
     TIME_FUNCTION;
 
-    size_t start_index = lexer->start;
+    // TODO: parse escape sequences
     char ch = '\0';
     while (true) {
         ch = lexer_peek_char(lexer);
@@ -184,15 +228,15 @@ static bool tokenize_string(Lexer *lexer) {
         lexer->end++;
     }
     if (ch == '\0') {
-        fprintf(stderr, "error: unmatched '\"' at index: %zu\n", start_index);
+        fprintf(stderr, "error: unmatched '\"' at index: %zu\n", lexer->start);
         return false;
     }
 
     lexer->token_buf[1] = (Token){
         .type = Tok_String,
         .string = (String){
-            .data = &lexer->string.data[start_index],
-            .length = lexer->end - start_index
+            .data = &lexer->string.data[lexer->start],
+            .length = lexer->end - lexer->start
         }
     };
     return true;
@@ -201,7 +245,6 @@ static bool tokenize_string(Lexer *lexer) {
 static bool tokenize_number(Lexer *lexer) {
     TIME_FUNCTION;
 
-    size_t number_start = lexer->start;
     char ch = '\0';
     while (true) {
         ch = lexer_peek_char(lexer);
@@ -222,7 +265,7 @@ static bool tokenize_number(Lexer *lexer) {
                 lexer->end++;
             }
 
-            String number_str = string_slice(lexer->string, number_start, lexer->end);
+            String number_str = string_slice(lexer->string, lexer->start, lexer->end);
             // TODO: implement strtod rather than depending on it
             // NOTE: Since the next character after the end of the floating point literal
             // is guaranteed to be something not part of the literal (e, E, ., number),
@@ -232,7 +275,7 @@ static bool tokenize_number(Lexer *lexer) {
 
             if (end_ptr != number_str.data + number_str.length) {
                 fprintf(stderr, "error: invalid floating point constant, `%.*s`, at: %zu\n",
-                        SV_FMT(number_str), number_start);
+                        SV_FMT(number_str), lexer->start);
                 return false;
             }
 
@@ -246,7 +289,7 @@ static bool tokenize_number(Lexer *lexer) {
     }
 
     // parsing as integer
-    String num = string_slice(lexer->string, number_start, lexer->end);
+    String num = string_slice(lexer->string, lexer->start, lexer->end);
     lexer->token_buf[1] = (Token){
         .type = Tok_Integer,
         .string = num,
@@ -281,11 +324,7 @@ static bool tokenize_identifier(Lexer *lexer) {
     return true;
 }
 
-
-static bool next_token_impl(Lexer *lexer, Token *tok)  {
-    TIME_FUNCTION;
-
-    lexer->token_buf[0] = lexer->token_buf[1];
+static void lexer_skip_whitespace(Lexer *lexer) {
     while (true) {
         if (isspace(lexer_peek_char(lexer))) {
             while (isspace(lexer_peek_char(lexer)))  lexer->end++;
@@ -303,6 +342,13 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
             break;
         }
     }
+}
+
+static bool next_token_impl(Lexer *lexer, Token *tok)  {
+    TIME_FUNCTION;
+
+    lexer->token_buf[0] = lexer->token_buf[1];
+    lexer_skip_whitespace(lexer);
     lexer->start = lexer->end;
 
     char ch = lexer_consume_char(lexer);
@@ -315,9 +361,7 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
         case '[':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_OpenBracket);  break;
         case ']':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_CloseBracket); break;
         case ',':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Comma);        break;
-        case '\'': lexer->token_buf[1] = lexer_new_token(lexer, Tok_Singlequote);  break;
         case '\\': lexer->token_buf[1] = lexer_new_token(lexer, Tok_Backslash);    break;
-        case '.':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Dot);          break;
         case '?':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Question);     break;
         case ':':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Colon);        break;
         case ';':  lexer->token_buf[1] = lexer_new_token(lexer, Tok_Semicolon);    break;
@@ -326,6 +370,9 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
             if (lexer_peek_char(lexer) == '-') {
                lexer->end++;
                lexer->token_buf[1] = lexer_new_token(lexer, Tok_MinusMinus);
+            } else if (lexer_peek_char(lexer) == '=') {
+                lexer->end++;
+                lexer->token_buf[1] = lexer_new_token(lexer, Tok_MinusEquals);
             } else {
                lexer->token_buf[1] = lexer_new_token(lexer, Tok_Minus);
             }
@@ -334,6 +381,9 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
             if (lexer_peek_char(lexer) == '+') {
                 lexer->end++;
                 lexer->token_buf[1] = lexer_new_token(lexer, Tok_PlusPlus);
+            } else if (lexer_peek_char(lexer) == '=') {
+                lexer->end++;
+                lexer->token_buf[1] = lexer_new_token(lexer, Tok_PlusEquals);
             } else {
                 lexer->token_buf[1] = lexer_new_token(lexer, Tok_Plus);
             }
@@ -364,11 +414,25 @@ static bool next_token_impl(Lexer *lexer, Token *tok)  {
         case '_': {
             if (!tokenize_identifier(lexer)) return false;
         } break;
+        case '\'': {
+            lexer->start = lexer->end; // resetting lexer to not include quote in character literal
+            if (!tokenize_char(lexer)) return false;
+            assertf(lexer->string.data[lexer->end] == '\'', "char literal is terminated");
+            lexer->end++;
+        } break;
         case '"': {
             lexer->start = lexer->end; // resetting lexer to not include quote in string
             if (!tokenize_string(lexer)) return false;
-            assertf(lexer->string.data[lexer->end] == '\"', "string literal is terminated");
+            assertf(lexer->string.data[lexer->end] == '"', "string literal is terminated");
             lexer->end++;
+        } break;
+        case '.': {
+            if (between(lexer_peek_char(lexer), '0', '9')) {
+                lexer->end--;  // resetting lexer before `.` was consumed
+                if (!tokenize_number(lexer)) return false;
+            } else {
+                lexer->token_buf[1] = lexer_new_token(lexer, Tok_Dot);
+            }
         } break;
         default: {
             if (between(ch, '0', '9')) {
@@ -439,15 +503,15 @@ static inline bool match_token_str(Lexer *lexer, TokenType expected, String toke
 }
 
 static inline bool expect_token(Lexer *lexer, TokenType expected) {
-    if (!match_token(lexer, expected)) return false;
-    Token tok = {0};
-    return consume_token(lexer, &tok);
+    bool matches = match_token(lexer, expected);
+    next_token(lexer);
+    return matches;
 }
 
 static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str) {
-    if (!match_token_str(lexer, expected, str)) return false;
-    Token tok = {0};
-    return consume_token(lexer, &tok);
+    bool matches = match_token_str(lexer, expected, str);
+    next_token(lexer);
+    return matches;
 }
 
 #endif // !MIGI_LEXER_H

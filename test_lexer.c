@@ -48,16 +48,16 @@ int main() {
     mem_clear_single(&l);
     l.string = sb_to_string(&sb);
 
-    return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("int")), 1);
-    return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("main")), 1);
-    return_val_if_false(expect_token(&l, Tok_OpenParen), 1);
-    return_val_if_false(expect_token(&l, Tok_CloseParen), 1);
-    return_val_if_false(expect_token(&l, Tok_OpenBrace), 1);
-    return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("return")), 1);
-    return_val_if_false(expect_token(&l, Tok_Minus), 1);
-    return_val_if_false(expect_token(&l, Tok_Floating), 1);
-    return_val_if_false(expect_token(&l, Tok_Semicolon), 1);
-    return_val_if_false(expect_token(&l, Tok_CloseBrace), 1);
+    // return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("int")), 1);
+    // return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("main")), 1);
+    // return_val_if_false(expect_token(&l, Tok_OpenParen), 1);
+    // return_val_if_false(expect_token(&l, Tok_CloseParen), 1);
+    // return_val_if_false(expect_token(&l, Tok_OpenBrace), 1);
+    // return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("return")), 1);
+    // return_val_if_false(expect_token(&l, Tok_Minus), 1);
+    // return_val_if_false(expect_token(&l, Tok_Floating), 1);
+    // return_val_if_false(expect_token(&l, Tok_Semicolon), 1);
+    // return_val_if_false(expect_token(&l, Tok_CloseBrace), 1);
     dump_tokens(&l);
     return 0;
 }

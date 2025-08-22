@@ -140,6 +140,21 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 #define make_unique(a) macro_concat(a, __LINE__)
 
 
+// Allows typechecking of printf-like format arguments
+// `format_index` - index of format string in parameters
+// `vararg_index` - index of var arg start in parameters
+#if defined(__GNUC__) || defined(__clang__)
+    #ifdef __MINGW_PRINTF_FORMAT
+        #define migi_printf_format(format_index, vararg_index) __attribute__ ((format (__MINGW_PRINTF_FORMAT, format_index, vararg_index)))
+    #else
+        #define migi_printf_format(format_index, vararg_index) __attribute__ ((format (printf, format_index, vararg_index)))
+    #endif
+#else
+    // TODO: implement windows version
+    #define migi_printf_format(format_index, vararg_index)
+#endif
+
+
 #define migi_swap(a, b)     \
 do {                        \
     __typeof__(a) temp = a; \

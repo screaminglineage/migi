@@ -1,9 +1,11 @@
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include "../src/migi.h"
 #include "../src/migi_string.h"
 #include "../src/migi_lexer.h"
 #include "../src/dynamic_array.h"
+#include "../src/migi_temp.h"
 
 // TODO: generate special case for:
 // - unions [?] (undefined behaviour to access the wrong member)
@@ -99,8 +101,8 @@ bool parse_member(Lexer *lexer, Member *member) {
     return true;
 }
 
-
-bool parse_struct(Lexer *lexer, StructDef *struct_def) {
+// TODO: parse comma separated members
+bool parse_struct_members(Lexer *lexer, StructDef *struct_def) {
     bool has_field_data     = false;
     bool has_field_length   = false;
 
@@ -128,10 +130,6 @@ bool parse_struct(Lexer *lexer, StructDef *struct_def) {
 
     // skipping closing brace
     consume_token(lexer, &tok);
-    if (!match_token(lexer, Tok_Identifier)) return false;
-    struct_def->name = next_token(lexer).string;
-
-    if (!expect_token(lexer, Tok_Semicolon)) return false;
     return true;
 }
 
@@ -252,39 +250,52 @@ int main(int argc, char *argv[]) {
     Lexer lexer = {.string = file_data};
     Token tok = {0};
     StructDefs structs = {0};
-    while (tok.type != Tok_Eof) {
-        if (!consume_token(&lexer, &tok)) {
-            return 1;
-        }
-
-        if (tok.type == Tok_Identifier) {
-            if (!string_eq(SV("typedef"), tok.string)) continue;
+    while (peek_token(&lexer, &tok)) {
+        bool skip = true;
+        if (match_token_str(&lexer, Tok_Identifier, SV("typedef"))) {
+            next_token(&lexer);
             if (!expect_token_str(&lexer, Tok_Identifier, SV("struct"))) continue;
-            if (!expect_token(&lexer, Tok_OpenBrace)) continue;
+            skip = false;
+        } else if (match_token_str(&lexer, Tok_Identifier, SV("struct"))) {
+            next_token(&lexer);
+            skip = false;
+        } else {
+            next_token(&lexer);
+        }
+        if (!skip) {
             StructDef struct_def = {0};
-            if (!parse_struct(&lexer, &struct_def)) continue;
+            if (match_token(&lexer, Tok_Identifier)) {
+                struct_def.name = next_token(&lexer).string;
+            }
+
+            if (!expect_token(&lexer, Tok_OpenBrace)) continue;
+            if (!parse_struct_members(&lexer, &struct_def)) continue;
+
+            // prefer the name at the end for typedef struct declarations
+            if (match_token(&lexer, Tok_Identifier)) {
+                struct_def.name = next_token(&lexer).string;
+            }
+            if (struct_def.name.length == 0) continue;
+            if (!expect_token(&lexer, Tok_Semicolon)) continue;
             array_add(&structs, struct_def);
         }
     }
 
     StringBuilder writer = {0};
-    StringBuilder filename = {0};
 
     generate_string_printer(&writer);
-    sb_pushf(&filename, "%s/String_printer.gen.c", output_dir);
-    write_file(&writer, sb_to_string(&filename));
-    printf("Generated printer for `String`: `%.*s`\n", SV_FMT(sb_to_string(&filename)));
+    String filename_string = temp_format("%s/String_printer.gen.c", output_dir);
+    write_file(&writer, filename_string);
+    printf("Generated printer for `String`: `%.*s`\n", SV_FMT(filename_string));
     sb_reset(&writer);
-    sb_reset(&filename);
 
     array_foreach(&structs, StructDef, struct_def) {
         generate_struct_printer(&writer, *struct_def, DEFAULT_INDENT_LEVEL);
-        sb_pushf(&filename, "%s/%.*s_printer.gen.c", output_dir, SV_FMT(struct_def->name));
-        write_file(&writer, sb_to_string(&filename));
+        String filename_struct = temp_format("%s/%.*s_printer.gen.c", output_dir, SV_FMT(struct_def->name));
+        write_file(&writer, filename_struct);
         printf("Generated printer for `%.*s`: `%.*s`\n",
-                SV_FMT(struct_def->name), SV_FMT(sb_to_string(&filename)));
+                SV_FMT(struct_def->name), SV_FMT(filename_struct));
 
         sb_reset(&writer);
-        sb_reset(&filename);
     }
 }

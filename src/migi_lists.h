@@ -22,6 +22,8 @@ typedef struct {
     size_t length;
 } StringList;
 
+migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...);
+
 static void strlist_push_string(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
     node->string = str;
@@ -77,7 +79,8 @@ static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
     // pop off the null terminator
     arena_pop_current(a, char, 1);
 
-    strlist_push_buffer(a, list, mem, actual);
+    // actual includes the null terminator
+    strlist_push_buffer(a, list, mem, actual - 1);
     va_end(args2);
     va_end(args1);
 }

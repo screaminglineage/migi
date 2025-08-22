@@ -17,8 +17,7 @@
 
 // TODO: forward declare all functions
 // TODO: dont pass in pointers to string_builder for functions that dont modify it
-// TODO: implement string_replace()
-// TODO: implement string_reverse()
+// TODO: look into adding case-insensitive find and replace
 
 typedef struct {
     const char *data;
@@ -37,10 +36,7 @@ typedef struct {
     LinearArena arena;
 } StringBuilder;
 
-// TODO: check how to do this on MSVC
-#ifdef __GNUC__
-    __attribute__((__format__(__printf__, 2, 3))) static void sb_pushf(StringBuilder *sb, const char *fmt, ...);
-#endif
+migi_printf_format(2, 3) static void sb_pushf(StringBuilder *sb, const char *fmt, ...);
 
 static void sb_push(StringBuilder *sb, char to_push) {
     *lnr_arena_push(&sb->arena, char, 1) = to_push;
@@ -350,6 +346,47 @@ static String string_to_upper(Arena *arena, String str) {
         }
     }
     return (String){upper, str.length};
+}
+
+static String string_reverse(Arena *arena, String str) {
+    char *reversed = arena_push(arena, char, str.length);
+    for (size_t i = 0; i < str.length; i++) {
+        reversed[str.length - i - 1] = str.data[i];
+    }
+    return (String){reversed, str.length};
+}
+
+
+static String string_replace(Arena *arena, String str, String find, String replace_with) {
+    if (find.length == 0) {
+        return (String){
+            .data = arena_strdup(arena, str.data, str.length),
+            .length = str.length
+        };
+    }
+
+    size_t max_length = replace_with.length * str.length;
+    char *replaced = arena_push(arena, char, max_length);
+
+    char *replaced_at = replaced;
+    while (true) {
+        int64_t index = string_find(str, find);
+        if (index == -1) {
+            memcpy(replaced_at, str.data, str.length);
+            replaced_at += str.length;
+            break;
+        }
+
+        memcpy(replaced_at, str.data, index);
+        replaced_at += index;
+        memcpy(replaced_at, replace_with.data, replace_with.length);
+        replaced_at += replace_with.length;
+        str = string_skip(str, index + find.length);
+    }
+
+    size_t actual_length = replaced_at - replaced;
+    arena_pop_current(arena, char, max_length - actual_length);
+    return (String){.data = replaced, .length = actual_length};
 }
 
 typedef struct {

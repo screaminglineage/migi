@@ -9,11 +9,12 @@
 #include "migi.h"
 #include "migi_memory.h"
 
-#ifndef ARENA_DEFAULT_CAP
-   #define ARENA_DEFAULT_CAP 16*KB
+#ifndef ARENA_DEFAULT_ZONE_CAP
+   #define ARENA_DEFAULT_ZONE_CAP 16*KB
 #endif
 
 // TODO: define functions as static
+// TODO: use a flag to optionally clear/not clear the newly allocated memory in arena_push_bytes
 
 typedef struct Zone ArenaZone;
 struct Zone {
@@ -112,14 +113,14 @@ void arena_reset_ex(Arena *arena, bool clear_all) {
 
 void *arena_push_bytes(Arena *a, size_t size, size_t align) {
     if (!a->tail) {
-        size_t new_capacity = (size <= ARENA_DEFAULT_CAP)? ARENA_DEFAULT_CAP: size;
+        size_t new_capacity = (size <= ARENA_DEFAULT_ZONE_CAP)? ARENA_DEFAULT_ZONE_CAP: size;
         a->tail = arena_new_zone(new_capacity, a->tail);
         a->head = a->tail;
     } else {
         size_t alignment = align_up_padding((uintptr_t)(a->tail->data + a->tail->length), align);
         size_t alloc_end = a->tail->length + alignment + size;
         if (alloc_end > a->tail->capacity) {
-            size_t new_capacity = (alloc_end <= ARENA_DEFAULT_CAP)? ARENA_DEFAULT_CAP: alloc_end;
+            size_t new_capacity = (alloc_end <= ARENA_DEFAULT_ZONE_CAP)? ARENA_DEFAULT_ZONE_CAP: alloc_end;
             a->tail->next = arena_new_zone(new_capacity, a->tail->next);
             a->tail = a->tail->next;
         }
@@ -175,7 +176,7 @@ void *arena_memdup_bytes(Arena *arena, void *old, size_t size, size_t align) {
 // This can be later used to rewind back to this point
 ArenaCheckpoint arena_save(Arena *arena) {
     if (!arena->tail) {
-        arena->tail = arena_new_zone(ARENA_DEFAULT_CAP, arena->tail);
+        arena->tail = arena_new_zone(ARENA_DEFAULT_ZONE_CAP, arena->tail);
         arena->head = arena->tail;
     }
     return (ArenaCheckpoint){
