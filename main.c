@@ -626,14 +626,14 @@ void test_return_slice() {
 
 void test_string_split_first() {
     String a = SV("2020-11--03 23:59@");
-    string_split_chars_foreach(a, SV("- :@"), ch) {
-        printf("=> `%.*s`\n", SV_FMT(ch));
+    string_split_chars_foreach(a, SV("- :@"), it) {
+        printf("=> `%.*s`\n", SV_FMT(it.split));
     }
     assertf(string_eq(a, SV("2020-11--03 23:59@")), "original string remains intact");
 
     String b = SV("a,b,c,");
     string_split_foreach(b, SV(","), it) {
-        printf("=> `%.*s`\n", SV_FMT(it));
+        printf("=> `%.*s`\n", SV_FMT(it.split));
     }
     assertf(string_eq(b, SV("a,b,c,")), "original string remains intact");
 
@@ -727,7 +727,7 @@ void test_temp_allocator() {
 }
 
 int main() {
-    test_string();
+    test_string_split_first();
 
 
     printf("\nExiting successfully\n");

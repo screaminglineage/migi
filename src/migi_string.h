@@ -426,28 +426,29 @@ static SplitIterator string_split_chars_first(String *str, String delims) {
 }
 
 // Iterator-like macros to loop over each string split
-// A bit cursed, so use with care
-#define string_split_foreach(str, split_at, it)                                          \
-    SplitIterator make_unique(si__) = {0};                                               \
-    String make_unique(str0__) = (str);                                                  \
-    String it;                                                                           \
-    int make_unique(cnt__) = 0;                                                          \
-    while ((make_unique(si__) = string_split_first(&make_unique(str0__), (split_at))),   \
-           (it = make_unique(si__).string),                                              \
-           (make_unique(cnt__) = make_unique(si__).is_over ? make_unique(cnt__) + 1: 0), \
-           (!make_unique(si__).is_over || make_unique(cnt__) < 2))                       \
+// Use `it.split` to get the splits each time
+#define string_split_foreach(str, split_at, it)           \
+    for (struct { String copy;                            \
+                  String split;                           \
+                  SplitIterator it;                       \
+                  bool over; }                            \
+        it = { (str), {0}, {0}, false };                  \
+        it.it = string_split_first(&it.copy, (split_at)), \
+            it.split = it.it.string,                      \
+            !it.over;                                     \
+        it.it.is_over? it.over = true: it.over)
 
 
-#define string_split_chars_foreach(str, delims, it)                                        \
-    SplitIterator make_unique(si__) = {0};                                                 \
-    String make_unique(str0__) = (str);                                                    \
-    String it;                                                                             \
-    int make_unique(cnt__) = 0;                                                            \
-    while ((make_unique(si__) = string_split_chars_first(&make_unique(str0__), (delims))), \
-           (it = make_unique(si__).string),                                                \
-           (make_unique(cnt__) = make_unique(si__).is_over ? make_unique(cnt__) + 1: 0),   \
-           (!make_unique(si__).is_over || make_unique(cnt__) < 2))                         \
-
+#define string_split_chars_foreach(str, delims, it)           \
+    for (struct { String copy;                                \
+                  String split;                               \
+                  SplitIterator it;                           \
+                  bool over; }                                \
+        it = { (str), {0}, {0}, false };                      \
+        it.it = string_split_chars_first(&it.copy, (delims)), \
+            it.split = it.it.string,                          \
+            !it.over;                                         \
+        it.it.is_over? it.over = true: it.over)
 
 
 // TODO: use linux syscalls instead of C stdlib

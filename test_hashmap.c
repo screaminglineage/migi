@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-#define ENABLE_PROFILING
+// #define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -181,8 +181,8 @@ void frequency_analysis() {
     MapStrInt map = {0};
     printf("Inserting items:\n");
     begin_profiling();
-    string_split_chars_foreach(contents, SV(" \n"), word) {
-        String key = string_to_lower(&a, string_trim(word));
+    string_split_chars_foreach(contents, SV(" \n"), it) {
+        String key = string_to_lower(&a, string_trim(it.split));
         *hms_entry(&a, &map, key) += 1;
     }
 
@@ -726,8 +726,8 @@ int main() {
     frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
-    profile_search_fail();
-    profile_huge_strings();
+    // profile_search_fail();
+    // profile_huge_strings();
     // test_small_hashmap_collision();
     // test_basic();
     // test_basic_struct_key();
@@ -737,7 +737,6 @@ int main() {
     // test_reserve();
 
     printf("\nexiting successfully\n");
-
 
     return 0;
 }
