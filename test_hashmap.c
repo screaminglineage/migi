@@ -195,7 +195,7 @@ void frequency_analysis() {
 #ifdef ENABLE_PROFILING
     printf("\n\nDeleting items:\n");
     begin_profiling();
-    for (size_t i = 0; i < map.size; i++) {
+    for (size_t i = 0; i <= map.size; i++) {
         KVStrInt *pair = entries + i;
         hms_delete(&map, pair->key);
     }
@@ -723,11 +723,11 @@ void test_reserve() {
 }
 
 int main() {
-    // frequency_analysis();
+    frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
-    // profile_search_fail();
-    // profile_huge_strings();
+    profile_search_fail();
+    profile_huge_strings();
     // test_small_hashmap_collision();
     // test_basic();
     // test_basic_struct_key();

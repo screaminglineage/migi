@@ -149,8 +149,8 @@ static float random_range_float(float min, float max) {
 }
 
 // Fill passed in buffer with random bytes
-static void random_bytes(byte *buf, size_t size) {
-    byte *dest = (uint8_t *)buf;
+static void random_bytes(void *buf, size_t size) {
+    byte *dest = (byte *)buf;
     for (size_t i = 0; i < size; i+=8) {
         uint64_t rand = migi_random();
         for (size_t j = 0; i+j < size && j < 8; j++) {

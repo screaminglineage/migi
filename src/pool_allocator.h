@@ -28,6 +28,9 @@ typedef struct {
 static byte *pool_alloc_bytes(PoolAllocator *p, size_t count);
 static void pool_free_bytes(PoolAllocator *p, byte *item);
 
+// Free all allocations
+static void pool_reset(PoolAllocator *p);
+
 
 static byte *pool_alloc_bytes(PoolAllocator *p, size_t size) {
     PoolItem *item = NULL;
@@ -54,6 +57,13 @@ static void pool_free_bytes(PoolAllocator *p, byte *item) {
 #endif
 }
 
+static void pool_reset(PoolAllocator *p) {
+    arena_reset_ex(&p->arena, true);
+    p->free_list = NULL;
+#ifdef POOL_ALLOC_COUNT_ALLOCATIONS
+    p->length = 0;
+#endif
+}
 
 // Used to create a pool allocator for storing a particular type
 #define PoolAllocator(type) \
@@ -67,7 +77,6 @@ static void pool_free_bytes(PoolAllocator *p, byte *item) {
 
 #define pool_free(pool, item) \
     (pool_free_bytes(&(pool)->p, (byte *)(1? (item): (pool)->type_var)))
-
 
 
 #endif // MIGI_POOL_ALLOC_H

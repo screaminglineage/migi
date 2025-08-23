@@ -10,6 +10,7 @@
 #include "arena.h"
 #include "migi_string.h"
 
+// TODO: maybe make this thread local
 static Arena temp_allocator_global_arena;
 
 #define temp_alloc(type, size) \

@@ -496,6 +496,11 @@ void profile_arenas() {
     }
 }
 
+bool skip_nums(char ch, void *data) {
+    unused(data);
+    return between(ch, '0', '9');
+}
+
 void test_string() {
     Arena a = {0};
     {
@@ -503,6 +508,19 @@ void test_string() {
         assert(string_eq(string_to_upper(&a, SV("FOO bar baz!")),   SV("FOO BAR BAZ!")));
     }
 
+    // string_skip_while
+    {
+        assert(string_eq(string_skip_while(    SV("1234abcd"),  skip_nums, NULL), SV("abcd")));
+        assert(string_eq(string_skip_while_rev(SV("1234abcd"),  skip_nums, NULL), SV("1234abcd")));
+        assert(string_eq(string_skip_while_rev(SV("foo90"),     skip_nums, NULL), SV("foo")));
+        assert(string_eq(string_skip_while(    SV("foo90"),     skip_nums, NULL), SV("foo90")));
+        assert(string_eq(string_skip_while(    SV(""),          skip_nums, NULL), SV("")));
+
+        assert(string_eq(string_skip_chars(    SV("abcd"),      SV("abd")),       SV("cd")));
+        assert(string_eq(string_skip_chars_rev(SV("abcd"),      SV("da")),        SV("abc")));
+    }
+
+    // string_trim
     {
         String str = SV("\n    hello       \n");
         assert(string_eq(string_trim_right(str),       SV("\n    hello")));
@@ -649,9 +667,9 @@ void test_pool_allocator_impl(StructPool *p) {
     LargeStruct *allocs[10] = {0};
     for (size_t i = 0; i < array_len(allocs); i++) {
         allocs[i] = pool_alloc(p);
-        random_bytes((byte *)&allocs[i]->foo, sizeof(allocs[i]->foo));
-        random_bytes((byte *)&allocs[i]->bar, sizeof(allocs[i]->bar));
-        random_bytes((byte *)&allocs[i]->baz, sizeof(allocs[i]->baz));
+        random_bytes(&allocs[i]->foo, sizeof(allocs[i]->foo));
+        random_bytes(&allocs[i]->bar, sizeof(allocs[i]->bar));
+        random_bytes(&allocs[i]->baz, sizeof(allocs[i]->baz));
     }
     assert(p->p.length == 10);
 
@@ -678,6 +696,19 @@ void test_pool_allocator() {
     StructPool p = {0};
     test_pool_allocator_impl(&p);
     assert(p.p.length == 10);
+    pool_reset(&p.p);
+    assert(p.p.length == 0 && p.p.free_list == NULL && p.p.arena.head->length == 0);
+
+    LargeStruct *s1 = pool_alloc(&p);
+    random_bytes(s1, sizeof(*s1));
+    assert(p.p.length == 1);
+
+    pool_free(&p, s1);
+    assert(p.p.length == 0);
+
+    LargeStruct *s2 = pool_alloc(&p);
+    random_bytes(s2, sizeof(*s2));
+    assertf(s1 == s2, "s1 reallocated as s2 from free list");
 }
 
 void test_temp_allocator() {
@@ -696,7 +727,7 @@ void test_temp_allocator() {
 }
 
 int main() {
-    test_temp_allocator();
+    test_string();
 
 
     printf("\nExiting successfully\n");

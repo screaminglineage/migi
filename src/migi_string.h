@@ -248,14 +248,11 @@ typedef bool (string_skip_while_func) (char ch, void *data);
 // Skips from start of string as long as the passed in function returns true
 // The `data` argument is passed into the `skip_char` function to emulate a closure
 static String string_skip_while(String str, string_skip_while_func *skip_char, void *data) {
-    if (str.length == 0) return str;
-
-    while (true) {
+    while (str.length > 0) {
         if (!skip_char(str.data[0], data)) break;
 
         str.data++;
         str.length--;
-        if (str.length == 0) return str;
     }
     return str;
 }
@@ -263,61 +260,41 @@ static String string_skip_while(String str, string_skip_while_func *skip_char, v
 // Skips from end of string as long as the passed in function returns true
 // The `data` argument is passed into the `skip_char` function to emulate a closure
 static String string_skip_while_rev(String str, string_skip_while_func *skip_char, void *data) {
-    if (str.length == 0) return str;
-
-    while (true) {
+    while (str.length > 0) {
         if (!skip_char(str.data[str.length - 1], data)) break;
-
         str.length--;
-        if (str.length == 0) return str;
     }
     return str;
 }
 
 // Special case for `string_skip_while`
 // Probably the most common use for skipping in a string
-static bool is_equal_chars(char ch, const char *chars, size_t chars_len) {
-    for (size_t i = 0; i < chars_len; i++) {
-        if (ch == chars[i]) return true;
+static bool _string_is_equal_chars(char ch, void *data) {
+    String chars = *(String *)data;
+    for (size_t i = 0; i < chars.length; i++) {
+        if (ch == chars.data[i]) return true;
     }
     return false;
 }
 
 // Skips from start of string as long as one of the elements of `chars` are present
-static String string_skip_while_chars(String str, String chars) {
-    if (str.length == 0) return str;
-
-    while (true) {
-        if (!is_equal_chars(str.data[0], chars.data, chars.length)) break;
-
-        str.data++;
-        str.length--;
-        if (str.length == 0) return str;
-    }
-    return str;
+static String string_skip_chars(String str, String chars) {
+    return string_skip_while(str, _string_is_equal_chars, &chars);
 }
 
 // Skips from end of string as long as one of the elements of `chars` are present
-static String string_skip_while_rev_chars(String str, String chars) {
-    if (str.length == 0) return str;
-
-    while (true) {
-        if (!is_equal_chars(str.data[str.length - 1], chars.data, chars.length)) break;
-
-        str.length--;
-        if (str.length == 0) return str;
-    }
-    return str;
+static String string_skip_chars_rev(String str, String chars) {
+    return string_skip_while_rev(str, _string_is_equal_chars, &chars);
 }
 
 // TODO: check for other whitespace characters
 // https://stackoverflow.com/a/46637343
 static String string_trim_left(String str) {
-    return string_skip_while_chars(str, SV(" \n\r\t"));
+    return string_skip_chars(str, SV(" \n\r\t"));
 }
 
 static String string_trim_right(String str) {
-    return string_skip_while_rev_chars(str, SV(" \n\r\t"));
+    return string_skip_chars_rev(str, SV(" \n\r\t"));
 }
 
 static String string_trim(String str) {
