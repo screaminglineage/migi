@@ -13,6 +13,8 @@
 // - enums
 // - dereference pointers [?] (should be fine to only do 1 level at most)
 
+// TODO: auto-include all required printer types, since its a pain to do
+// #include "Foo_printer.gen.c" below every struct
 
 typedef struct {
     String name;

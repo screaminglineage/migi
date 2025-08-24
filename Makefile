@@ -11,7 +11,7 @@ struct_printer: tools/struct_printer.c src/*.h
 	gcc -Wall -Wextra -Wno-unused-function -ggdb -I./src tools/struct_printer.c -o struct_printer -fsanitize=undefined
 
 test_struct_printer: struct_printer test_struct_printer.c
-	./struct_printer test_struct_printer.c gen                                          \
+	./struct_printer test_struct_printer.c gen                                                 \
 		&& gcc -Wall -Wextra -Wno-unused-function test_struct_printer.c -o test_struct_printer \
 		&& ./test_struct_printer
 

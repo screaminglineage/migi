@@ -113,6 +113,7 @@ typedef struct {
     };
 } Token;
 
+// TODO: add filename in Lexer
 typedef struct {
     String string;
     size_t start;
@@ -120,10 +121,12 @@ typedef struct {
     Token token_buf[2];
 } Lexer;
 
+// TODO: prefix functions with `lexer_` or something similar
+
 // Consume the next token
 static inline bool consume_token(Lexer *lexer, Token *tok);
 
-// Consume the next token, asserting that its valid
+// Consume the next token, returning a zeroed token if it fails
 static inline Token next_token(Lexer *lexer);
 
 // Get the next token without consuming it
@@ -461,8 +464,7 @@ static inline bool consume_token(Lexer *lexer, Token *tok)  {
 
 static inline Token next_token(Lexer *lexer) {
     Token tok = {0};
-    bool valid = consume_token(lexer, &tok);
-    assertf(valid, "%s: next_token() failed", __func__);
+    consume_token(lexer, &tok);
     return tok;
 }
 
