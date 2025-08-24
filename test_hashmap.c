@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-// #define ENABLE_PROFILING
+#define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -25,24 +25,17 @@ void test_basic() {
     } Point;
 
     typedef struct {
-        String key;
-        Point value;
-    } KVStrPoint;
-
-    typedef struct {
         HASHMAP_HEADER;
-
-        KVStrPoint *data;
+        String *keys;
+        Point *values;
     } MapStrPoint;
 
     Arena a = {0};
     MapStrPoint hm = {0};
 
-
     hashmap_put(&a, &hm, SV("foo"), ((Point){1, 2}));
     hashmap_put(&a, &hm, SV("bar"), ((Point){3, 4}));
     hashmap_put(&a, &hm, SV("baz"), ((Point){5, 6}));
-    hashmap_put(&a, &hm, SV("bla"), ((Point){7, 8}));
 
     Point *p = hashmap_get_ptr(&hm, SV("foo"));
     assert(p->x == 1 && p->y == 2);
@@ -50,34 +43,30 @@ void test_basic() {
     p = hashmap_get_ptr(&hm, SV("abcd"));
     assert(!p);
 
-    ptrdiff_t i = hashmap_index_of(&hm, SV("bar"));
+    ptrdiff_t i = hashmap_get_index(&hm, SV("bar"));
     assert(i != -1);
-    Point p0 = hm.data[i].value;
+    Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
-    Point *point = hashmap_get_ptr(&hm, SV("baz"));
-    assert(point->x == 5 && point->y == 6);
-
-    assert(hashmap_get_ptr(&hm, SV("abcd")) == NULL);
-
-    Point point1 = hashmap_get(&hm, SV("bazz"));
-    assert(point1.x == 0 && point1.y == 0);
-
+    *hashmap_entry(&a, &hm, SV("bla")) = (Point){7, 8};
     Point p1 = hashmap_get(&hm, SV("bla"));
     assert(p1.x == 7 && p1.y == 8);
 
+    Point p2 = hashmap_get(&hm, SV("blah"));
+    assert(p2.x == 0 && p2.y == 0);
+
     printf("\niteration:\n");
-    hashmap_foreach(&hm, point) {
-        printf("%.*s: (Point){%d %d}\n", SV_FMT(point->key), point->value.x,
-               point->value.y);
+    hashmap_foreach(&hm, pair) {
+        printf("%.*s: (Point){%d %d}\n", SV_FMT(*pair.key), pair.value->x,
+               pair.value->y);
     }
     printf("\n");
 
-    assert(mem_eq_single(&hm.data[0], &((KVStrPoint){0})));
-    assert(mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){1, 2})})));
-    assert(mem_eq_single(&hm.data[2], &((KVStrPoint){SV("bar"), ((Point){3, 4})})));
-    assert(mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
-    assert(mem_eq_single(&hm.data[4], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.keys[0], &(String){0}));  assert(mem_eq_single(&hm.values[0], &((Point){0})));
+    assert(mem_eq_single(&hm.keys[1], &(SV("foo"))));  assert(mem_eq_single(&hm.values[1], &((Point){1, 2})));
+    assert(mem_eq_single(&hm.keys[2], &(SV("bar"))));  assert(mem_eq_single(&hm.values[2], &((Point){3, 4})));
+    assert(mem_eq_single(&hm.keys[3], &(SV("baz"))));  assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq_single(&hm.keys[4], &(SV("bla"))));  assert(mem_eq_single(&hm.values[4], &((Point){7, 8})));
 
     Point deleted = hashmap_pop(&hm, SV("bar"));
     assert(deleted.x == 3 && deleted.y == 4);
@@ -88,20 +77,20 @@ void test_basic() {
     Point bla = hashmap_get(&hm, SV("bla"));
     assert(bla.x == 7 && bla.y == 8);
 
-    hashmap_pop(&hm, SV("aaaaa"));
+    Point x = hashmap_pop(&hm, SV("aaaaa"));
+    assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of `foo`
     hashmap_put(&a, &hm, SV("foo"), ((Point){10, 20}));
 
     printf("\niteration:\n");
-    hashmap_foreach(&hm, point) {
-        printf("%.*s: (Point){%d %d}\n", SV_FMT(point->key), point->value.x,
-                point->value.y);
+    hashmap_foreach(&hm, pair) {
+        printf("%.*s: (Point){%d %d}\n", SV_FMT(*pair.key), pair.value->x, pair.value->y);
     }
-    assert(mem_eq_single(&hm.data[0], &((KVStrPoint){0})));
-    assert(mem_eq_single(&hm.data[1], &((KVStrPoint){SV("foo"), ((Point){10, 20})})));
-    assert(mem_eq_single(&hm.data[2], &((KVStrPoint){SV("bla"), ((Point){7, 8})})));
-    assert(mem_eq_single(&hm.data[3], &((KVStrPoint){SV("baz"), ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.keys[0], &((String){0})));  assert(mem_eq_single(&hm.values[0], &((Point){0})));
+    assert(mem_eq_single(&hm.keys[1], &(SV("foo"))));    assert(mem_eq_single(&hm.values[1], &((Point){10, 20})));
+    assert(mem_eq_single(&hm.keys[2], &(SV("bla"))));    assert(mem_eq_single(&hm.values[2], &((Point){7, 8})));
+    assert(mem_eq_single(&hm.keys[3], &(SV("baz"))));    assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
 }
 
 void test_default_values() {
@@ -110,14 +99,9 @@ void test_default_values() {
     } Point;
 
     typedef struct {
-        String key;
-        Point value;
-    } KVStrPoint;
-
-    typedef struct {
         HASHMAP_HEADER;
-
-        KVStrPoint *data;
+        String *keys;
+        Point *values;
     } MapStrPoint;
 
     Arena a = {0};
@@ -128,8 +112,8 @@ void test_default_values() {
 
     // Setting default key and value
     // NOTE: This can only be done after atleast 1 insertion into the hashmap
-    hm.data[HASHMAP_DEFAULT_PAIR] =
-        (KVStrPoint){.key = SV("default"), .value = (Point){100, 100}};
+    hm.keys[HASHMAP_DEFAULT_INDEX] = SV("default");
+    hm.values[HASHMAP_DEFAULT_INDEX] = (Point){100, 100};
 
     Point p1 = hashmap_get(&hm, SV("foo"));
     assert(p1.x == 1 && p1.y == 2);
@@ -144,8 +128,6 @@ void test_default_values() {
     assert(p3.x == 100 && p3.y == 100);
 }
 
-// key must come before value
-// there shouldnt be any other elements between them
 typedef struct {
     String key;
     int64_t value;
@@ -153,10 +135,8 @@ typedef struct {
 
 typedef struct {
     HASHMAP_HEADER;
-
-    // only needed for non-string hashmaps
-    // bool (*hm_key_eq)(Key a, Key b);
-    KVStrInt *data;
+    String *keys;
+    int64_t *values;
 } MapStrInt;
 
 
@@ -186,7 +166,10 @@ void frequency_analysis() {
     printf("size = %zu, capacity = %zu\n", map.size, map.capacity);
     end_profiling_and_print_stats();
 
-    KVStrInt *entries = arena_memdup(&a, KVStrInt, map.data + 1, map.size);
+    KVStrInt *entries = arena_push(&a, KVStrInt, map.size);
+    size_t i = 0; hashmap_foreach(&map, pair) {
+        entries[i++] = (KVStrInt){.key = *pair.key, .value = *pair.value};
+    }
     qsort(entries, map.size, sizeof(*entries), hash_entry_cmp);
 
 #ifdef ENABLE_PROFILING
@@ -235,9 +218,10 @@ void test_small_hashmap_collision() {
     hashmap_put(&a, &map, SV("c"), 3);
 
     assert(hashmap_pop(&map, SV("a")) == 1);
-    assert(hashmap_get(&map, SV("b")) == 2);
-    assert(hashmap_get(&map, SV("c")) == 3);
+    assert(hashmap_pop(&map, SV("b")) == 2);
+    assert(hashmap_pop(&map, SV("c")) == 3);
 }
+
 
 void test_type_safety() {
     typedef struct {
@@ -245,14 +229,9 @@ void test_type_safety() {
     } Point;
 
     typedef struct {
-        String key;
-        Point value;
-    } KVStrPoint;
-
-    typedef struct {
         HASHMAP_HEADER;
-
-        KVStrPoint *data;
+        String *keys;
+        Point *values;
     } MapStrPoint;
 
     Arena a = {0};
@@ -278,32 +257,31 @@ void test_type_safety() {
     // Point ab = hashmap_get(&map, SV("a"));
     // int i1 = hashmap_get(&map2, SV("efgh"));
 
-    int64_t p1 = hashmap_get(&map, SV("abcd"));
-    unused(p1);
-    // Point p1 = hashmap_get_pair(&map, SV("abcd"));
+    int64_t pair = hashmap_get(&map, SV("abcd"));
+    unused(pair);
+    // Point pair1 = hashmap_get(&map, SV("abcd"));
 
-    int64_t *pp = hashmap_get_ptr(&map, SV("abcd"));
-    unused(pp);
-    // Point *pp = hashmap_get_ptr(&map, SV("abcd"));
+    int64_t *kv = hashmap_get_ptr(&map, SV("abcd"));
+    unused(kv);
+    // Point *kv1 = hashmap_get_ptr(&map, SV("abcd"));
 
     int64_t del_int = hashmap_pop(&map, SV("abcd"));
     unused(del_int);
-    // Point del_point = hashmap_pop(&a, &map, SV("abcd"));
+    // Point del_int = hashmap_pop(&map, SV("abcd"));
 
-    assert(mem_eq_single(&map.data[0], &((KVStrPoint){0})));
-    assert(mem_eq_single(&map.data[1], &((KVStrInt){SV("ijkl"), 100})));
+    assert(mem_eq_single(&map.keys[0], &(String){0}));    assert(mem_eq_single(&map.values[0], &(int64_t){0}));
+    assert(mem_eq_single(&map.keys[1], &(SV("ijkl"))));   assert(mem_eq_single(&map.values[1], &(int64_t){100}));
 
-    assert(mem_eq_single(&map2.data[0], &((KVStrPoint){0})));
-    assert(mem_eq_single(&map2.data[1], &((KVStrPoint){SV("abcd"), ((Point){1, 2})})));
-    assert(mem_eq_single(&map2.data[2], &((KVStrPoint){SV("efgh"), ((Point){3, 4})})));
-
+    assert(mem_eq_single(&map2.keys[0], &(String){0}));    assert(mem_eq_single(&map2.values[0], &(int64_t){0}));
+    assert(mem_eq_single(&map2.keys[1], &(SV("abcd"))));   assert(mem_eq_single(&map2.values[1], &((Point){1, 2})));
+    assert(mem_eq_single(&map2.keys[2], &(SV("efgh"))));   assert(mem_eq_single(&map2.values[2], &((Point){3, 4})));
 
     hashmap_foreach(&map, pair) {
-        printf("%.*s: %ld", SV_FMT(pair->key), pair->value);
+        printf("%.*s: %ld", SV_FMT(*pair.key), *pair.value);
     }
     printf("\n");
     hashmap_foreach(&map2, pair) {
-        printf("%.*s: (Point){%d, %d}\n", SV_FMT(pair->key), pair->value.x, pair->value.y);
+        printf("%.*s: (Point){%d, %d}\n", SV_FMT(*pair.key), pair.value->x, pair.value->y);
     }
     printf("\n");
 }
@@ -338,7 +316,7 @@ void profile_search_fail() {
     size_t count = 0;
     for (size_t i = 0; i < 1024 * 1024; i++) {
         String str = random_string(&a, length);
-        if (hashmap_index_of(&map, str) != -1) {
+        if (hashmap_get_index(&map, str) != -1) {
             count++;
         }
     }
@@ -352,7 +330,6 @@ void profile_search_fail() {
 #endif
 }
 
-
 void test_basic_struct_key() {
     typedef struct {
         int x, y;
@@ -364,87 +341,75 @@ void test_basic_struct_key() {
     } Foo;
 
     typedef struct {
-        Foo key;
-        Point value;
-    } KVFooPoint;
-
-    typedef struct {
         HASHMAP_HEADER;
-
-        KVFooPoint *data;
+        Foo   *keys;
+        Point *values;
     } MapFooPoint;
 
     Arena a = {0};
     MapFooPoint hm = {0};
 
-    hashmap_put(&a, &hm, ((Foo){1, 2, 3.14f}), ((Point){1, 2}));
-    hashmap_put(&a, &hm, ((Foo){3, 4, 1.14f}), ((Point){3, 4}));
-    hashmap_put(&a, &hm, ((Foo){5, 6, 1.73f}), ((Point){5, 6}));
-    hashmap_put(&a, &hm, ((Foo){7, 8, 1.61f}), ((Point){7, 8}));
+    hashmap_put(&a, &hm, ((Foo){1, 2, 1.0f}), ((Point){1, 2}));
+    hashmap_put(&a, &hm, ((Foo){3, 4, 2.0f}), ((Point){3, 4}));
+    hashmap_put(&a, &hm, ((Foo){5, 6, 3.0f}), ((Point){5, 6}));
 
-    Point *p = hashmap_get_ptr(&hm, ((Foo){1, 2, 3.14f}));
+    Point *p = hashmap_get_ptr(&hm, ((Foo){1, 2, 1.0f}));
     assert(p->x == 1 && p->y == 2);
 
-    p = hashmap_get_ptr(&hm, ((Foo){100, 200, 1.23f}));
+    p = hashmap_get_ptr(&hm, ((Foo){9, 9, 9.0f}));
     assert(!p);
 
-    ptrdiff_t i = hashmap_index_of(&hm, ((Foo){3, 4, 1.14f}));
+    ptrdiff_t i = hashmap_get_index(&hm, ((Foo){3, 4, 2.0f}));
     assert(i != -1);
-    Point p0 = hm.data[i].value;
+    Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
-    Point *value = hashmap_get_ptr(&hm, ((Foo){ 5, 6, 1.73f }));
-    assert(value->x == 5 && value->y == 6);
+    *hashmap_entry(&a, &hm, ((Foo){7, 8, 4.0f})) = (Point){7, 8};
+    Point p1 = hashmap_get(&hm, ((Foo){7, 8, 4.0f}));
+    assert(p1.x == 7 && p1.y == 8);
 
-    Point p1 = hashmap_get(&hm, ((Foo){100, 100, 0}));
-    assert(p1.x == 0 && p1.y == 0);
-
-    Point p2 = hashmap_get(&hm, ((Foo){7, 8, 1.61f}));
-    assert(p2.x == 7 && p2.y == 8);
-
-    Point p3 = hashmap_get(&hm, ((Foo){99, 99, 0}));
-    assert(p3.x == 0 && p3.y == 0);
+    Point p2 = hashmap_get(&hm, ((Foo){10, 11, 5.0f}));
+    assert(p2.x == 0 && p2.y == 0);
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
-        Foo f = pair->key;
-        printf("(Foo){%d %d %.2f}: (Point){%d %d}\n", f.a, f.b, f.f, 
-            pair->value.x, pair->value.y);
+        printf("(Foo){%d,%d,%.2f}: (Point){%d %d}\n",
+               pair.key->a, pair.key->b, pair.key->f,
+               pair.value->x, pair.value->y);
     }
     printf("\n");
 
-    assert(mem_eq_single(&hm.data[0], &((KVFooPoint){0})));
-    assert(mem_eq_single(&hm.data[1], &((KVFooPoint){(Foo){1, 2, 3.14f}, ((Point){1, 2})})));
-    assert(mem_eq_single(&hm.data[2], &((KVFooPoint){(Foo){3, 4, 1.14f}, ((Point){3, 4})})));
-    assert(mem_eq_single(&hm.data[3], &((KVFooPoint){(Foo){5, 6, 1.73f}, ((Point){5, 6})})));
-    assert(mem_eq_single(&hm.data[4], &((KVFooPoint){(Foo){7, 8, 1.61f}, ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.keys[0], &((Foo){0})));           assert(mem_eq_single(&hm.values[0], &((Point){0})));
+    assert(mem_eq_single(&hm.keys[1], &((Foo){1, 2, 1.0f})));  assert(mem_eq_single(&hm.values[1], &((Point){1, 2})));
+    assert(mem_eq_single(&hm.keys[2], &((Foo){3, 4, 2.0f})));  assert(mem_eq_single(&hm.values[2], &((Point){3, 4})));
+    assert(mem_eq_single(&hm.keys[3], &((Foo){5, 6, 3.0f})));  assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq_single(&hm.keys[4], &((Foo){7, 8, 4.0f})));  assert(mem_eq_single(&hm.values[4], &((Point){7, 8})));
 
-    Foo key_to_delete = (Foo){3, 4, 1.14f};
-    Point deleted = hashmap_pop(&hm, key_to_delete);
+    Point deleted = hashmap_pop(&hm, ((Foo){3, 4, 2.0f}));
     assert(deleted.x == 3 && deleted.y == 4);
 
-    Point t = hashmap_get(&hm, key_to_delete);
+    Point t = hashmap_get(&hm, ((Foo){3, 4, 2.0f}));
     assertf(mem_eq_single(&t, &(Point){0}), "empty returned for deleted keys");
 
-    Foo bla_key = (Foo){7, 8, 1.61f};
-    Point bla = hashmap_get(&hm, bla_key);
+    Point bla = hashmap_get(&hm, ((Foo){7, 8, 4.0f}));
     assert(bla.x == 7 && bla.y == 8);
 
-    hashmap_pop(&hm, ((Foo){300, 400, 1e-6f}));
+    Point x = hashmap_pop(&hm, ((Foo){99, 99, 9.9f}));
+    assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
 
-    // replacing old value of `(Foo){1, 2, 3.14f}``
-    hashmap_put(&a, &hm, ((Foo){1, 2, 3.14f}), ((Point){10, 20}));
+    // replacing old value of `(Foo){1, 2, 1.0f}`
+    hashmap_put(&a, &hm, ((Foo){1, 2, 1.0f}), ((Point){10, 20}));
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
-        Foo f = pair->key;
-        printf("(Foo){%d %d %.2f}: (Point){%d %d}\n", f.a, f.b, f.f,
-                pair->value.x, pair->value.y);
+        printf("(Foo){%d,%d,%.2f}: (Point){%d %d}\n",
+               pair.key->a, pair.key->b, pair.key->f,
+               pair.value->x, pair.value->y);
     }
-    assert(mem_eq_single(&hm.data[0], &((KVFooPoint){0})));
-    assert(mem_eq_single(&hm.data[1], &((KVFooPoint){(Foo){1, 2, 3.14f}, ((Point){10, 20})})));
-    assert(mem_eq_single(&hm.data[2], &((KVFooPoint){(Foo){7, 8, 1.61f}, ((Point){7, 8})})));
-    assert(mem_eq_single(&hm.data[3], &((KVFooPoint){(Foo){5, 6, 1.73f}, ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.keys[0], &((Foo){0})));             assert(mem_eq_single(&hm.values[0], &((Point){0})));
+    assert(mem_eq_single(&hm.keys[1], &((Foo){1, 2, 1.0f})));    assert(mem_eq_single(&hm.values[1], &((Point){10, 20})));
+    assert(mem_eq_single(&hm.keys[2], &((Foo){7, 8, 4.0f})));    assert(mem_eq_single(&hm.values[2], &((Point){7, 8})));
+    assert(mem_eq_single(&hm.keys[3], &((Foo){5, 6, 3.0f})));    assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
 }
 
 
@@ -454,150 +419,115 @@ void test_basic_primitive_key() {
     } Point;
 
     typedef struct {
-        int key;
-        Point value;
-    } KVIntPoint;
-
-    typedef struct {
         HASHMAP_HEADER;
-        KVIntPoint *data;
+        int   *keys;
+        Point *values;
     } MapIntPoint;
-
 
     Arena a = {0};
     MapIntPoint hm = {0};
 
-    // inserts (equivalent to original Foo keys)
     hashmap_put(&a, &hm, 1, ((Point){1, 2}));
-    hashmap_put(&a, &hm, 3, ((Point){3, 4}));
-    hashmap_put(&a, &hm, 5, ((Point){5, 6}));
-    hashmap_put(&a, &hm, 7, ((Point){7, 8}));
+    hashmap_put(&a, &hm, 2, ((Point){3, 4}));
+    hashmap_put(&a, &hm, 3, ((Point){5, 6}));
 
-    // get pointer for existing key
     Point *p = hashmap_get_ptr(&hm, 1);
     assert(p->x == 1 && p->y == 2);
 
-    // missing key should return NULL pointer
-    p = hashmap_get_ptr(&hm, 100);
+    p = hashmap_get_ptr(&hm, 999);
     assert(!p);
 
-    // index lookup
-    ptrdiff_t i = hashmap_index_of(&hm, 3);
+    ptrdiff_t i = hashmap_get_index(&hm, 2);
     assert(i != -1);
-    Point p0 = hm.data[i].value;
+    Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
-    // get pair pointer and check contents
-    Point *point = hashmap_get_ptr(&hm, 5);
-    assert(point && point->x == 5 && point->y == 6);
-
-    // get pair for non-existent key returns default pair
-    Point pair1 = hashmap_get(&hm, 100);
-    assert(pair1.x == 0 && pair1.y == 0);
-
-    Point p1 = hashmap_get(&hm, 7);
+    *hashmap_entry(&a, &hm, 4) = (Point){7, 8};
+    Point p1 = hashmap_get(&hm, 4);
     assert(p1.x == 7 && p1.y == 8);
 
-    // get for non-existent key returns default pair
-    Point p2 = hashmap_get(&hm, 99);
+    Point p2 = hashmap_get(&hm, 42);
     assert(p2.x == 0 && p2.y == 0);
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
-        int k = pair->key;
-        printf("(key)%d: (Point){%d %d}\n", k,
-                pair->value.x, pair->value.y);
+        printf("%d: (Point){%d %d}\n", *pair.key, pair.value->x, pair.value->y);
     }
     printf("\n");
 
-    // check internal array layout
-    assert(mem_eq_single(&hm.data[0], &((KVIntPoint){0})));
-    assert(mem_eq_single(&hm.data[1], &((KVIntPoint){1, ((Point){1, 2})})));
-    assert(mem_eq_single(&hm.data[2], &((KVIntPoint){3, ((Point){3, 4})})));
-    assert(mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
-    assert(mem_eq_single(&hm.data[4], &((KVIntPoint){7, ((Point){7, 8})})));
+    assert(mem_eq_single(&hm.keys[0], &(int){0}));   assert(mem_eq_single(&hm.values[0], &((Point){0})));
+    assert(mem_eq_single(&hm.keys[1], &(int){1}));   assert(mem_eq_single(&hm.values[1], &((Point){1, 2})));
+    assert(mem_eq_single(&hm.keys[2], &(int){2}));   assert(mem_eq_single(&hm.values[2], &((Point){3, 4})));
+    assert(mem_eq_single(&hm.keys[3], &(int){3}));   assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq_single(&hm.keys[4], &(int){4}));   assert(mem_eq_single(&hm.values[4], &((Point){7, 8})));
 
-    // pop a key
-    int key_to_delete = 3;
-    Point deleted = hashmap_pop(&hm, key_to_delete);
+    Point deleted = hashmap_pop(&hm, 2);
     assert(deleted.x == 3 && deleted.y == 4);
 
-    // after pop, getting the pair for the deleted key should return empty/default
-    Point t = hashmap_get(&hm, key_to_delete);
+    Point t = hashmap_get(&hm, 2);
     assertf(mem_eq_single(&t, &(Point){0}), "empty returned for deleted keys");
 
-    // check another key still present
-    int bla_key = 7;
-    Point bla = hashmap_get(&hm, bla_key);
+    Point bla = hashmap_get(&hm, 4);
     assert(bla.x == 7 && bla.y == 8);
 
-    // delete non-existent key (no-op)
-    hashmap_pop(&hm, 300);
+    Point x = hashmap_pop(&hm, 999);
+    assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
 
-    // replace old value for key==1
+    // replacing old value of key=1
     hashmap_put(&a, &hm, 1, ((Point){10, 20}));
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
-        int k = pair->key;
-        printf("(key)%d: (Point){%d %d}\n", k,
-                pair->value.x, pair->value.y);
+        printf("%d: (Point){%d %d}\n", *pair.key, pair.value->x, pair.value->y);
     }
-
-    // final layout checks (matching original expectations)
-    assert(mem_eq_single(&hm.data[0], &((KVIntPoint){0})));
-    assert(mem_eq_single(&hm.data[1], &((KVIntPoint){1, ((Point){10, 20})})));
-    assert(mem_eq_single(&hm.data[2], &((KVIntPoint){7, ((Point){7, 8})})));
-    assert(mem_eq_single(&hm.data[3], &((KVIntPoint){5, ((Point){5, 6})})));
+    assert(mem_eq_single(&hm.keys[0], &(int){0}));   assert(mem_eq_single(&hm.values[0], &((Point){0})));
+    assert(mem_eq_single(&hm.keys[1], &(int){1}));   assert(mem_eq_single(&hm.values[1], &((Point){10, 20})));
+    assert(mem_eq_single(&hm.keys[2], &(int){4}));   assert(mem_eq_single(&hm.values[2], &((Point){7, 8})));
+    assert(mem_eq_single(&hm.keys[3], &(int){3}));   assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
 }
 
 
-typedef struct {
-    int key, value;
-} KVIntInt;
 
 typedef struct {
     HASHMAP_HEADER;
-    KVIntInt *data;
+    int *keys;
+    int *values;
 } MapIntInt;
 
 void profile_hashmap_iteration(Arena *a, MapIntInt *map, size_t capacity, int64_t cpu_freq, bool print_stats) {
-        hashmap_free(map);
-        arena_free(a);
+    size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
+    if (max_size == 0) max_size = capacity * 2;
+    for (size_t i = 0; i < max_size; i++) {
+        hashmap_put(a, map, i, 5025);
+    }
 
-        size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
-        if (max_size == 0) max_size = capacity * 2;
-        for (size_t i = 0; i < max_size; i++) {
-            hashmap_put(a, map, i, 5025);
-        }
+#define SAMPLES 10
+    uint64_t samples[SAMPLES] = {0};
 
-        #define SAMPLES 10
-        uint64_t samples[SAMPLES] = {0};
+    for (size_t i = 0; i < SAMPLES; i++) {
+        int key = random_range_exclusive(-max_size, 0); // missing key
+                                                        // int key = random_range_exclusive(0, max_size); // valid key
+        uint64_t start = read_cpu_timer();
 
-        for (size_t i = 0; i < SAMPLES; i++) {
-            int key = random_range_exclusive(-max_size, -1); // missing key
-            // int key = random_range_exclusive(0, max_size - 1); // valid key
-            uint64_t start = read_cpu_timer();
+        int value = hashmap_get(map, key);
+        fprintf(stderr, "%d ", value);
 
-            int value = hashmap_get(map, key);
-            fprintf(stderr, "%d ", value);
+        uint64_t end = read_cpu_timer();
+        samples[i] = (end - start);
+    }
+    if (!print_stats) return;
 
-            uint64_t end = read_cpu_timer();
-            samples[i] = (end - start);
-        }
-        if (!print_stats) return;
+    double elapsed_nanos = 0;
+    for (size_t i = 0; i < SAMPLES; i++) {
+        double t = (double)samples[i] / (double)cpu_freq;
+        elapsed_nanos += t;
+    }
+    elapsed_nanos /= SAMPLES;
+    elapsed_nanos *= NS;
+#undef SAMPLES
 
-        double elapsed_nanos = 0;
-        for (size_t i = 0; i < SAMPLES; i++) {
-            double t = (double)samples[i] / (double)cpu_freq;
-            elapsed_nanos += t;
-        }
-        elapsed_nanos /= SAMPLES;
-        elapsed_nanos *= NS;
-        #undef SAMPLES
-
-        assert(capacity == map->capacity);
-        printf("%zu,%f\n", capacity, elapsed_nanos);
+    assert(capacity == map->capacity);
+    printf("%zu,%f\n", capacity, elapsed_nanos);
 }
 
 
@@ -607,17 +537,19 @@ void profile_hashmap_lookup_times() {
     MapIntInt map = {0};
 
     uint64_t cpu_freq = estimate_cpu_timer_freq();
-    size_t max_capacity = 10*MB;
+    size_t max_capacity = 100*MB;
 
     profile_hashmap_iteration(&a, &map, HASHMAP_INIT_CAP, cpu_freq, false);
-    hashmap_free(&map);
 
-    printf("capacity,valid key lookup time (ns)\n");
+    printf("capacity,missing key lookup time (ns)\n");
     for (size_t i = HASHMAP_INIT_CAP; i <= max_capacity; i*=2) {
+        hashmap_free(&map);
+        arena_free(&a);
         profile_hashmap_iteration(&a, &map, i, cpu_freq, true);
     }
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
     assertf(HASHMAP_LOAD_FACTOR*map.capacity == map.size, "hashmap is filled upto load factor");
+    arena_free(&a);
 }
 
 
@@ -626,7 +558,7 @@ void profile_hashmap_deletion_times() {
     MapIntInt map = {0};
 
     uint64_t cpu_freq = estimate_cpu_timer_freq();
-    size_t max_capacity = 10*MB;
+    size_t max_capacity = 100*MB;
 
     printf("capacity,key removal time (ns)\n");
 
@@ -643,16 +575,16 @@ void profile_hashmap_deletion_times() {
             hashmap_put(&a, &map, j, 1234);
         }
 
-        #define SAMPLES 10
+#define SAMPLES 10
         uint64_t samples[SAMPLES] = {0};
 
         for (size_t i = 0; i < SAMPLES; i++) {
-            int key = random_range_exclusive(0, max_size - 1);
+            int key = random_range_exclusive(0, max_size);
             uint64_t start = read_cpu_timer();
             hashmap_pop(&map, key);
             uint64_t end = read_cpu_timer();
 
-            avow(hashmap_index_of(&map, key) == -1, "key was deleted");
+            avow(hashmap_get_index(&map, key) == -1, "key was deleted");
             samples[i] = (end - start);
             hashmap_put(&a, &map, key, 1234);
         }
@@ -664,16 +596,18 @@ void profile_hashmap_deletion_times() {
         }
         elapsed_nanos /= SAMPLES;
         elapsed_nanos *= NS;
-        #undef SAMPLES
+#undef SAMPLES
         printf("%zu,%f\n", map.capacity, elapsed_nanos);
     }
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
+    arena_free(&a);
 }
 
 void profile_huge_strings() {
     typedef struct {
         HASHMAP_HEADER;
-        KVStrInt *data;
+        String *keys;
+        int64_t *values;
     } MapStrInt;
 
     Arena a = {0};
@@ -688,36 +622,32 @@ void profile_huge_strings() {
 
 void test_reserve() {
     typedef struct {
-        String key;
-        int value;
-    } KV;
-
-    typedef struct {
         HASHMAP_HEADER;
-        KV *data;
+        String *keys;
+        int *values;
     } Map;
 
     Arena a = {0};
     Map map = {0};
     hashmap_reserve(&a, &map, 500);
 
-    size_t reserved = map.capacity;
+    size_t capacity = map.capacity;
     for (size_t i = 0; i < 500; i++) {
         hashmap_put(&a, &map, SV("a"), i);
-        assertf(map.capacity == reserved, "expected `%zu` but got `%zu`", reserved, map.capacity);
+        assertf(map.capacity == capacity, "expected `%zu` but got `%zu`", capacity, map.capacity);
     }
 }
 
 int main() {
-    // frequency_analysis();
+    frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
-    // profile_search_fail();
-    // profile_huge_strings();
+    profile_search_fail();
+    profile_huge_strings();
     // test_small_hashmap_collision();
     // test_basic();
     // test_basic_struct_key();
-    test_basic_primitive_key();
+    // test_basic_primitive_key();
     // test_default_values();
     // test_type_safety();
     // test_reserve();
@@ -726,3 +656,5 @@ int main() {
 
     return 0;
 }
+
+
