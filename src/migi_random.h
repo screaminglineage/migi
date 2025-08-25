@@ -111,7 +111,7 @@ static float random_float() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     if (!rng.is_seeded) migi_seed(time(NULL));
 #endif
-    return (float)xoshiro256_plus(rng.state) / UINT64_MAX;
+    return (float)xoshiro256_plus(rng.state) / (float)UINT64_MAX;
 }
 
 // Return a random double in the range [0, 1]
@@ -120,7 +120,7 @@ static double random_double() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     if (!rng.is_seeded) migi_seed(time(NULL));
 #endif
-    return (double)xoshiro256_plus(rng.state) / UINT64_MAX;
+    return (double)xoshiro256_plus(rng.state) / (float)UINT64_MAX;
 }
 
 // Return a random integer in the range [min, max]

@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-#define ENABLE_PROFILING
+// #define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -26,8 +26,8 @@ void test_basic() {
 
     typedef struct {
         HASHMAP_HEADER;
-        String *keys;
         Point *values;
+        String *keys;
     } MapStrPoint;
 
     Arena a = {0};
@@ -163,26 +163,26 @@ void frequency_analysis() {
         *hashmap_entry(&a, &map, key) += 1;
     }
 
-    printf("size = %zu, capacity = %zu\n", map.size, map.capacity);
+    printf("size = %zu, capacity = %zu\n", map.h.size, map.h.capacity);
     end_profiling_and_print_stats();
 
-    KVStrInt *entries = arena_push(&a, KVStrInt, map.size);
+    KVStrInt *entries = arena_push(&a, KVStrInt, map.h.size);
     size_t i = 0; hashmap_foreach(&map, pair) {
         entries[i++] = (KVStrInt){.key = *pair.key, .value = *pair.value};
     }
-    qsort(entries, map.size, sizeof(*entries), hash_entry_cmp);
+    qsort(entries, map.h.size, sizeof(*entries), hash_entry_cmp);
 
 #ifdef ENABLE_PROFILING
     printf("\n\nDeleting items:\n");
     begin_profiling();
-    for (size_t i = 0; i <= map.size; i++) {
+    for (size_t i = 0; i <= map.h.size; i++) {
         KVStrInt *pair = entries + i;
         hashmap_pop(&map, pair->key);
     }
     end_profiling_and_print_stats();
 #else
     printf("Words sorted in descending order:\n");
-    for (size_t i = 0; i < map.size; i++) {
+    for (size_t i = 0; i < map.h.size; i++) {
         KVStrInt *pair = entries + i;
         printf("%.*s => %ld\n", SV_FMT(pair->key), pair->value);
     }
@@ -323,7 +323,7 @@ void profile_search_fail() {
     end_profiling_and_print_stats();
 
     printf("Matched elements: %zu\n", count);
-    printf("Unmatched elements: %zu\n", map.size - count);
+    printf("Unmatched elements: %zu\n", map.h.size - count);
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
     printf("Maximum Probe Length: %zu\n", hashmap_max_probe_length);
@@ -526,7 +526,7 @@ void profile_hashmap_iteration(Arena *a, MapIntInt *map, size_t capacity, int64_
     elapsed_nanos *= NS;
 #undef SAMPLES
 
-    assert(capacity == map->capacity);
+    assert(capacity == map->h.capacity);
     printf("%zu,%f\n", capacity, elapsed_nanos);
 }
 
@@ -548,7 +548,7 @@ void profile_hashmap_lookup_times() {
         profile_hashmap_iteration(&a, &map, i, cpu_freq, true);
     }
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
-    assertf(HASHMAP_LOAD_FACTOR*map.capacity == map.size, "hashmap is filled upto load factor");
+    assertf(HASHMAP_LOAD_FACTOR*map.h.capacity == map.h.size, "hashmap is filled upto load factor");
     arena_free(&a);
 }
 
@@ -597,7 +597,7 @@ void profile_hashmap_deletion_times() {
         elapsed_nanos /= SAMPLES;
         elapsed_nanos *= NS;
 #undef SAMPLES
-        printf("%zu,%f\n", map.capacity, elapsed_nanos);
+        printf("%zu,%f\n", map.h.capacity, elapsed_nanos);
     }
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
     arena_free(&a);
@@ -631,26 +631,26 @@ void test_reserve() {
     Map map = {0};
     hashmap_reserve(&a, &map, 500);
 
-    size_t capacity = map.capacity;
+    size_t capacity = map.h.capacity;
     for (size_t i = 0; i < 500; i++) {
         hashmap_put(&a, &map, SV("a"), i);
-        assertf(map.capacity == capacity, "expected `%zu` but got `%zu`", capacity, map.capacity);
+        assertf(map.h.capacity == capacity, "expected `%zu` but got `%zu`", capacity, map.h.capacity);
     }
 }
 
 int main() {
-    frequency_analysis();
+    // frequency_analysis();
     // profile_hashmap_lookup_times();
     // profile_hashmap_deletion_times();
-    profile_search_fail();
-    profile_huge_strings();
+    // profile_search_fail();
+    // profile_huge_strings();
     // test_small_hashmap_collision();
-    // test_basic();
-    // test_basic_struct_key();
-    // test_basic_primitive_key();
-    // test_default_values();
-    // test_type_safety();
-    // test_reserve();
+    test_basic();
+    test_basic_struct_key();
+    test_basic_primitive_key();
+    test_default_values();
+    test_type_safety();
+    test_reserve();
 
     printf("\nexiting successfully\n");
 

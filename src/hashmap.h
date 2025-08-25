@@ -44,19 +44,19 @@ static inline uint64_t hash_fnv(byte *data, size_t length) {
 typedef struct {
     uint64_t hash;  // rehashing is not needed while growing if the hash is stored
     uint64_t index; // index of 0 means an entry is unoccupied
-} HashEntry_;
+} HashmapHashEntry;
 
-// Need an anonymous struct for the actual header so that it can be embedded into the main hashmap struct
-#define HASHMAP_HEADER struct {                                                                                  \
-    HashEntry_ *entries;     /* entries in the hashmap table */                                                  \
-    size_t size;             /* number of entries */                                                             \
-    size_t capacity;         /* total allocated entries */                                                       \
-    ptrdiff_t temp_index;    /* temporary storage for the data array index (used by macros for various stuff) */ \
-    void *temp_values;       /* temporary storage for the value array index (used by macros for various stuff) */ \
-}
+// Need an anonymous struct to allow the fields to be accessed easily
+typedef struct {
+    HashmapHashEntry *entries;      // entries in the hashmap table
+    size_t size;                    // number of entries
+    size_t capacity;                // total allocated entries
+    ptrdiff_t temp_index;           // temporary storage for the data array index (used by macros for various stuff)
+    void *temp_values;              // temporary storage for the value array index (used by macros for various stuff)
+} HashmapHeader;
 
-// Typedef needed to cast a `hashmap *` to a `HashmapHeader_ *`
-typedef HASHMAP_HEADER HashmapHeader_;
+
+#define HASHMAP_HEADER HashmapHeader h
 
 // Optional tracking of maximum probe length for statistics
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
@@ -65,7 +65,7 @@ typedef HASHMAP_HEADER HashmapHeader_;
 #endif
 
 // Uses robin hood linear probing to insert an entry
-static void hm_internal_insert_entry(HashmapHeader_ *header, HashEntry_ entry) {
+static void hm_internal_insert_entry(HashmapHeader *header, HashmapHashEntry entry) {
     TIME_FUNCTION;
     size_t i = entry.hash & (header->capacity - 1);
     size_t dist = 0;
@@ -87,7 +87,7 @@ static void hm_internal_insert_entry(HashmapHeader_ *header, HashEntry_ entry) {
 
 // Grow the hashmap and rehash all the keys into the new allocation
 // if `at_least` == 0, then the capacity is simply doubled
-static void *hm_grow(Arena *a, HashmapHeader_ *header, void *keys, size_t key_size, size_t key_align,
+static void *hm_grow(Arena *a, HashmapHeader *header, void *keys, size_t key_size, size_t key_align,
                     void *values, size_t value_size, size_t value_align, size_t at_least) {
     TIME_FUNCTION;
     size_t old_capacity = header->capacity;
@@ -104,7 +104,7 @@ static void *hm_grow(Arena *a, HashmapHeader_ *header, void *keys, size_t key_si
         header->capacity = (header->capacity == 0)? HASHMAP_INIT_CAP: header->capacity * 2;
     }
 
-    HashEntry_ *new_entries = arena_push(a, HashEntry_, header->capacity);
+    HashmapHashEntry *new_entries = arena_push(a, HashmapHashEntry, header->capacity);
     mem_clear(new_entries, header->capacity);
 
     // allocating an extra item for index 0 being treated as the default index
@@ -116,7 +116,7 @@ static void *hm_grow(Arena *a, HashmapHeader_ *header, void *keys, size_t key_si
     void *new_keys = arena_realloc_bytes(a, keys, keys_size, new_keys_size, key_align);
     header->temp_values = arena_realloc_bytes(a, values, values_size, new_values_size, value_align);
 
-    HashEntry_ *old_entries = header->entries;
+    HashmapHashEntry *old_entries = header->entries;
     header->entries = new_entries;
     for (size_t j = 0; j < old_capacity; j++) {
         if (old_entries[j].index != 0) {
@@ -129,14 +129,14 @@ static void *hm_grow(Arena *a, HashmapHeader_ *header, void *keys, size_t key_si
 // Backshift Erasure
 // Move elements back until theres an empty entry or the entry is already
 // in its desired (best possible) position
-static void hm_internal_erase(HashmapHeader_ *header, size_t start) {
+static void hm_internal_erase(HashmapHeader *header, size_t start) {
     TIME_FUNCTION;
     size_t current = start;
     while (true) {
         header->entries[current].index = 0;
         size_t next = (current + 1) & (header->capacity - 1);
 
-        HashEntry_ next_entry = header->entries[next];
+        HashmapHashEntry next_entry = header->entries[next];
         size_t next_desired = next_entry.hash & (header->capacity - 1);
         if (next_entry.index == 0) break;
         if (next_desired == next) break;
@@ -157,7 +157,7 @@ typedef struct {
     bool is_present;
 } HashmapItem;
 
-static HashmapItem hm_internal_index(HashmapHeader_ *header, void *keys, size_t key_size,
+static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t key_size,
                                       void *search_key, HashmapKeyType key_type) {
     TIME_FUNCTION;
     HashmapItem result = {0};
@@ -217,7 +217,7 @@ static HashmapItem hm_internal_index(HashmapHeader_ *header, void *keys, size_t 
     return result;
 }
 
-static void *hm_put_impl(Arena *a, HashmapHeader_ *header,
+static void *hm_put_impl(Arena *a, HashmapHeader *header,
                         void *keys, size_t key_size, size_t key_align,
                         void *values, size_t value_size, size_t value_align,
                         void *new_key, HashmapKeyType key_type) {
@@ -231,7 +231,7 @@ static void *hm_put_impl(Arena *a, HashmapHeader_ *header,
     if (!item.is_present) {
         // new items are always inserted at the end of the table
         header->size++;
-        hm_internal_insert_entry(header, (HashEntry_){ .hash = item.hash, .index = header->size });
+        hm_internal_insert_entry(header, (HashmapHashEntry){ .hash = item.hash, .index = header->size });
         header->temp_index = header->size;
     } else {
         header->temp_index = header->entries[item.entry_index].index;
@@ -239,7 +239,7 @@ static void *hm_put_impl(Arena *a, HashmapHeader_ *header,
     return new_keys;
 }
 
-static void hm_delete_impl(HashmapHeader_ *header, void *keys, size_t key_size, void *delete_key, HashmapKeyType key_type) {
+static void hm_delete_impl(HashmapHeader *header, void *keys, size_t key_size, void *delete_key, HashmapKeyType key_type) {
     TIME_FUNCTION;
     if (header->capacity == 0) {
         header->temp_index = 0;
@@ -265,7 +265,7 @@ static void hm_delete_impl(HashmapHeader_ *header, void *keys, size_t key_size, 
 }
 
 // Returns the default value at index 0 if not found
-static void hms_get_impl(HashmapHeader_ *header, void *keys, size_t key_size, void *search_key, HashmapKeyType key_type) {
+static void hms_get_impl(HashmapHeader *header, void *keys, size_t key_size, void *search_key, HashmapKeyType key_type) {
     HashmapItem item = hm_internal_index(header, keys, key_size, search_key, key_type);
     if (item.is_present) {
         header->temp_index = header->entries[item.entry_index].index;
@@ -284,68 +284,68 @@ static void hms_get_impl(HashmapHeader_ *header, void *keys, size_t key_size, vo
 
 // Reserve space for insertion of `count` elements into the hashmap without growing
 #define hashmap_reserve(arena, hashmap, count)                                                               \
-    ((hashmap)->keys = hm_grow((arena), (HashmapHeader_*)(hashmap),                                          \
+    ((hashmap)->keys = hm_grow((arena), &(hashmap)->h,                                                       \
         (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), _Alignof(__typeof__((hashmap)->keys[0])),       \
         (void *)(hashmap)->values, sizeof((hashmap)->values[0]), _Alignof(__typeof__((hashmap)->values[0])), \
         (count)),                                                                                            \
-    (hashmap)->values = (hashmap)->temp_values)
+    (hashmap)->values = (hashmap)->h.temp_values)
 
 // Insert a new key-value pair or update the value if it already exists
 #define hashmap_put(arena, hashmap, k, v)                                                                    \
-    ((hashmap)->keys = hm_put_impl((arena), (HashmapHeader_*)(hashmap),                                      \
+    ((hashmap)->keys = hm_put_impl((arena), &(hashmap)->h,                                                   \
         (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), _Alignof(__typeof__((hashmap)->keys[0])),       \
         (void *)(hashmap)->values, sizeof((hashmap)->values[0]), _Alignof(__typeof__((hashmap)->values[0])), \
         _addr_of((k)), _hashmap_key_type((k))),                                                              \
-    (hashmap)->values = (hashmap)->temp_values,                                                              \
-    (hashmap)->keys[(hashmap)->temp_index] = (k),                                                            \
-    (hashmap)->values[(hashmap)->temp_index] = (v))
+    (hashmap)->values = (hashmap)->h.temp_values,                                                            \
+    (hashmap)->keys[(hashmap)->h.temp_index] = (k),                                                          \
+    (hashmap)->values[(hashmap)->h.temp_index] = (v))
 
 
 // Insert a new key and return a pointer to the value
 #define hashmap_entry(arena, hashmap, k)                                                                     \
-    ((hashmap)->keys = hm_put_impl((arena), (HashmapHeader_*)(hashmap),                                      \
+    ((hashmap)->keys = hm_put_impl((arena), &(hashmap)->h,                                                   \
         (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), _Alignof(__typeof__((hashmap)->keys[0])),       \
         (void *)(hashmap)->values, sizeof((hashmap)->values[0]), _Alignof(__typeof__((hashmap)->values[0])), \
         _addr_of((k)), _hashmap_key_type((k))),                                                              \
-    (hashmap)->values = (hashmap)->temp_values,                                                              \
-    (hashmap)->keys[(hashmap)->temp_index] = (k),                                                            \
-    &((hashmap)->values[(hashmap)->temp_index]))
+    (hashmap)->values = (hashmap)->h.temp_values,                                                            \
+    (hashmap)->keys[(hashmap)->h.temp_index] = (k),                                                          \
+    &((hashmap)->values[(hashmap)->h.temp_index]))
 
 // Return a pointer to value if it exists, otherwise NULL
 #define hashmap_get_ptr(hashmap, k)                          \
-    (hms_get_impl((HashmapHeader_*)(hashmap),                \
+    (hms_get_impl(&(hashmap)->h,                             \
         (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), \
         _addr_of((k)), _hashmap_key_type((k))),              \
-    (hashmap)->temp_index == 0                               \
+    (hashmap)->h.temp_index == 0                             \
         ? NULL                                               \
-        : &((hashmap)->values[(hashmap)->temp_index]))
+        : &((hashmap)->values[(hashmap)->h.temp_index]))
 
 // Return the value if it exists, otherwise the default value at index 0
 #define hashmap_get(hashmap, k)                       \
-    (hms_get_impl((HashmapHeader_*)(hashmap),         \
+    (hms_get_impl(&(hashmap)->h,                      \
         (hashmap)->keys, sizeof ((hashmap)->keys[0]), \
         _addr_of((k)), _hashmap_key_type((k))),       \
-    (hashmap)->values[(hashmap)->temp_index])
+    (hashmap)->values[(hashmap)->h.temp_index])
 
 // Return the index of the key-value pair in the table if it exists, otherwise -1
 #define hashmap_get_index(hashmap, k)                 \
-    (hms_get_impl((HashmapHeader_*)(hashmap),         \
+    (hms_get_impl(&(hashmap)->h,                      \
         (hashmap)->keys, sizeof ((hashmap)->keys[0]), \
         _addr_of((k)), _hashmap_key_type((k))),       \
-    (hashmap)->temp_index == 0                        \
+    (hashmap)->h.temp_index == 0                      \
         ? -1                                          \
-        : (hashmap)->temp_index)
+        : (hashmap)->h.temp_index)
 
 // Remove a key-value pair if it exists, and returns it, otherwise the default pair
-#define hashmap_pop(hashmap, k)                                                              \
-     (hm_delete_impl((HashmapHeader_ *)(hashmap),                                            \
-        (hashmap)->keys, sizeof((hashmap)->keys[0]), _addr_of((k)), _hashmap_key_type((k))), \
-    (hashmap)->temp_index == 0                                                               \
-      ? (hashmap)->values[0]                                                                 \
-      : ((hashmap)->values[(hashmap)->size + 2] = (hashmap)->values[(hashmap)->temp_index],  \
-        (hashmap)->keys[(hashmap)->temp_index] = (hashmap)->keys[(hashmap)->size + 1],       \
-        (hashmap)->values[(hashmap)->temp_index] = (hashmap)->values[(hashmap)->size + 1],   \
-        (hashmap)->values[(hashmap)->size + 2]))
+#define hashmap_pop(hashmap, k)                                                                 \
+     (hm_delete_impl(&(hashmap)->h,                                                             \
+        (hashmap)->keys, sizeof((hashmap)->keys[0]), _addr_of((k)), _hashmap_key_type((k))),    \
+    (hashmap)->h.temp_index == 0                                                                \
+      ? (hashmap)->values[0]                                                                    \
+      : ((hashmap)->values[(hashmap)->h.size + 2] = (hashmap)->values[(hashmap)->h.temp_index], \
+        (hashmap)->keys[(hashmap)->h.temp_index] = (hashmap)->keys[(hashmap)->h.size + 1],      \
+        (hashmap)->values[(hashmap)->h.temp_index] = (hashmap)->values[(hashmap)->h.size + 1],  \
+        (hashmap)->values[(hashmap)->h.size + 2]))
 
 
 // Clear hashmap state, doesn't free keys or values, since those
@@ -358,7 +358,7 @@ static void hms_get_impl(HashmapHeader_ *header, void *keys, size_t key_size, vo
     for (struct { __typeof__((hashmap)->keys) key;                   \
                   __typeof__((hashmap)->values) value; }             \
             (pair) = { (hashmap)->keys + 1, (hashmap)->values + 1 }; \
-        (pair).key <= (hashmap)->keys + (hashmap)->size;             \
+        (pair).key <= (hashmap)->keys + (hashmap)->h.size;           \
         (pair).key++, (pair).value++)
 
 #endif // MIGI_HASHMAP_H
