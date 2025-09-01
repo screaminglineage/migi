@@ -23,6 +23,10 @@
 // ^data                 ^new   ^length ^capacity                        ^total
 
 // TODO: forward declare all functions
+//
+// TODO: make a dequeue implementation using this same idead, which
+// moves along the mapped address space, wrapping around once it reaches the end.
+// Extra pages before the start pointer and after the end pointer have no permissions
 
 #include <stddef.h>
 #include <stdint.h>
@@ -45,6 +49,9 @@ typedef struct {
 
 #define align_page_size(n) (align_up((n), OS_PAGE_SIZE))
 
+// TODO: make the default_capacity 8GB or so, see TODO(2025-08-30) for more info
+#define LINEAR_ARENA_DEFAULT_CAPACITY 32*GB
+
 static void *lnr_arena_push_bytes(LinearArena *arena, size_t size, size_t align) {
     byte *alloc_start = arena->data + arena->length;
     size_t alignment = align_up_padding((uintptr_t)alloc_start, align);
@@ -52,7 +59,7 @@ static void *lnr_arena_push_bytes(LinearArena *arena, size_t size, size_t align)
 
     if (alloc_end > arena->capacity) {
         if (arena->capacity == 0) {
-            size_t default_capacity = 32*GB;
+            size_t default_capacity = LINEAR_ARENA_DEFAULT_CAPACITY;
             arena->total = (arena->total == 0)? default_capacity: arena->total;
             arena->data = memory_reserve(arena->total);
         }
@@ -102,7 +109,7 @@ static void *lnr_arena_realloc_bytes(LinearArena *arena, void *old, size_t old_s
 
 static void lnr_arena_free(LinearArena *arena) {
     if (arena->total > 0) memory_release(arena->data, arena->total);
-    mem_clear(arena, 1);
+    mem_clear(arena);
 }
 
 

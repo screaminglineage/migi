@@ -15,6 +15,15 @@
 
 // TODO: define functions as static
 // TODO: use a flag to optionally clear/not clear the newly allocated memory in arena_push_bytes
+// TODO: merge LinearArena and arena into a singular arena allocator with different modes
+//  - Static: allocate a fixed size buffer and crash when out of memory
+//  - Dynamic: mixture of Arena and LinearArena, linked list of blocks each of which
+//  reserve a large amount of space (1 GB?) and commit over time
+//  - Dynamic_SingleBlock - similar to LinearArena, reserves only a single block and commits over
+//  time, make it not as big as LinearArena's block size
+//
+// TODO: add arena_clone, which copies a single value onto the arena
+
 
 typedef struct Zone ArenaZone;
 struct Zone {

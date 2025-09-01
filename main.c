@@ -640,15 +640,15 @@ void test_string_split_first() {
     {
         String c = SV("a+-b");
         String delims = SV("-+");
-        SplitIterator iter = string_split_chars_first(&c, delims);
+        SplitIterator iter = string_split_chars_next(&c, delims);
         assert(!iter.is_over);
         assert(string_eq(iter.string, SV("a")));
 
-        iter = string_split_chars_first(&c, delims);
+        iter = string_split_chars_next(&c, delims);
         assert(!iter.is_over);
         assert(string_eq(iter.string, SV("")));
 
-        iter = string_split_chars_first(&c, delims);
+        iter = string_split_chars_next(&c, delims);
         assert(iter.is_over);
         assert(string_eq(iter.string, SV("b")));
     }

@@ -14,6 +14,11 @@
 
 #define OS_PAGE_SIZE 4*KB
 
+// TODO(2025-08-30): Linux allows overcommitting upto a certain level, so its possible to make 
+// the commit and decommit functions no-ops, and reserve can add the read/write protections itself
+// This will still fail for allocations that are much higher than the system RAM
+// (seems to be just equal or lesser than 1.5x the available RAM)
+
 static void *memory_reserve(size_t size) {
     TIME_FUNCTION;
     void *mem = mmap(0, size, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
@@ -49,7 +54,8 @@ static void *memory_alloc(size_t size) {
     return mem;
 }
 
-#define memory_free memory_release
+
+#define memory_free(mem, size) (memory_release((mem), (size)))
 
 #endif
 #endif // MIGI_MEMORY_H

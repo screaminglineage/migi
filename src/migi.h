@@ -208,10 +208,10 @@ do {                        \
 
 #define mem_eq_single(a, b) mem_eq(a, b, 1)
 
-#define mem_clear(mem, length) \
+#define mem_clear_array(mem, length) \
     (memset((mem), 0, sizeof(*(mem))*(length)))
 
-#define mem_clear_single(mem) mem_clear(mem, 1)
+#define mem_clear(mem) mem_clear_array(mem, 1)
 
 
 // Iterate over a dynamic array *by reference*

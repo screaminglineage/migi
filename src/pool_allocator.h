@@ -1,6 +1,12 @@
 #ifndef MIGI_POOL_ALLOC_H
 #define MIGI_POOL_ALLOC_H
 
+// TODO: add a freelist allocator that doesnt hold its own arena, then reimplement
+// this allocator on top of that with the arena included
+
+// TODO: make the allocater based on the size of allocation and not the type
+// The first allocation will store the block size, and every subsequent allocation
+// should assert that the allocation size is the same.
 
 // POOL_ALLOC_COUNT_ALLOCATIONS can be defined before including count the current number of allocated items
 
@@ -56,6 +62,7 @@ static void pool_free_bytes(PoolAllocator *p, byte *item) {
     p->length--;
 #endif
 }
+
 
 static void pool_reset(PoolAllocator *p) {
     arena_reset_ex(&p->arena, true);

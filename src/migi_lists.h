@@ -131,8 +131,8 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
     SplitIterator next = {0};
     while (!next.is_over) {
         next = (flags & Split_AsChars)
-            ? string_split_chars_first(&str, delimiter)
-            : string_split_first(&str, delimiter);
+            ? string_split_chars_next(&str, delimiter)
+            : string_split_next(&str, delimiter);
 
         if (next.string.length != 0 || !(flags & Split_SkipEmpty)) {
             strlist_push_string(a, &strings, next.string);

@@ -132,6 +132,13 @@ static inline Token next_token(Lexer *lexer);
 // Get the next token without consuming it
 static inline bool peek_token(Lexer *lexer, Token *tok);
 
+
+
+// TODO: make the `expect_token_*` function only consume the next
+// token if it matches This will allow reporting errors by calling 
+// next_token(), and printing what you actually got instead.
+// Will need changing a bunch of stuff in tools/struct_printer.c though
+//
 // Check if the next token is the same as expected and consume it
 // The next token is always consumed even if it doesn't match
 static inline bool expect_token(Lexer *lexer, TokenType expected);
@@ -327,6 +334,7 @@ static bool tokenize_identifier(Lexer *lexer) {
     return true;
 }
 
+// BUG: will go into an infinite loop when it encounters a `/`
 static void lexer_skip_whitespace(Lexer *lexer) {
     while (true) {
         if (isspace(lexer_peek_char(lexer))) {

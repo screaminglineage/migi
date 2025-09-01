@@ -1,6 +1,12 @@
 #ifndef MIGI_HASHMAP_H
 #define MIGI_HASHMAP_H
 
+// TODO: add checks for empty in the hashmap_get functions
+// TODO: add a function to set the default key and value that will also
+// reserve the arrays before doing do
+// TODO: try making an alternate implementation similar to this
+// https://ruby0x1.github.io/machinery_blog_archive/post/minimalist-container-library-in-c-part-1/index.html
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -46,7 +52,6 @@ typedef struct {
     uint64_t index; // index of 0 means an entry is unoccupied
 } HashmapHashEntry;
 
-// Need an anonymous struct to allow the fields to be accessed easily
 typedef struct {
     HashmapHashEntry *entries;      // entries in the hashmap table
     size_t size;                    // number of entries
@@ -56,6 +61,7 @@ typedef struct {
 } HashmapHeader;
 
 
+// Convenience macro for defining the header in the actual hashmap
 #define HASHMAP_HEADER HashmapHeader h
 
 // Optional tracking of maximum probe length for statistics
@@ -105,7 +111,7 @@ static void *hm_grow(Arena *a, HashmapHeader *header, void *keys, size_t key_siz
     }
 
     HashmapHashEntry *new_entries = arena_push(a, HashmapHashEntry, header->capacity);
-    mem_clear(new_entries, header->capacity);
+    mem_clear_array(new_entries, header->capacity);
 
     // allocating an extra item for index 0 being treated as the default index
     size_t keys_size       = key_size   * (old_capacity + 1);

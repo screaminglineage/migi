@@ -16,7 +16,6 @@
 #include "arena.h"
 
 // TODO: forward declare all functions
-// TODO: dont pass in pointers to string_builder for functions that dont modify it
 // TODO: look into adding case-insensitive find and replace
 
 typedef struct {
@@ -116,6 +115,12 @@ static String string_from_cstr(const char *cstr) {
 static bool string_eq(String a, String b) {
     if (a.length != b.length) return false;
     return !a.length || mem_eq(a.data, b.data, a.length);
+}
+
+static bool string_eq_cstr(String a, const char *b) {
+    if (b == NULL) return a.length == 0;
+    if (a.length != strlen(b)) return false;
+    return memcmp(a.data, b, a.length) == 0;
 }
 
 bool _string_eq_any(String to_match, String *matches, size_t matches_len) {
@@ -371,7 +376,7 @@ typedef struct {
     String string;
 } SplitIterator;
 
-static SplitIterator string_split_first(String *str, String split_at) {
+static SplitIterator string_split_next(String *str, String split_at) {
     SplitIterator it = {0};
 
     if (str->length == 0 || split_at.length == 0) {
@@ -395,8 +400,8 @@ static SplitIterator string_split_first(String *str, String split_at) {
 
 // Splits up to the first occurrence of any of the characters of delimiter
 // Always returns the nearest match if multiple characters are found
-// Eg: string_split_chars_first("a+-b", "-+") will return "a", then "", and finally "b"
-static SplitIterator string_split_chars_first(String *str, String delims) {
+// Eg: string_split_chars_next("a+-b", "-+") will return "a", then "", and finally "b"
+static SplitIterator string_split_chars_next(String *str, String delims) {
     SplitIterator it = {0};
 
     if (str->length == 0 || delims.length == 0) {
@@ -427,27 +432,27 @@ static SplitIterator string_split_chars_first(String *str, String delims) {
 
 // Iterator-like macros to loop over each string split
 // Use `it.split` to get the splits each time
-#define string_split_foreach(str, split_at, it)           \
-    for (struct { String copy;                            \
-                  String split;                           \
-                  SplitIterator it;                       \
-                  bool over; }                            \
-        it = { (str), {0}, {0}, false };                  \
-        it.it = string_split_first(&it.copy, (split_at)), \
-            it.split = it.it.string,                      \
-            !it.over;                                     \
+#define string_split_foreach(str, split_at, it)          \
+    for (struct { String copy;                           \
+                  String split;                          \
+                  SplitIterator it;                      \
+                  bool over; }                           \
+        it = { .copy = (str), };                         \
+        it.it = string_split_next(&it.copy, (split_at)), \
+            it.split = it.it.string,                     \
+            !it.over;                                    \
         it.it.is_over? it.over = true: it.over)
 
 
-#define string_split_chars_foreach(str, delims, it)           \
-    for (struct { String copy;                                \
-                  String split;                               \
-                  SplitIterator it;                           \
-                  bool over; }                                \
-        it = { (str), {0}, {0}, false };                      \
-        it.it = string_split_chars_first(&it.copy, (delims)), \
-            it.split = it.it.string,                          \
-            !it.over;                                         \
+#define string_split_chars_foreach(str, delims, it)          \
+    for (struct { String copy;                               \
+                  String split;                              \
+                  SplitIterator it;                          \
+                  bool over; }                               \
+        it = { .copy = (str), };                             \
+        it.it = string_split_chars_next(&it.copy, (delims)), \
+            it.split = it.it.string,                         \
+            !it.over;                                        \
         it.it.is_over? it.over = true: it.over)
 
 

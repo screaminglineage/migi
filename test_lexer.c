@@ -45,7 +45,7 @@ int main() {
         consume_token(&l, &tok);
         printf("%.*s\n", SV_FMT(tok.string));
     }
-    mem_clear_single(&l);
+    mem_clear(&l);
     l.string = sb_to_string(&sb);
 
     // return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("int")), 1);

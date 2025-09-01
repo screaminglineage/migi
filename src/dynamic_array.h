@@ -83,6 +83,9 @@ do {                                                       \
 
 #endif // defined(DYNAMIC_ARRAY_USE_ARENA) || defined(DYNAMIC_ARRAY_USE_LINEAR_ARENA)
 
+#define array_pop(array)                                                 \
+    (assertf((array)->length > 0, "array_pop: remove from empty array"), \
+     (array)->data[--(array)->length])
 
 #define array_last(array) ((array)->data[(array)->length - 1])
 
