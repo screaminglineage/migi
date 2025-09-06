@@ -87,6 +87,10 @@ void sb_reset(StringBuilder *sb) {
     sb->arena.length = 0;
 }
 
+void sb_free(StringBuilder *sb) {
+    lnr_arena_free(&sb->arena);
+}
+
 static StringBuilder sb_from_string(String string) {
     StringBuilder sb = {0};
     sb_push_string(&sb, string);
@@ -109,6 +113,21 @@ static String string_from_cstr(const char *cstr) {
     return (String){
         .data = cstr,
         .length = (cstr == NULL)? 0: strlen(cstr)
+    };
+}
+
+static char *string_to_cstr(Arena *a, String str) {
+    char *cstr = arena_strdup(a, str.data, str.length + 1);
+    // TODO: make arena always clear new allocations by default to not have to do this
+    cstr[str.length] = 0;
+    return cstr;
+}
+
+static String string_copy(Arena *a, String str) {
+    char *copied = arena_strdup(a, str.data, str.length);
+    return (String){
+        .data = copied,
+        .length = str.length
     };
 }
 
@@ -458,7 +477,10 @@ static SplitIterator string_split_chars_next(String *str, String delims) {
 
 // TODO: use linux syscalls instead of C stdlib
 static bool read_file(StringBuilder *builder, String filepath) {
+    // TODO: this is dumb, maybe allocate in the `builder` instead?
     StringBuilder filepath_builder = sb_from_string(filepath);
+    sb_free(&filepath_builder);
+
     FILE *file = fopen(sb_to_cstr(&filepath_builder), "r");
     if (!file) {
         fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
@@ -489,15 +511,18 @@ static bool read_file(StringBuilder *builder, String filepath) {
 }
 
 // TODO: use linux syscalls instead of C stdlib
-static bool write_file(StringBuilder *sb, String filepath) {
+static bool write_file(StringBuilder *builder, String filepath) {
+    // TODO: this is dumb, maybe allocate in the `builder` instead?
     StringBuilder filepath_builder = sb_from_string(filepath);
     FILE *file = fopen(sb_to_cstr(&filepath_builder), "w");
+    sb_free(&filepath_builder);
+
     if (!file) {
         fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
         return false;
     }
-    size_t n = fwrite(sb->arena.data, sizeof(char), sb->arena.length, file);
-    if (n != sb->arena.length) {
+    size_t n = fwrite(builder->arena.data, sizeof(char), builder->arena.length, file);
+    if (n != builder->arena.length) {
         fprintf(stderr, "%s: failed to write to file `%.*s`: \n", __func__, SV_FMT(filepath));
         fclose(file);
         return false;

@@ -54,6 +54,11 @@ static inline uint64_t align_up_padding(uint64_t value, uint64_t align_to) {
     return -value & (align_to - 1);
 }
 
+// Return the number of bytes needed to align `value` to the previous multiple of `align_to`
+static inline uint64_t align_down_padding(uint64_t value, uint64_t align_to) {
+    return value & (align_to - 1);
+}
+
 // Align up `value` to the next multiple of `align_to`
 // Returns `value` if it is already aligned
 // align_up(9, 8) = 16 [next multiple of 8]
@@ -62,7 +67,7 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 }
 
 static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
-    return value - align_to + align_up_padding(value, align_to);
+    return value - align_down_padding(value, align_to);
 }
 
 
@@ -234,10 +239,10 @@ do {                        \
 // NOTE: Using `break` in this version of defer will return early
 // from the block, skipping execution of the deferred expression. Using
 // `return` will also have a similar effect, so use with care.
-#define defer_block(expr)              \
-    for (int _DEFER##__LINE__ = 0;     \
-            _DEFER##__LINE__ != 1;     \
-            _DEFER##__LINE__++, expr)
+#define defer_block(expr)                   \
+    for (int make_unique(DEFER_TEMP_) = 0;  \
+             make_unique(DEFER_TEMP_) != 1; \
+             make_unique(DEFER_TEMP_)++, expr)
 
 // Return false if the expression passed is false
 // Also takes variable arguments that are run before returning

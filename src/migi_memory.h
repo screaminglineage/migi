@@ -14,6 +14,9 @@
 
 #define OS_PAGE_SIZE 4*KB
 
+#define align_up_page_size(n) (align_up((n), OS_PAGE_SIZE))
+#define align_down_page_size(n) (align_down((n), OS_PAGE_SIZE))
+
 // TODO(2025-08-30): Linux allows overcommitting upto a certain level, so its possible to make 
 // the commit and decommit functions no-ops, and reserve can add the read/write protections itself
 // This will still fail for allocations that are much higher than the system RAM

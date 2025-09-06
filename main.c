@@ -1,3 +1,4 @@
+#include "dynamic_deque.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -726,8 +727,52 @@ void test_temp_allocator() {
     assert(temp_allocator_global_arena.tail->length == 0);
 }
 
+void test_dynamic_deque() {
+    Deque d = deque_init();
+
+    for (size_t i = 0; i < 1000; i++) {
+        *deque_push_head(&d, int, 1) = i;
+    }
+    for (size_t i = 0; i < 1000; i++) {
+        *deque_push_tail(&d, int, 1) = i;
+    }
+    deque_pop_head(&d, int, 3);
+    deque_pop_tail(&d, int, 1);
+    deque_pop_tail(&d, int, 2);
+    deque_pop_head(&d, int, 2);
+
+    for (size_t i = 0; i < 1000; i++) {
+        *deque_push_head(&d, int, 1) = i;
+    }
+    deque_free(&d);
+
+    d = deque_init();
+    for (size_t i = 0; i < 10; i++) {
+        deque_push_head_bytes(&d, 64*MB, 16);
+    }
+    deque_pop_head_bytes(&d, 64*MB);
+
+    for (size_t i = 0; i < 10; i++) {
+        deque_push_tail_bytes(&d, 64*MB, 16);
+    }
+    deque_pop_tail_bytes(&d, 64*MB);
+    deque_free(&d);
+}
+
 int main() {
-    test_string_split_first();
+    test_dynamic_deque();
+
+    Deque d = deque_init();
+    deque_push_head_bytes(&d, 64*MB, 16);
+    deque_push_head_bytes(&d, 64*MB, 16);
+    deque_push_head_bytes(&d, 64*MB, 16);
+    deque_pop_head_bytes(&d, 128*MB);
+
+    deque_push_tail_bytes(&d, 64*MB, 16);
+    deque_push_tail_bytes(&d, 64*MB, 16);
+    deque_push_tail_bytes(&d, 64*MB, 16);
+    deque_pop_tail_bytes(&d, 128*MB);
+
 
 
     printf("\nExiting successfully\n");

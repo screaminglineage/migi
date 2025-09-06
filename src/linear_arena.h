@@ -23,10 +23,6 @@
 // ^data                 ^new   ^length ^capacity                        ^total
 
 // TODO: forward declare all functions
-//
-// TODO: make a dequeue implementation using this same idead, which
-// moves along the mapped address space, wrapping around once it reaches the end.
-// Extra pages before the start pointer and after the end pointer have no permissions
 
 #include <stddef.h>
 #include <stdint.h>
