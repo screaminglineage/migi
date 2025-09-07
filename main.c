@@ -757,12 +757,8 @@ void test_dynamic_deque() {
     }
     deque_pop_tail_bytes(&d, 64*MB);
     deque_free(&d);
-}
 
-int main() {
-    test_dynamic_deque();
-
-    Deque d = deque_init();
+    d = deque_init();
     deque_push_head_bytes(&d, 64*MB, 16);
     deque_push_head_bytes(&d, 64*MB, 16);
     deque_push_head_bytes(&d, 64*MB, 16);
@@ -772,6 +768,9 @@ int main() {
     deque_push_tail_bytes(&d, 64*MB, 16);
     deque_push_tail_bytes(&d, 64*MB, 16);
     deque_pop_tail_bytes(&d, 128*MB);
+}
+
+int main() {
 
 
 

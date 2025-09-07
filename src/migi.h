@@ -49,6 +49,8 @@ static uint64_t next_power_of_two(uint64_t n) {
     return n;
 }
 
+// TODO: rename these to align_*_pow2
+
 // Return the number of bytes needed to align `value` to the next multiple of `align_to`
 static inline uint64_t align_up_padding(uint64_t value, uint64_t align_to) {
     return -value & (align_to - 1);
@@ -66,6 +68,9 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
     return value + align_up_padding(value, align_to);
 }
 
+// Align down `value` to the previous multiple of `align_to`
+// Returns `value` if it is already aligned
+// align_down(21, 8) = 16 [prev multiple of 8]
 static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
     return value - align_down_padding(value, align_to);
 }

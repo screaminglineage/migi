@@ -12,15 +12,10 @@
 #include <sys/mman.h>
 #include <errno.h>
 
-#define OS_PAGE_SIZE 4*KB
+#define OS_PAGE_SIZE (4*KB)
 
 #define align_up_page_size(n) (align_up((n), OS_PAGE_SIZE))
 #define align_down_page_size(n) (align_down((n), OS_PAGE_SIZE))
-
-// TODO(2025-08-30): Linux allows overcommitting upto a certain level, so its possible to make 
-// the commit and decommit functions no-ops, and reserve can add the read/write protections itself
-// This will still fail for allocations that are much higher than the system RAM
-// (seems to be just equal or lesser than 1.5x the available RAM)
 
 static void *memory_reserve(size_t size) {
     TIME_FUNCTION;
@@ -38,16 +33,17 @@ static void memory_release(void *mem, size_t size) {
 // NOTE: memory_commit and memory_decommit must be passed in addresses aligned to the OS page boundary
 static void *memory_commit(void *mem, size_t size) {
     TIME_FUNCTION;
-    void *allocation = mmap(mem, size, PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    avow(allocation != MAP_FAILED, "%s: failed to commit memory: %s", __func__, strerror(errno));
-    return allocation;
+    int ret = mprotect(mem, size, PROT_READ|PROT_WRITE);
+    avow(ret != -1, "%s: failed to commit memory: %s", __func__, strerror(errno));
+    return mem;
 }
 
 // NOTE: memory_commit and memory_decommit must be passed in addresses aligned to the OS page boundary
 static void memory_decommit(void *mem, size_t size) {
     TIME_FUNCTION;
-    void *new_mem = mmap(mem, size, PROT_NONE, MAP_FIXED|MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    avow(new_mem != MAP_FAILED, "%s: failed to decommit memory: %s", __func__, strerror(errno));
+    madvise(mem, size, MADV_DONTNEED);
+    int ret = mprotect(mem, size, PROT_NONE);
+    avow(ret != -1, "%s: failed to decommit memory: %s", __func__, strerror(errno));
 }
 
 static void *memory_alloc(size_t size) {
