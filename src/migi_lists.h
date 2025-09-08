@@ -58,32 +58,11 @@ static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t le
 // NOTE: strlist_pushf doesnt append a null terminator at the end
 // of the format string unlike regular sprintf
 static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
-    va_list args1;
-    va_start(args1, fmt);
-
-    va_list args2;
-    va_copy(args2, args1);
-
-    int reserved = 1024;
-    char *mem = arena_push(a, char, reserved);
-    int actual = vsnprintf(mem, reserved, fmt, args1);
-    // vsnprintf doesnt count the null terminator
-    actual += 1;
-
-    if (actual > reserved) {
-        arena_pop(a, char, reserved);
-        mem = arena_push(a, char, actual);
-        vsnprintf(mem, actual, fmt, args2);
-    } else if (actual < reserved) {
-        arena_pop(a, char, abs_difference(actual, reserved));
-    }
-    // pop off the null terminator
-    arena_pop(a, char, 1);
-
-    // actual includes the null terminator
-    strlist_push_buffer(a, list, mem, actual - 1);
-    va_end(args2);
-    va_end(args1);
+    va_list args;
+    va_start(args, fmt);
+    String string = string__format(a, fmt, args);
+    va_end(args);
+    strlist_push_string(a, list, string);
 }
 
 static String strlist_to_string(Arena *a, StringList *list) {

@@ -27,33 +27,11 @@ static inline void temp_init() {
 }
 
 static String temp_format(const char *fmt, ...) {
-    va_list args1;
-    va_start(args1, fmt);
-
-    va_list args2;
-    va_copy(args2, args1);
-
-    int reserved = 1024;
-    char *mem = arena_push(temp_allocator_global_arena, char, reserved);
-    int actual = vsnprintf(mem, reserved, fmt, args1);
-    // vsnprintf doesnt count the null terminator
-    actual += 1;
-
-    if (actual > reserved) {
-        arena_pop(temp_allocator_global_arena, char, reserved);
-        mem = arena_push(temp_allocator_global_arena, char, actual);
-        vsnprintf(mem, actual, fmt, args2);
-    } else if (actual < reserved) {
-        arena_pop(temp_allocator_global_arena, char, abs_difference(actual, reserved));
-    }
-    // pop off the null terminator
-    arena_pop(temp_allocator_global_arena, char, 1);
-
-    va_end(args2);
-    va_end(args1);
-
-    // actual includes the null terminator
-    return (String){ .data = mem, .length = actual - 1 };
+    va_list args;
+    va_start(args, fmt);
+    String res = string__format(temp_allocator_global_arena, fmt, args);
+    va_end(args);
+    return res;
 }
 
 static void temp_reset() {

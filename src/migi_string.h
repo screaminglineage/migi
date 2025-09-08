@@ -397,6 +397,41 @@ static SplitIterator string_split_chars_next(String *str, String delims) {
             !it.over;                                        \
         it.it.is_over? it.over = true: it.over)
 
+
+static String string__format(Arena *arena, const char *fmt, va_list args) {
+    va_list args_saved;
+    va_copy(args_saved, args);
+
+    int reserved = 1024;
+    char *mem = arena_push(arena, char, reserved);
+    int actual = vsnprintf(mem, reserved, fmt, args);
+    // vsnprintf doesnt count the null terminator
+    actual += 1;
+
+    if (actual > reserved) {
+        arena_pop(arena, char, reserved);
+        mem = arena_push(arena, char, actual);
+        vsnprintf(mem, actual, fmt, args_saved);
+    } else if (actual < reserved) {
+        arena_pop(arena, char, abs_difference(actual, reserved));
+    }
+    // pop off the null terminator
+    arena_pop(arena, char, 1);
+
+    va_end(args_saved);
+    // actual includes the null terminator
+    return (String){ .data = mem, .length = actual - 1 };
+}
+
+migi_printf_format(2, 3) static String string_format(Arena *arena, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    String result = string__format(arena, fmt, args);
+    va_end(args);
+    return result;
+}
+
+
 typedef struct {
     bool ok;
     String string;

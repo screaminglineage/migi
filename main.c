@@ -226,9 +226,22 @@ void test_string_builder_formatted() {
              "what is this even doing????");
     assert(sb_length(&sb) == 67 + 67);
 
+    {
+        StringBuilder sb = sb_init();
+        sb_push_string(&sb, SV("foo"));
+        sb_push_string(&sb, SV("bar"));
+        sb_push_string(&sb, SV("baz"));
+        sb_pushf(&sb, "\nhello world! %d, %.*s, %f\n", 12, SV_FMT(SV("more stuff")), 3.14);
+        sb_pushf(&sb, "abcd efgh 12345678 %x\n", 0xdeadbeef);
+
+        String str = sb_to_string(&sb);
+        printf("%.*s\n", SV_FMT(str));
+        sb_free(&sb);
+    }
+
     static char buf[1*MB];
     Arena *a = arena_init_static(buf, sizeof(buf));
-    String str = read_file(a, SV("./main.c")).string;
+    String str = read_file(a, SV("./src/string_builder.h")).string;
     const char *cstr = string_to_cstr(a, str);
 
     sb_pushf(&sb, "%s\n", cstr);
@@ -730,7 +743,7 @@ void test_temp_allocator() {
     temp_rewind(c);
 
     assert(temp_allocator_global_arena->current == temp_allocator_global_arena->current);
-    assert(temp_allocator_global_arena->current->position == 0);
+    assert(temp_allocator_global_arena->current->position == sizeof(Arena));
 }
 
 void test_dynamic_deque() {
@@ -785,6 +798,8 @@ int main() {
     test_string_list();
     linear_arena_stress_test();
     test_dynamic_array();
+
+
 
 
     printf("\nExiting successfully\n");

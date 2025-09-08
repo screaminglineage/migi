@@ -248,7 +248,6 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
     return memcpy(arena_push_bytes(arena, new_size, align, false), old, old_size);
 }
 
-
 static void arena_reset(Arena *arena) {
     Arena *current = arena->current;
     while (current->prev) {
