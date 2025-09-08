@@ -2,209 +2,308 @@
 #define MIGI_ARENA_H
 
 #include <stddef.h>
-#include <string.h>
-#include <stdbool.h>
-#include <sys/select.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include "migi.h"
 #include "migi_memory.h"
 
-#ifndef ARENA_DEFAULT_ZONE_CAP
-   #define ARENA_DEFAULT_ZONE_CAP 1*MB
+#ifndef ARENA_DEFAULT_RESERVE_SIZE
+    #define ARENA_DEFAULT_RESERVE_SIZE 1*GB
 #endif
 
-// TODO: define functions as static
-// TODO: use a flag to optionally clear/not clear the newly allocated memory in arena_push_bytes
-// TODO: merge LinearArena and arena into a singular arena allocator with different modes
-//  - Static: allocate a fixed size buffer and crash when out of memory
-//  - Dynamic: mixture of Arena and LinearArena, linked list of blocks each of which
-//  reserve a large amount of space (1 GB?) and commit over time
-//  - Dynamic_SingleBlock - similar to LinearArena, reserves only a single block and commits over
-//  time, make it not as big as LinearArena's block size
-//
-// TODO: add arena_clone, which copies a single value onto the arena
+#ifndef ARENA_DEFAULT_COMMIT_SIZE
+    #define ARENA_DEFAULT_COMMIT_SIZE 1*MB
+#endif
 
 
-typedef struct Zone ArenaZone;
-struct Zone {
-    ArenaZone *next;
-    size_t length;
-    size_t capacity;
+// NOTE: The default type is Linear
+typedef enum {
+    Arena_Linear = 0,
+    Arena_Chained,
+    Arena_Static,
+} ArenaType;
+
+typedef struct Arena Arena;
+struct Arena {
+    ArenaType type;
+
+    size_t position;
+    size_t committed;
+    size_t reserved;
+
+    size_t commit_size;
+    size_t reserve_size;
+
+    Arena *prev;
+    Arena *current;
     byte data[];
 };
 
 typedef struct {
-    ArenaZone *head;
-    ArenaZone *tail;
-} Arena;
+    size_t commit_size;
+    size_t reserve_size;
+    size_t type;
+    void *backing_buffer;
+    size_t backing_buffer_size;
+} ArenaOptions;
 
 typedef struct {
-    ArenaZone *zone;
-    size_t length;
-} ArenaCheckpoint;
+    Arena *arena;
+    Arena *current;
+    size_t position;
+} Checkpoint;
 
+#define arena_init(...)                             \
+    arena__init((ArenaOptions){                     \
+        .commit_size = ARENA_DEFAULT_COMMIT_SIZE,   \
+        .reserve_size = ARENA_DEFAULT_RESERVE_SIZE, \
+        .type = Arena_Linear,                       \
+        __VA_ARGS__                                 \
+    })
 
-void *arena_push_bytes(Arena *arena, size_t size, size_t align);
+static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size);
+static void arena_free(Arena *arena);
 
 #define arena_new(arena, type) \
-    ((type *)arena_push_bytes((arena), sizeof(type), _Alignof(type)))
+    (type *)arena_push_bytes((arena), sizeof(type), _Alignof(type), true)
 
-#define arena_push(arena, type, size) \
-    ((type *)arena_push_bytes((arena), sizeof(type)*(size), _Alignof(type)))
+#define arena_push(arena, type, length) \
+    (type *)arena_push_bytes((arena), (length)*sizeof(type), _Alignof(type), true)
 
-void *arena_pop_current_bytes(Arena *arena, size_t size);
-#define arena_pop_current(arena, type, size) \
-    ((type *)arena_pop_current_bytes((arena), sizeof(type)*(size)))
+#define arena_push_nonzero(arena, type, length) \
+    (type *)arena_push_bytes((arena), (length)*sizeof(type), _Alignof(type), false)
 
-// NOTE: arena_realloc should be passed in the same type as the original allocation
-void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_t new_size, size_t align);
-#define arena_realloc(arena, type, old, old_size, new_size) \
-    ((type *)arena_realloc_bytes((arena), (void *)(old), sizeof(type)*(old_size), sizeof(type)*(new_size), _Alignof(type)))
+#define arena_pop(arena, type, length) \
+    arena_pop_bytes((arena), (length)*sizeof(type));
 
-void *arena_memdup_bytes(Arena *arena, void *old, size_t size, size_t align);
+static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clear_mem);
+static void arena_pop_bytes(Arena *arena, size_t size);
 
-#define arena_memdup(arena, type, old, size) \
-    ((type *)arena_memdup_bytes((arena), (void *)(old), sizeof(type)*(size), _Alignof(type)))
+#define arena_realloc(arena, type, old, old_length, new_length) \
+    (type *)arena_realloc_bytes((arena), (old), (old_length)*sizeof(type), (new_length)*sizeof(type), _Alignof(type))
 
-#define arena_strdup(arena, old, size) \
-    ((char *)arena_memdup_bytes((arena), (void *)(old), (size), _Alignof(char)))
+static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_t new_size, size_t align);
 
-#define arena_reset(arena) (arena_reset_ex((arena), false))
-void arena_reset_ex(Arena *arena, bool clear_all);
+#define arena_copy(arena, type, mem, length) \
+    (type *)arena_copy_bytes((arena), (void *)(mem), (length)*sizeof(type), _Alignof(type))
 
-void arena_free(Arena *arena);
+static inline void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align);
 
-ArenaCheckpoint arena_save(Arena *arena);
-#define arena_rewind(arena, checkpoint) (arena_rewind_ex((arena), (checkpoint), false))
-void arena_rewind_ex(Arena *arena, ArenaCheckpoint checkpoint, bool clear_all);
+static void arena_reset(Arena *arena);
+
+static inline Checkpoint arena_save(Arena *arena);
+static void arena_rewind(Checkpoint checkpoint);
 
 
+static Arena *arena__init(ArenaOptions opt) {
+    // always align to page size
+    size_t reserve_size = align_up(opt.reserve_size, OS_PAGE_SIZE);
+    // commit_size must not be greater than reserve_size
+    size_t commit_size = clamp_top(align_up(opt.commit_size, OS_PAGE_SIZE), reserve_size);
 
-static inline ArenaZone *arena_new_zone(size_t capacity, ArenaZone *next) {
-    ArenaZone *zone = memory_alloc(sizeof(ArenaZone) + capacity);
-    assertf(zone, "arena_zone_new: failed to allocated memory");
-    zone->length = 0;
-    zone->capacity = capacity;
-    zone->next = next;
-    return zone;
-}
+    byte *mem = opt.backing_buffer;
+    size_t reserved = opt.backing_buffer_size;
+    size_t committed = opt.backing_buffer_size;
 
-void arena_free(Arena *arena) {
-    ArenaZone *zone = arena->head;
-    while (zone) {
-        ArenaZone *tmp = zone;
-        zone = zone->next;
-        memory_free(tmp, tmp->capacity);
+    // backing buffer was not provided
+    if (!mem) {
+        mem = memory_reserve(reserve_size);
+        reserved = reserve_size;
+        memory_commit(mem, commit_size);
+        committed = commit_size;
     }
-    arena->head = arena->tail = NULL;
-}
 
-// Free all zones after the current one
-void arena_trim(Arena *arena) {
-    ArenaZone *zone = arena->tail->next;
-    while (zone) {
-        ArenaZone *tmp = zone;
-        zone = zone->next;
-        memory_free(tmp, tmp->capacity);
-    }
-    arena->tail->next = NULL;
-}
+    // ensures that the contents are always aligned properly (64 > max possible alignment)
+    static_assert(sizeof(Arena) == 64, "arena header size should be 64 bytes");
 
-// Clear all zones without deallocating the memory with optional memset to 0
-void arena_reset_ex(Arena *arena, bool clear_all) {
-    for (ArenaZone *zone = arena->head; zone != NULL; zone = zone->next) {
-        if (clear_all) memset(zone->data, 0, zone->capacity);
-        zone->length = 0;
-    }
-    arena->tail = arena->head;
-}
+    // plant the header at the beginning of the allocation
+    Arena *arena = (Arena *)mem;
+    arena->current = arena;
+    arena->position = sizeof(Arena);
+    arena->prev = NULL;
 
+    arena->reserved = reserved;
+    arena->committed = committed;
 
-void *arena_push_bytes(Arena *a, size_t size, size_t align) {
-    if (!a->tail) {
-        size_t new_capacity = (size <= ARENA_DEFAULT_ZONE_CAP)? ARENA_DEFAULT_ZONE_CAP: size;
-        a->tail = arena_new_zone(new_capacity, a->tail);
-        a->head = a->tail;
+    // TODO: change the default reserve and commit sizes
+    // depending on if the arena is chained or linear
+    if (opt.type == Arena_Static) {
+        arena->commit_size  = opt.backing_buffer_size;
+        arena->reserve_size = opt.backing_buffer_size;
     } else {
-        size_t alignment = align_up_padding((uintptr_t)(a->tail->data + a->tail->length), align);
-        size_t alloc_end = a->tail->length + alignment + size;
-        if (alloc_end > a->tail->capacity) {
-            size_t new_capacity = (alloc_end <= ARENA_DEFAULT_ZONE_CAP)? ARENA_DEFAULT_ZONE_CAP: alloc_end;
-            a->tail->next = arena_new_zone(new_capacity, a->tail->next);
-            a->tail = a->tail->next;
-        }
+        arena->commit_size  = commit_size;
+        arena->reserve_size = reserve_size;
     }
 
-    size_t alignment = align_up_padding((uintptr_t)(a->tail->data + a->tail->length), align);
-    void *mem = a->tail->data + a->tail->length + alignment;
-    a->tail->length += alignment + size;
+    arena->type = opt.type;
+    return arena;
+}
+
+
+static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size) {
+    return arena_init(.type = Arena_Static, .backing_buffer = backing_buffer, .backing_buffer_size = backing_buffer_size);
+}
+
+static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clear_mem) {
+    Arena *current = arena->current;
+    size_t alloc_start = align_up(current->position, align);
+    size_t alloc_end = alloc_start + size;
+
+    // allocate new block for chained arena if it doesn't fit
+    if (current->type == Arena_Chained && alloc_end > current->reserved) {
+        // increase the reservation if the allocation size is bigger
+        size_t commit_size = current->commit_size;
+        size_t reserve_size = current->reserve_size;
+        size_t effective_size = sizeof(Arena) + size;
+        if (effective_size > reserve_size) {
+            reserve_size = align_up(effective_size, align);
+            commit_size = align_up(effective_size, align);
+        }
+        Arena *next = arena__init((ArenaOptions){
+            .commit_size = commit_size,
+            .reserve_size = reserve_size,
+            .type = current->type
+        });
+        next->prev = current;
+        current = next;
+        arena->current = current;
+
+        // update allocation offsets for the new block
+        alloc_start = align_up(current->position, align);
+        alloc_end = alloc_start + size;
+    }
+
+    // commit memory if needed
+    if (current->type != Arena_Static && alloc_end > current->committed) {
+        size_t new_committed = clamp_top(align_up(alloc_end, current->commit_size), current->reserved);
+        memory_commit((byte *)current + current->committed, new_committed - current->committed);
+        current->committed = new_committed;
+    }
+    avow(alloc_end <= current->reserved, "%s: out of memory", __func__);
+
+    byte *mem = (byte *)current + alloc_start;
+    if (clear_mem) mem_clear_array(mem, size);
+    current->position = alloc_end;
     return mem;
 }
 
-
-// Remove and return a pointer to the last `size` bytes of the current Zone
-// WARNING: The returned pointer will be invalidated after a subsequent
-// allocation to the arena
-void *arena_pop_current_bytes(Arena *arena, size_t size) {
-    if (!arena->tail) return NULL;
-    arena->tail->length -= clamp_top(size, arena->tail->length);
-    return arena->tail->data + arena->tail->length;
+static inline void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align) {
+    if (!mem) {
+        return arena_push_bytes(arena, size, align, true);
+    }
+    return memcpy(arena_push_bytes(arena, size, align, false), mem, size);
 }
 
+// TODO: try adding a arena_pop_to_bytes which pops to a certain index
+// from the beginning of the arena
+static void arena_pop_bytes(Arena *arena, size_t size) {
+    Arena *current = arena->current;
+    if (current->type == Arena_Chained) {
+        while (current->prev && size + sizeof(Arena) >= current->position) {
+            size = size + sizeof(Arena) - current->position;
 
-// Reallocates an already allocated piece of memory
-// If `old` is NULL then it simply behaves like calling arena_push_bytes with `new_size`
-void *arena_realloc_bytes(Arena *a, void *old, size_t old_size, size_t new_size, size_t align) {
-    // allocate new arena if it doesnt already exist
-    if (!a->tail || !old) return arena_push_bytes(a, new_size, align);
+            Arena *temp = current;
+            current = current->prev;
+            memory_release(temp, temp->reserved);
+        }
+        arena->current = current;
+    }
+
+    // account for overflow during pop
+    size_t new_position = current->position - size;
+    new_position = clamp(new_position, sizeof(Arena), current->position);
+
+    // decommit excess region
+    if (current->type != Arena_Static) {
+        size_t new_committed = align_up(new_position, current->commit_size);
+        memory_decommit((byte *)current + new_committed, current->committed - new_committed);
+        current->committed = new_committed;
+    }
+    current->position = new_position;
+}
+
+static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_t new_size, size_t align) {
+    // behave like arena_push_bytes if old doesnt exist
+    if (old == NULL || old_size == 0) return arena_push_bytes(arena, new_size, align, true);
     if (new_size <= old_size) return old;
 
-    // extend the old allocation if it was the last one
-    if (old_size <= a->tail->length) {
-        size_t old_offset = a->tail->length - old_size;
-        if (a->tail->data + old_offset == old && old_offset + new_size <= a->tail->capacity) {
-            a->tail->length += new_size - old_size;
+    Arena *current = arena->current;
+    assertf(old_size <= current->position, "%s: old_size is greater than arena length", __func__);
+
+    // extend previous allocation if it was the same as `old`
+    if (old_size <= current->position) {
+        size_t old_offset = current->position - old_size;
+        if ((byte *)current + old_offset == old && old_offset + new_size <= current->reserved) {
+            current->position += new_size - old_size;
+
+            if (current->position > current->committed) {
+                size_t new_committed = align_up(current->position, current->commit_size);
+                memory_commit((byte *)current + current->committed, new_committed - current->committed);
+                current->committed = new_committed;
+            }
             return old;
         }
     }
-
-    return memcpy(arena_push_bytes(a, new_size, align), old, old_size);
+    return memcpy(arena_push_bytes(arena, new_size, align, false), old, old_size);
 }
 
 
-// Copy `old` into the arena
-// If `old` is NULL, then simply allocates `size` bytes in the arena
-void *arena_memdup_bytes(Arena *arena, void *old, size_t size, size_t align) {
-    if (!old) {
-        return arena_push_bytes(arena, size, align);
+static void arena_reset(Arena *arena) {
+    Arena *current = arena->current;
+    while (current->prev) {
+        Arena *temp = current;
+        current = current->prev;
+        memory_release(temp, temp->reserved);
     }
-    return memcpy(arena_push_bytes(arena, size, align), old, size);
+    current->position = sizeof(Arena);
+    arena->current = current;
 }
 
-// Saves the current state of the arena
-// This can be later used to rewind back to this point
-ArenaCheckpoint arena_save(Arena *arena) {
-    if (!arena->tail) {
-        arena->tail = arena_new_zone(ARENA_DEFAULT_ZONE_CAP, arena->tail);
-        arena->head = arena->tail;
+static void arena_free(Arena *arena) {
+    Arena *current = arena->current;
+    // no need to free the static arena as the buffer was provided by the user
+    if (current->type == Arena_Static) {
+        mem_clear_array((byte *)current, current->reserved);
+    } else {
+        while (current) {
+            Arena *temp = current;
+            current = current->prev;
+            memory_release(temp, temp->reserved);
+        }
     }
-    return (ArenaCheckpoint){
-        .zone = arena->tail,
-        .length = arena->tail->length
+}
+
+static inline Checkpoint arena_save(Arena *arena) {
+    return (Checkpoint) {
+        .arena = arena,
+        .current = arena->current,
+        .position = arena->current->position
     };
 }
 
-// Rewinds the state of the arena to the checkpoint passed in
-// The checkpoint *must* refer to a "smaller" arena than what is
-// passed in to this function, as otherwise the behaviour will be incorrect
-void arena_rewind_ex(Arena *arena, ArenaCheckpoint checkpoint, bool clear_all) {
-    if (!arena->tail) return;
-    arena->tail = checkpoint.zone;
-    for (ArenaZone *zone = arena->tail->next; zone != NULL; zone = zone->next) {
-        if (clear_all) memset(zone->data, 0, zone->capacity);
-        zone->length = 0;
+static void arena_rewind(Checkpoint checkpoint) {
+    // TODO: assert that the current position is after the checkpoint
+    assert(checkpoint.arena);
+    assert(checkpoint.current);
+
+    Arena *current = checkpoint.arena->current;
+    // newer blocks may need to be freed for chained arenas
+    while (current && current != checkpoint.current) {
+        Arena *temp = current;
+        current = current->prev;
+        memory_release(temp, temp->reserved);
     }
-    arena->tail->length = checkpoint.length;
+    checkpoint.arena->current = current;
+
+    size_t new_position = checkpoint.position;
+    // decommit excess region
+    if (current->type != Arena_Static) {
+        size_t new_committed = align_up(new_position, current->commit_size);
+        memory_decommit((byte *)current + new_committed, current->committed - new_committed);
+        current->committed = new_committed;
+    }
+    current->position = new_position;
 }
 
 #endif // MIGI_ARENA_H

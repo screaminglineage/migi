@@ -8,10 +8,10 @@ SANITIZERS := -fsanitize=undefined,address
 RELEASEFLAGS := -O3 -DMIGI_DISABLE_ASSERTS
 
 main: main.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${INCLUDE} main.c -lm -o main
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} main.c -lm -o main
 
 test_arena: test_arena.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${INCLUDE} test_arena.c -lm -o test_arena
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} test_arena.c -lm -o test_arena
 
 test_hashmap: test_hashmap.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} -Wstrict-aliasing=2 -fstrict-aliasing test_hashmap.c -lm -o test_hashmap

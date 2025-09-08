@@ -11,6 +11,9 @@
 //
 // Due to this as an added bonus reads/writes can use memcpy, memmove, etc.
 
+// TODO: detect when the head/tail reaches one end but there is still space, and relocate
+// the deque back to the middle of the allocation
+
 #include <stddef.h>
 
 #include "migi.h"

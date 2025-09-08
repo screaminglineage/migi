@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define PROFILER_H_IMPLEMENTATION
-// #define ENABLE_PROFILING
+#define ENABLE_PROFILING
 #include "profiler.h"
 
 #include "arena.h"
@@ -30,12 +30,12 @@ void test_basic() {
         String *keys;
     } MapStrPoint;
 
-    Arena a = {0};
+    Arena *a = arena_init();
     MapStrPoint hm = {0};
 
-    hashmap_put(&a, &hm, SV("foo"), ((Point){1, 2}));
-    hashmap_put(&a, &hm, SV("bar"), ((Point){3, 4}));
-    hashmap_put(&a, &hm, SV("baz"), ((Point){5, 6}));
+    hashmap_put(a, &hm, SV("foo"), ((Point){1, 2}));
+    hashmap_put(a, &hm, SV("bar"), ((Point){3, 4}));
+    hashmap_put(a, &hm, SV("baz"), ((Point){5, 6}));
 
     Point *p = hashmap_get_ptr(&hm, SV("foo"));
     assert(p->x == 1 && p->y == 2);
@@ -48,7 +48,7 @@ void test_basic() {
     Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
-    *hashmap_entry(&a, &hm, SV("bla")) = (Point){7, 8};
+    *hashmap_entry(a, &hm, SV("bla")) = (Point){7, 8};
     Point p1 = hashmap_get(&hm, SV("bla"));
     assert(p1.x == 7 && p1.y == 8);
 
@@ -81,7 +81,7 @@ void test_basic() {
     assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of `foo`
-    hashmap_put(&a, &hm, SV("foo"), ((Point){10, 20}));
+    hashmap_put(a, &hm, SV("foo"), ((Point){10, 20}));
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
@@ -104,11 +104,11 @@ void test_default_values() {
         Point *values;
     } MapStrPoint;
 
-    Arena a = {0};
+    Arena *a = arena_init();
     MapStrPoint hm = {0};
 
-    hashmap_put(&a, &hm, SV("foo"), ((Point){1, 2}));
-    hashmap_put(&a, &hm, SV("bar"), ((Point){3, 4}));
+    hashmap_put(a, &hm, SV("foo"), ((Point){1, 2}));
+    hashmap_put(a, &hm, SV("bar"), ((Point){3, 4}));
 
     // Setting default key and value
     // NOTE: This can only be done after atleast 1 insertion into the hashmap
@@ -148,25 +148,24 @@ int hash_entry_cmp(const void *a, const void *b) {
 // Regular linear probing performs slightly better here, probably
 // due to the overhead of robin hood probing
 void frequency_analysis() {
-    StringBuilder sb = {0};
-    read_file(&sb, SV("shakespeare.txt"));
+    Arena *a = arena_init();
+
+    String contents = read_file(a, SV("shakespeare.txt")).string;
     // read_file(&sb, SV("gatsby.txt"));
     // read_file(&sb, SV("hashmap_test.txt"));
-    String contents = sb_to_string(&sb);
 
-    Arena a = {0};
     MapStrInt map = {0};
     printf("Inserting items:\n");
     begin_profiling();
     string_split_chars_foreach(contents, SV(" \n"), it) {
-        String key = string_to_lower(&a, string_trim(it.split));
-        *hashmap_entry(&a, &map, key) += 1;
+        String key = string_to_lower(a, string_trim(it.split));
+        *hashmap_entry(a, &map, key) += 1;
     }
 
     printf("size = %zu, capacity = %zu\n", map.h.size, map.h.capacity);
     end_profiling_and_print_stats();
 
-    KVStrInt *entries = arena_push(&a, KVStrInt, map.h.size);
+    KVStrInt *entries = arena_push(a, KVStrInt, map.h.size);
     size_t i = 0; hashmap_foreach(&map, pair) {
         entries[i++] = (KVStrInt){.key = *pair.key, .value = *pair.value};
     }
@@ -195,9 +194,9 @@ void frequency_analysis() {
 // `#define HASHMAP_INIT_CAP 4` before including hashmap.h
 void test_small_hashmap_collision() {
     MapStrInt hm = {0};
-    Arena a = {0};
-    *hashmap_entry(&a, &hm, SV("abcd")) = 12;
-    *hashmap_entry(&a, &hm, SV("efgh")) = 13;
+    Arena *a = arena_init();
+    *hashmap_entry(a, &hm, SV("abcd")) = 12;
+    *hashmap_entry(a, &hm, SV("efgh")) = 13;
 
     assert(hashmap_pop(&hm, SV("abcd")) == 12);
     assert(hashmap_get(&hm, SV("efgh")) == 13);
@@ -205,7 +204,7 @@ void test_small_hashmap_collision() {
     assert(hashmap_get(&hm, SV("abcd")) == 0);
 
     // Deleting last value in table
-    *hashmap_entry(&a, &hm, SV("abcd")) = 10;
+    *hashmap_entry(a, &hm, SV("abcd")) = 10;
     assert(hashmap_pop(&hm, SV("abcd")) == 10);
     hashmap_pop(&hm, SV("abcd"));
     assert(hashmap_get(&hm, SV("efgh")) == 13);
@@ -213,9 +212,9 @@ void test_small_hashmap_collision() {
     // Popping (with swap-remove) with hashmap at max capacity
     // [3/4 elements] (with load factor >= 0.75, and init capacity 4)
     MapStrInt map = {0};
-    hashmap_put(&a, &map, SV("a"), 1);
-    hashmap_put(&a, &map, SV("b"), 2);
-    hashmap_put(&a, &map, SV("c"), 3);
+    hashmap_put(a, &map, SV("a"), 1);
+    hashmap_put(a, &map, SV("b"), 2);
+    hashmap_put(a, &map, SV("c"), 3);
 
     assert(hashmap_pop(&map, SV("a")) == 1);
     assert(hashmap_pop(&map, SV("b")) == 2);
@@ -234,18 +233,18 @@ void test_type_safety() {
         Point *values;
     } MapStrPoint;
 
-    Arena a = {0};
+    Arena *a = arena_init();
     MapStrInt map = {0};
-    *hashmap_entry(&a, &map, SV("abcd")) = 12;
+    *hashmap_entry(a, &map, SV("abcd")) = 12;
 
-    hashmap_put(&a, &map, SV("ijkl"), 100);
+    hashmap_put(a, &map, SV("ijkl"), 100);
     // hashmap_put(&a, &map, SV("ijkl"), ((Point){1, 1}));
 
     MapStrPoint map2 = {0};
-    *hashmap_entry(&a, &map2, SV("abcd")) = (Point){1, 2};
+    *hashmap_entry(a, &map2, SV("abcd")) = (Point){1, 2};
     // *hashmap_entry(&a, &map2, SV("abcd")) = 100;
 
-    hashmap_put(&a, &map2, SV("efgh"), ((Point){3, 4}));
+    hashmap_put(a, &map2, SV("efgh"), ((Point){3, 4}));
     // hashmap_put(&a, &map2, SV("efgh"), SV("aaaaaaa"));
 
     Point *p = hashmap_get_ptr(&map2, SV("abcd"));
@@ -301,21 +300,21 @@ String random_string(Arena *a, size_t length) {
 // the entire table and then failing.
 // The robin hood linear probing approach is MUCH faster in this case
 void profile_search_fail() {
-    Arena a = {0};
+    Arena *a = arena_init();
     MapStrInt map = {0};
 
     begin_profiling();
     size_t length = 5;
     for (size_t i = 0; i < 1024 * 1024; i++) {
-        String str = random_string(&a, length);
-        *hashmap_entry(&a, &map, str) = 1;
+        String str = random_string(a, length);
+        *hashmap_entry(a, &map, str) = 1;
     }
     end_profiling_and_print_stats();
 
     begin_profiling();
     size_t count = 0;
     for (size_t i = 0; i < 1024 * 1024; i++) {
-        String str = random_string(&a, length);
+        String str = random_string(a, length);
         if (hashmap_get_index(&map, str) != -1) {
             count++;
         }
@@ -346,12 +345,12 @@ void test_basic_struct_key() {
         Point *values;
     } MapFooPoint;
 
-    Arena a = {0};
+    Arena *a = arena_init();
     MapFooPoint hm = {0};
 
-    hashmap_put(&a, &hm, ((Foo){1, 2, 1.0f}), ((Point){1, 2}));
-    hashmap_put(&a, &hm, ((Foo){3, 4, 2.0f}), ((Point){3, 4}));
-    hashmap_put(&a, &hm, ((Foo){5, 6, 3.0f}), ((Point){5, 6}));
+    hashmap_put(a, &hm, ((Foo){1, 2, 1.0f}), ((Point){1, 2}));
+    hashmap_put(a, &hm, ((Foo){3, 4, 2.0f}), ((Point){3, 4}));
+    hashmap_put(a, &hm, ((Foo){5, 6, 3.0f}), ((Point){5, 6}));
 
     Point *p = hashmap_get_ptr(&hm, ((Foo){1, 2, 1.0f}));
     assert(p->x == 1 && p->y == 2);
@@ -364,7 +363,7 @@ void test_basic_struct_key() {
     Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
-    *hashmap_entry(&a, &hm, ((Foo){7, 8, 4.0f})) = (Point){7, 8};
+    *hashmap_entry(a, &hm, ((Foo){7, 8, 4.0f})) = (Point){7, 8};
     Point p1 = hashmap_get(&hm, ((Foo){7, 8, 4.0f}));
     assert(p1.x == 7 && p1.y == 8);
 
@@ -398,7 +397,7 @@ void test_basic_struct_key() {
     assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of `(Foo){1, 2, 1.0f}`
-    hashmap_put(&a, &hm, ((Foo){1, 2, 1.0f}), ((Point){10, 20}));
+    hashmap_put(a, &hm, ((Foo){1, 2, 1.0f}), ((Point){10, 20}));
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
@@ -424,12 +423,12 @@ void test_basic_primitive_key() {
         Point *values;
     } MapIntPoint;
 
-    Arena a = {0};
+    Arena *a = arena_init();
     MapIntPoint hm = {0};
 
-    hashmap_put(&a, &hm, 1, ((Point){1, 2}));
-    hashmap_put(&a, &hm, 2, ((Point){3, 4}));
-    hashmap_put(&a, &hm, 3, ((Point){5, 6}));
+    hashmap_put(a, &hm, 1, ((Point){1, 2}));
+    hashmap_put(a, &hm, 2, ((Point){3, 4}));
+    hashmap_put(a, &hm, 3, ((Point){5, 6}));
 
     Point *p = hashmap_get_ptr(&hm, 1);
     assert(p->x == 1 && p->y == 2);
@@ -442,7 +441,7 @@ void test_basic_primitive_key() {
     Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
-    *hashmap_entry(&a, &hm, 4) = (Point){7, 8};
+    *hashmap_entry(a, &hm, 4) = (Point){7, 8};
     Point p1 = hashmap_get(&hm, 4);
     assert(p1.x == 7 && p1.y == 8);
 
@@ -474,7 +473,7 @@ void test_basic_primitive_key() {
     assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of key=1
-    hashmap_put(&a, &hm, 1, ((Point){10, 20}));
+    hashmap_put(a, &hm, 1, ((Point){10, 20}));
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
@@ -533,28 +532,28 @@ void profile_hashmap_iteration(Arena *a, MapIntInt *map, size_t capacity, int64_
 
 // NOTE: set HASHMAP_INIT_CAP to 2 (lowest valid capacity) for the best results
 void profile_hashmap_lookup_times() {
-    Arena a = {0};
+    Arena *a = arena_init();
     MapIntInt map = {0};
 
     uint64_t cpu_freq = estimate_cpu_timer_freq();
     size_t max_capacity = 100*MB;
 
-    profile_hashmap_iteration(&a, &map, HASHMAP_INIT_CAP, cpu_freq, false);
+    profile_hashmap_iteration(a, &map, HASHMAP_INIT_CAP, cpu_freq, false);
 
     printf("capacity,missing key lookup time (ns)\n");
     for (size_t i = HASHMAP_INIT_CAP; i <= max_capacity; i*=2) {
         hashmap_free(&map);
-        arena_free(&a);
-        profile_hashmap_iteration(&a, &map, i, cpu_freq, true);
+        arena_free(a);
+        profile_hashmap_iteration(a, &map, i, cpu_freq, true);
     }
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
     assertf(HASHMAP_LOAD_FACTOR*map.h.capacity == map.h.size, "hashmap is filled upto load factor");
-    arena_free(&a);
+    arena_free(a);
 }
 
 
 void profile_hashmap_deletion_times() {
-    Arena a = {0};
+    Arena *a = arena_init();
     MapIntInt map = {0};
 
     uint64_t cpu_freq = estimate_cpu_timer_freq();
@@ -562,17 +561,17 @@ void profile_hashmap_deletion_times() {
 
     printf("capacity,key removal time (ns)\n");
 
-    profile_hashmap_iteration(&a, &map, HASHMAP_INIT_CAP, cpu_freq, false);
+    profile_hashmap_iteration(a, &map, HASHMAP_INIT_CAP, cpu_freq, false);
 
     for (size_t capacity = HASHMAP_INIT_CAP; capacity <= max_capacity; capacity*=2) {
         hashmap_free(&map);
-        arena_free(&a);
+        arena_free(a);
 
         size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
         if (max_size == 0) continue;
 
         for (size_t j = 0; j < max_size; j++) {
-            hashmap_put(&a, &map, j, 1234);
+            hashmap_put(a, &map, j, 1234);
         }
 
 #define SAMPLES 10
@@ -586,7 +585,7 @@ void profile_hashmap_deletion_times() {
 
             avow(hashmap_get_index(&map, key) == -1, "key was deleted");
             samples[i] = (end - start);
-            hashmap_put(&a, &map, key, 1234);
+            hashmap_put(a, &map, key, 1234);
         }
 
         double elapsed_nanos = 0;
@@ -600,7 +599,7 @@ void profile_hashmap_deletion_times() {
         printf("%zu,%f\n", map.h.capacity, elapsed_nanos);
     }
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
-    arena_free(&a);
+    arena_free(a);
 }
 
 void profile_huge_strings() {
@@ -610,12 +609,12 @@ void profile_huge_strings() {
         int64_t *values;
     } MapStrInt;
 
-    Arena a = {0};
+    Arena *a = arena_init();
     MapStrInt map = {0};
     begin_profiling();
     for (size_t i = 0; i < 1024; i++) {
-        String key = random_string(&a, 1024*1024);
-        hashmap_put(&a, &map, key, 100);
+        String key = random_string(a, 1024*1024);
+        hashmap_put(a, &map, key, 100);
     }
     end_profiling_and_print_stats();
 }
@@ -627,13 +626,13 @@ void test_reserve() {
         int *values;
     } Map;
 
-    Arena a = {0};
+    Arena *a = arena_init();
     Map map = {0};
-    hashmap_reserve(&a, &map, 500);
+    hashmap_reserve(a, &map, 500);
 
     size_t capacity = map.h.capacity;
     for (size_t i = 0; i < 500; i++) {
-        hashmap_put(&a, &map, SV("a"), i);
+        hashmap_put(a, &map, SV("a"), i);
         assertf(map.h.capacity == capacity, "expected `%zu` but got `%zu`", capacity, map.h.capacity);
     }
 }
@@ -644,7 +643,7 @@ int main() {
     // profile_hashmap_deletion_times();
     // profile_search_fail();
     // profile_huge_strings();
-    // test_small_hashmap_collision();
+    test_small_hashmap_collision();
     test_basic();
     test_basic_struct_key();
     test_basic_primitive_key();

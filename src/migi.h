@@ -165,7 +165,7 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 #endif
 
 
-#define migi_swap(a, b)     \
+#define mem_swap(a, b)      \
 do {                        \
     __typeof__(a) temp = a; \
     a = b;                  \
@@ -190,7 +190,7 @@ do {                        \
 // array designated initializer and allocate the data on an arena
 #define migi_slice_dup(arena, slice_type, ...)                                \
     (slice_type){                                                             \
-        .data = arena_memdup(arena, __typeof__((__VA_ARGS__)[0]),             \
+        .data = arena_copy(arena, __typeof__((__VA_ARGS__)[0]),               \
                 (__VA_ARGS__), sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))), \
         .length = sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))                \
     }
@@ -200,7 +200,7 @@ do {                        \
 #define array_print(arr, length, fmt)           \
     printf("[");                                \
     for (size_t i = 0; i < (length) - 1; i++) { \
-        printf(fmt", ", (arr)[i]);            \
+        printf(fmt", ", (arr)[i]);              \
     }                                           \
     printf(fmt"]\n", (arr)[(length) - 1]);
 

@@ -23,7 +23,7 @@ struct PoolItem {
 };
 
 typedef struct {
-    Arena arena;
+    Arena *arena;
     PoolItem *free_list;
 #ifdef POOL_ALLOC_COUNT_ALLOCATIONS
     size_t length;
@@ -39,12 +39,17 @@ static void pool_reset(PoolAllocator *p);
 
 
 static byte *pool_alloc_bytes(PoolAllocator *p, size_t size) {
+    // TODO: add a pool_alloc_init function instead maybe?
+    if (!p->arena) {
+        p->arena = arena_init(.type = Arena_Chained);
+    }
+
     PoolItem *item = NULL;
     if (p->free_list) {
         item = p->free_list;
         p->free_list = p->free_list->next;
     } else {
-        item = arena_push_bytes(&p->arena, sizeof(PoolItem) + size, _Alignof(PoolItem));
+        item = arena_push_bytes(p->arena, sizeof(PoolItem) + size, _Alignof(PoolItem), true);
     }
     item->next = NULL;
 
@@ -65,7 +70,7 @@ static void pool_free_bytes(PoolAllocator *p, byte *item) {
 
 
 static void pool_reset(PoolAllocator *p) {
-    arena_reset_ex(&p->arena, true);
+    arena_reset(p->arena);
     p->free_list = NULL;
 #ifdef POOL_ALLOC_COUNT_ALLOCATIONS
     p->length = 0;

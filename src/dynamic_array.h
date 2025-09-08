@@ -5,17 +5,12 @@
     #define DYNAMIC_ARRAY_INIT_CAP 4
 #endif
 
-#if defined(DYNAMIC_ARRAY_USE_ARENA) || defined(DYNAMIC_ARRAY_USE_LINEAR_ARENA)
-
 #include "migi.h"
 
-#if defined(DYNAMIC_ARRAY_USE_LINEAR_ARENA)
-    #include "linear_arena.h"
-    #define ARRAY_ARENA_REALLOC lnr_arena_realloc
-#elif defined(DYNAMIC_ARRAY_USE_ARENA)
-    #include "arena.h"
-    #define ARRAY_ARENA_REALLOC arena_realloc
-#endif
+#ifdef DYNAMIC_ARRAY_USE_ARENA
+
+#include "arena.h"
+#define ARRAY_ARENA_REALLOC arena_realloc
 
 #define array_reserve(arena, arr, len)                                         \
 do {                                                                           \
@@ -51,7 +46,6 @@ do {                                                       \
 #else  // not using arena for allocations
 
 #include <stdlib.h>  // needed for realloc
-#include "migi.h"
 
 #define array_reserve(arr, len)                                                       \
 do {                                                                                  \

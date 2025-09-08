@@ -12,11 +12,11 @@
 #include <string.h>
 
 #include "migi.h"
-#include "linear_arena.h"
 #include "arena.h"
 
 // TODO: forward declare all functions
 // TODO: look into adding case-insensitive find and replace
+// TODO: add string styling (camelcase/snakecase/etc. conversions)
 
 typedef struct {
     const char *data;
@@ -31,84 +31,6 @@ typedef struct {
 #define SV_FMT(sv) (int)(sv).length, (sv).data
 #define SV(cstr) (String){(cstr), (sizeof(cstr) - 1)}
 
-typedef struct {
-    LinearArena arena;
-} StringBuilder;
-
-migi_printf_format(2, 3) static void sb_pushf(StringBuilder *sb, const char *fmt, ...);
-
-static void sb_push(StringBuilder *sb, char to_push) {
-    *lnr_arena_push(&sb->arena, char, 1) = to_push;
-}
-
-static void sb_push_string(StringBuilder *sb, String string) {
-    memcpy(lnr_arena_push(&sb->arena, char, string.length), string.data, string.length);
-}
-
-static void sb_push_cstr(StringBuilder *sb, char *cstr) {
-    size_t length = strlen(cstr);
-    lnr_arena_strdup(&sb->arena, cstr, length);
-}
-
-static void sb_push_buffer(StringBuilder *sb, char *buf, size_t length) {
-    lnr_arena_strdup(&sb->arena, buf, length);
-}
-
-// NOTE: sb_pushf doesnt append a null terminator at the end
-// of the format string unlike regular sprintf
-static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
-    va_list args1;
-    va_start(args1, fmt);
-
-    va_list args2;
-    va_copy(args2, args1);
-
-    int reserved = 1024;
-    int actual = vsnprintf(lnr_arena_push(&sb->arena, char, reserved), reserved, fmt, args1);
-    // vsnprintf doesnt count the null terminator
-    actual += 1;
-
-    if (actual > reserved) {
-        lnr_arena_pop(&sb->arena, char, reserved);
-        vsnprintf(lnr_arena_push(&sb->arena, char, actual), actual, fmt, args2);
-    } else if (actual < reserved) {
-        lnr_arena_pop(&sb->arena, char, abs_difference(actual, reserved));
-    }
-    // pop off the null terminator
-    lnr_arena_pop(&sb->arena, char, 1);
-
-    va_end(args2);
-    va_end(args1);
-}
-
-void sb_reset(StringBuilder *sb) {
-    // TODO: should this pop off the data?
-    // lnr_arena_pop(&sb->arena, char, sb->arena.length);
-    sb->arena.length = 0;
-}
-
-void sb_free(StringBuilder *sb) {
-    lnr_arena_free(&sb->arena);
-}
-
-static StringBuilder sb_from_string(String string) {
-    StringBuilder sb = {0};
-    sb_push_string(&sb, string);
-    return sb;
-}
-
-static String sb_to_string(StringBuilder *sb) {
-    return (String){
-        .data = (char *)sb->arena.data,
-        .length = sb->arena.length
-    };
-}
-
-static char *sb_to_cstr(StringBuilder *sb) {
-    sb_push(sb, 0);
-    return (char *)sb->arena.data;
-}
-
 static String string_from_cstr(const char *cstr) {
     return (String){
         .data = cstr,
@@ -116,17 +38,18 @@ static String string_from_cstr(const char *cstr) {
     };
 }
 
-static char *string_to_cstr(Arena *a, String str) {
-    char *cstr = arena_strdup(a, str.data, str.length + 1);
-    // TODO: make arena always clear new allocations by default to not have to do this
+static char *string_to_cstr(Arena *arena, String str) {
+    char *cstr = arena_push_nonzero(arena, char, str.length + 1);
+    if (str.data) {
+        memcpy(cstr, str.data, str.length);
+    }
     cstr[str.length] = 0;
     return cstr;
 }
 
-static String string_copy(Arena *a, String str) {
-    char *copied = arena_strdup(a, str.data, str.length);
+static String string_copy(Arena *arena, String str) {
     return (String){
-        .data = copied,
+        .data = arena_copy(arena, char, str.data, str.length),
         .length = str.length
     };
 }
@@ -326,7 +249,7 @@ static String string_trim(String str) {
 }
 
 static String string_to_lower(Arena *arena, String str) {
-    char *lower = arena_push(arena, char, str.length);
+    char *lower = arena_push_nonzero(arena, char, str.length);
     for (size_t i = 0; i < str.length; i++) {
         if (str.data[i] >= 'A' && str.data[i] <= 'Z') {
             lower[i] = str.data[i] + 32;
@@ -338,7 +261,7 @@ static String string_to_lower(Arena *arena, String str) {
 }
 
 static String string_to_upper(Arena *arena, String str) {
-    char *upper = arena_push(arena, char, str.length);
+    char *upper = arena_push_nonzero(arena, char, str.length);
     for (size_t i = 0; i < str.length; i++) {
         if (str.data[i] >= 'a' && str.data[i] <= 'z') {
             upper[i] = str.data[i] - 32;
@@ -350,7 +273,7 @@ static String string_to_upper(Arena *arena, String str) {
 }
 
 static String string_reverse(Arena *arena, String str) {
-    char *reversed = arena_push(arena, char, str.length);
+    char *reversed = arena_push_nonzero(arena, char, str.length);
     for (size_t i = 0; i < str.length; i++) {
         reversed[str.length - i - 1] = str.data[i];
     }
@@ -361,13 +284,13 @@ static String string_reverse(Arena *arena, String str) {
 static String string_replace(Arena *arena, String str, String find, String replace_with) {
     if (find.length == 0) {
         return (String){
-            .data = arena_strdup(arena, str.data, str.length),
+            .data = arena_copy(arena, char, str.data, str.length),
             .length = str.length
         };
     }
 
     size_t max_length = replace_with.length * str.length;
-    char *replaced = arena_push(arena, char, max_length);
+    char *replaced = arena_push_nonzero(arena, char, max_length);
 
     char *replaced_at = replaced;
     while (true) {
@@ -386,7 +309,7 @@ static String string_replace(Arena *arena, String str, String find, String repla
     }
 
     size_t actual_length = replaced_at - replaced;
-    arena_pop_current(arena, char, max_length - actual_length);
+    arena_pop(arena, char, max_length - actual_length);
     return (String){.data = replaced, .length = actual_length};
 }
 
@@ -474,17 +397,21 @@ static SplitIterator string_split_chars_next(String *str, String delims) {
             !it.over;                                        \
         it.it.is_over? it.over = true: it.over)
 
+typedef struct {
+    bool ok;
+    String string;
+} StringResult;
 
 // TODO: use linux syscalls instead of C stdlib
-static bool read_file(StringBuilder *builder, String filepath) {
-    // TODO: this is dumb, maybe allocate in the `builder` instead?
-    StringBuilder filepath_builder = sb_from_string(filepath);
-    sb_free(&filepath_builder);
+static StringResult read_file(Arena *arena, String filepath) {
+    Checkpoint c = arena_save(arena);
+    FILE *file = fopen(string_to_cstr(arena, filepath), "r");
+    arena_rewind(c);
 
-    FILE *file = fopen(sb_to_cstr(&filepath_builder), "r");
+    StringResult result = {0};
     if (!file) {
         fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
-        return false;
+        return result;
     }
 
     fseek(file, 0, SEEK_END);
@@ -492,37 +419,44 @@ static bool read_file(StringBuilder *builder, String filepath) {
     if (file_pos == -1) {
         fprintf(stderr, "%s: couldnt read file position in `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
         fclose(file);
-        return false;
+        return result;
     }
 
     // file position cannot be negative at this point
-    size_t size = file_pos;
+    size_t length = file_pos;
     rewind(file);
 
-    int n = fread(lnr_arena_push(&builder->arena, char, size), sizeof(char), size, file);
+    char *buf = arena_push(arena, char, length);
+    int n = fread(buf, sizeof(char), length, file);
     if (n != file_pos || ferror(file)) {
         fprintf(stderr, "%s: failed to read from file `%.*s`: \n", __func__, SV_FMT(filepath));
         fclose(file);
-        return false;
+        return result;
     }
 
     fclose(file);
-    return true;
+    result = (StringResult){
+        .ok = true,
+        .string = (String){
+            .data = buf,
+            .length = length,
+        }
+    };
+    return result;
 }
 
 // TODO: use linux syscalls instead of C stdlib
-static bool write_file(StringBuilder *builder, String filepath) {
-    // TODO: this is dumb, maybe allocate in the `builder` instead?
-    StringBuilder filepath_builder = sb_from_string(filepath);
-    FILE *file = fopen(sb_to_cstr(&filepath_builder), "w");
-    sb_free(&filepath_builder);
+static bool write_file(String string, String filepath, Arena *temp) {
+    Checkpoint c = arena_save(temp);
+    FILE *file = fopen(string_to_cstr(temp, filepath), "w");
+    arena_rewind(c);
 
     if (!file) {
         fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
         return false;
     }
-    size_t n = fwrite(builder->arena.data, sizeof(char), builder->arena.length, file);
-    if (n != builder->arena.length) {
+    size_t n = fwrite(string.data, sizeof(char), string.length, file);
+    if (n != string.length) {
         fprintf(stderr, "%s: failed to write to file `%.*s`: \n", __func__, SV_FMT(filepath));
         fclose(file);
         return false;

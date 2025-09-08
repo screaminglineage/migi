@@ -8,6 +8,7 @@
 #include <string.h>
 
 // TODO: add basic stack and queue macros
+// TODO: forward declare all functions
 
 typedef struct StringNode StringNode;
 struct StringNode {
@@ -50,7 +51,7 @@ static void strlist_push_cstr(Arena *a, StringList *list, char *cstr) {
 }
 
 static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t length) {
-    char *data = arena_strdup(a, str, length);
+    char *data = arena_copy(a, char, str, length);
     strlist_push_string(a, list, (String){data, length});
 }
 
@@ -70,14 +71,14 @@ static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
     actual += 1;
 
     if (actual > reserved) {
-        arena_pop_current(a, char, reserved);
+        arena_pop(a, char, reserved);
         mem = arena_push(a, char, actual);
         vsnprintf(mem, actual, fmt, args2);
     } else if (actual < reserved) {
-        arena_pop_current(a, char, abs_difference(actual, reserved));
+        arena_pop(a, char, abs_difference(actual, reserved));
     }
     // pop off the null terminator
-    arena_pop_current(a, char, 1);
+    arena_pop(a, char, 1);
 
     // actual includes the null terminator
     strlist_push_buffer(a, list, mem, actual - 1);
@@ -86,6 +87,7 @@ static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
 }
 
 static String strlist_to_string(Arena *a, StringList *list) {
+    // TODO: no need to clear `mem` as it will be overwritten anyway
     char *mem = arena_push(a, char, list->size);
     char *mem_start = mem;
     for (StringNode *node = list->head; node != NULL; node = node->next) {
@@ -97,6 +99,7 @@ static String strlist_to_string(Arena *a, StringList *list) {
 
 static String strlist_join(Arena *a, StringList *list, String join_with) {
     size_t total_size = list->size + (list->length - 1) * join_with.length;
+    // TODO: no need to clear `mem` as it will be overwritten anyway
     char *mem = arena_push(a, char, total_size);
     char *mem_start = mem;
 

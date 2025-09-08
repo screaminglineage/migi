@@ -3,34 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "arena_new.h"
 #include "migi.h"
-
-typedef struct {
-    const char *data;
-    size_t length;
-} String;
-
-#define SV_FMT(sv) (int)(sv).length, (sv).data
-#define SV(cstr) (String){(cstr), (sizeof(cstr) - 1)}
-
-static String string_to_upper(Arena *arena, String str) {
-    char *upper = arena_push(arena, char, str.length);
-    for (size_t i = 0; i < str.length; i++) {
-        if (str.data[i] >= 'a' && str.data[i] <= 'z') {
-            upper[i] = str.data[i] - 32;
-        } else {
-            upper[i] = str.data[i];
-        }
-    }
-    return (String){upper, str.length};
-}
-
-static bool string_eq(String a, String b) {
-    if (a.length != b.length) return false;
-    return !a.length || mem_eq(a.data, b.data, a.length);
-}
-
+#include "arena.h"
+#include "migi_string.h"
 
 void test_arena() {
     typedef struct {
@@ -172,6 +147,11 @@ void test_arena() {
 
 int main() {
     test_arena();
+
+    Arena *arena = arena_init();
+    StringResult res = read_file(arena, SV("./main.c"));
+    assert(res.ok);
+    assert(write_file(res.string, SV("main-new.c"), arena));
 
     return 0;
 }

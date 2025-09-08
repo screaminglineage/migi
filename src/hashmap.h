@@ -80,7 +80,7 @@ static void hm_internal_insert_entry(HashmapHeader *header, HashmapHashEntry ent
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
         if (cur_dist < dist) {
-            migi_swap(entry, header->entries[i]);
+            mem_swap(entry, header->entries[i]);
             dist = cur_dist;
         }
 
@@ -111,7 +111,6 @@ static void *hm_grow(Arena *a, HashmapHeader *header, void *keys, size_t key_siz
     }
 
     HashmapHashEntry *new_entries = arena_push(a, HashmapHashEntry, header->capacity);
-    mem_clear_array(new_entries, header->capacity);
 
     // allocating an extra item for index 0 being treated as the default index
     size_t keys_size       = key_size   * (old_capacity + 1);
@@ -356,7 +355,7 @@ static void hms_get_impl(HashmapHeader *header, void *keys, size_t key_size, voi
 
 // Clear hashmap state, doesn't free keys or values, since those
 // are separately allocated on an arena
-#define hashmap_free(hashmap) (mem_clear_single((hashmap)))
+#define hashmap_free(hashmap) (mem_clear((hashmap)))
 
 // Iterate over the hashmap by reference
 // Use in a similar manner to array_foreach
