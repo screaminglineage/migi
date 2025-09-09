@@ -229,9 +229,8 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
     if (new_size <= old_size) return old;
 
     Arena *current = arena->current;
-    assertf(old_size <= current->position, "%s: old_size is greater than arena length", __func__);
-
     // extend previous allocation if it was the same as `old`
+    // TODO: maybe see if there are other ways to do this
     if (old_size <= current->position) {
         size_t old_offset = current->position - old_size;
         if ((byte *)current + old_offset == old && old_offset + new_size <= current->reserved) {

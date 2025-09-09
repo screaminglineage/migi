@@ -44,7 +44,7 @@ void test_basic() {
     assert(!p);
 
     ptrdiff_t i = hashmap_get_index(&hm, SV("bar"));
-    assert(i != -1);
+    assert(i != 0);
     Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
@@ -107,13 +107,11 @@ void test_default_values() {
     Arena *a = arena_init();
     MapStrPoint hm = {0};
 
+    // Setting default key and value
+    hashmap_set_default(a, &hm, SV("default"), ((Point){100, 100}));
+
     hashmap_put(a, &hm, SV("foo"), ((Point){1, 2}));
     hashmap_put(a, &hm, SV("bar"), ((Point){3, 4}));
-
-    // Setting default key and value
-    // NOTE: This can only be done after atleast 1 insertion into the hashmap
-    hm.keys[HASHMAP_DEFAULT_INDEX] = SV("default");
-    hm.values[HASHMAP_DEFAULT_INDEX] = (Point){100, 100};
 
     Point p1 = hashmap_get(&hm, SV("foo"));
     assert(p1.x == 1 && p1.y == 2);
@@ -315,7 +313,7 @@ void profile_search_fail() {
     size_t count = 0;
     for (size_t i = 0; i < 1024 * 1024; i++) {
         String str = random_string(a, length);
-        if (hashmap_get_index(&map, str) != -1) {
+        if (hashmap_get_index(&map, str)) {
             count++;
         }
     }
@@ -359,7 +357,7 @@ void test_basic_struct_key() {
     assert(!p);
 
     ptrdiff_t i = hashmap_get_index(&hm, ((Foo){3, 4, 2.0f}));
-    assert(i != -1);
+    assert(i != 0);
     Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
@@ -437,7 +435,7 @@ void test_basic_primitive_key() {
     assert(!p);
 
     ptrdiff_t i = hashmap_get_index(&hm, 2);
-    assert(i != -1);
+    assert(i != 0);
     Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
@@ -583,7 +581,7 @@ void profile_hashmap_deletion_times() {
             hashmap_pop(&map, key);
             uint64_t end = read_cpu_timer();
 
-            avow(hashmap_get_index(&map, key) == -1, "key was deleted");
+            avow(hashmap_get_index(&map, key) == 0, "key was deleted");
             samples[i] = (end - start);
             hashmap_put(a, &map, key, 1234);
         }
@@ -609,7 +607,7 @@ void profile_huge_strings() {
         int64_t *values;
     } MapStrInt;
 
-    Arena *a = arena_init();
+    Arena *a = arena_init(.reserve_size = 8*GB);
     MapStrInt map = {0};
     begin_profiling();
     for (size_t i = 0; i < 1024; i++) {
@@ -637,6 +635,18 @@ void test_reserve() {
     }
 }
 
+void test_init() {
+    Arena *a = arena_init();
+    MapStrInt hm = {0};
+    hashmap_init(a, &hm);
+    int64_t i = hashmap_get(&hm, SV("foo"));
+    assert(i == 0);
+    int64_t j = hashmap_get_index(&hm, SV("bar"));
+    assert(j == 0);
+    int64_t *k = hashmap_get_ptr(&hm, SV("bar"));
+    assert(k == NULL);
+}
+
 int main() {
     // frequency_analysis();
     // profile_hashmap_lookup_times();
@@ -650,6 +660,9 @@ int main() {
     test_default_values();
     test_type_safety();
     test_reserve();
+    test_init();
+
+
 
     printf("\nexiting successfully\n");
 
