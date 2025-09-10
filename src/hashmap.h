@@ -2,7 +2,6 @@
 #define MIGI_HASHMAP_H
 
 // TODO: try making an alternate implementation similar to this
-// https://ruby0x1.github.io/machinery_blog_archive/post/minimalist-container-library-in-c-part-1/index.html
 
 #include <stddef.h>
 #include <stdint.h>

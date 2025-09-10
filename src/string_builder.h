@@ -51,6 +51,10 @@ static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
     va_end(args);
 }
 
+static bool sb_push_file(StringBuilder *sb, String filename) {
+    return read_file(sb->arena, filename).ok;
+}
+
 void sb_reset(StringBuilder *sb) {
     arena_reset(sb->arena);
 }
@@ -79,6 +83,10 @@ static const char *sb_to_cstr(StringBuilder *sb) {
     const char *cstr = (const char *)sb->arena->data;
     arena_pop(sb->arena, char, 1);
     return cstr;
+}
+
+static bool sb_to_file(StringBuilder *sb, String filename) {
+    return write_file(sb_to_string(sb), filename, sb->arena);
 }
 
 #endif // MIGI_STRING_BUILDER_H

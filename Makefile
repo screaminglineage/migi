@@ -6,35 +6,37 @@ CFLAGS := -Wall -Wextra -Wno-unused-function -Wno-override-init
 DEBUGFLAGS := -ggdb
 SANITIZERS := -fsanitize=undefined,address
 RELEASEFLAGS := -O3 -DMIGI_DISABLE_ASSERTS
+BUILD := ./build
 
-main: main.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} main.c -lm -o main
+main: scratch/main.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/main.c -lm -o ${BUILD}/main
 
-test_arena: test_arena.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} test_arena.c -lm -o test_arena
+test_arena: scratch/test_arena.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test_arena.c -lm -o  ${BUILD}/test_arena
 
-test_hashmap: test_hashmap.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} -Wstrict-aliasing=2 -fstrict-aliasing test_hashmap.c -lm -o test_hashmap
+test_hashmap: scratch/test_hashmap.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} -Wstrict-aliasing=2 -fstrict-aliasing scratch/test_hashmap.c -lm -o  ${BUILD}/test_hashmap
 
-test_lexer: test_lexer.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} test_lexer.c -o test_lexer
+test_lexer: scratch/test_lexer.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test_lexer.c -o  ${BUILD}/test_lexer
 
-struct_printer: tools/struct_printer.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} tools/struct_printer.c -o struct_printer
+${BUILD}/struct_printer: tools/struct_printer.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} tools/struct_printer.c -o  ${BUILD}/struct_printer
 
-test_struct_printer: struct_printer test_struct_printer.c
-	./struct_printer test_struct_printer.c gen                                                   \
-		&& ${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} test_struct_printer.c -o test_struct_printer \
-		&& ./test_struct_printer
+test_struct_printer: ${BUILD}/struct_printer scratch/test_struct_printer.c
+	${BUILD}/struct_printer scratch/test_struct_printer.c gen                     \
+		&& ${CC} ${CFLAGS} ${DEBUGFLAGS} ${INCLUDE} scratch/test_struct_printer.c \
+			-o ${BUILD}/test_struct_printer                                       \
+		&& ${BUILD}/test_struct_printer
 
 @PHONY=release
-release: main.c src/*.h
-	${CC} ${CFLAGS} ${RELEASEFLAGS} ${INCLUDE} main.c -lm -o main
+release: scratch/main.c src/*.h
+	${CC} ${CFLAGS} ${RELEASEFLAGS} ${INCLUDE} scratch/main.c -lm -o  ${BUILD}/main
 
 @PHONY=hashmap_release
-hashmap_release: test_hashmap.c src/*.h
-	${CC} ${CFLAGS} ${RELEASEFLAGS} ${INCLUDE} test_hashmap.c -lm -o test_hashmap
+hashmap_release: scratch/test_hashmap.c src/*.h
+	${CC} ${CFLAGS} ${RELEASEFLAGS} ${INCLUDE} scratch/test_hashmap.c -lm -o  ${BUILD}/test_hashmap
 
 @PHONY=run
 run: main
-	./main
+	${BUILD}/main

@@ -398,6 +398,19 @@ static SplitIterator string_split_chars_next(String *str, String delims) {
         it.it.is_over? it.over = true: it.over)
 
 
+static inline uint64_t string_hashfnv(String string, uint64_t seed) {
+    uint64_t h = seed? seed: 0x100;
+    for (size_t i = 0; i < string.length; i++) {
+        h ^= string.data[i] & 255;
+        h *= 1111111111111111111;
+    }
+    return h;
+}
+
+static inline uint64_t string_hash(String string) {
+    return string_hashfnv(string, 0);
+}
+
 static String string__format(Arena *arena, const char *fmt, va_list args) {
     va_list args_saved;
     va_copy(args_saved, args);
@@ -413,7 +426,7 @@ static String string__format(Arena *arena, const char *fmt, va_list args) {
         mem = arena_push(arena, char, actual);
         vsnprintf(mem, actual, fmt, args_saved);
     } else if (actual < reserved) {
-        arena_pop(arena, char, abs_difference(actual, reserved));
+        arena_pop(arena, char, reserved - actual);
     }
     // pop off the null terminator
     arena_pop(arena, char, 1);

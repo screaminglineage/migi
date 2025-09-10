@@ -1,11 +1,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
-#include "../src/migi.h"
-#include "../src/migi_string.h"
-#include "../src/migi_lexer.h"
-#include "../src/dynamic_array.h"
-#include "../src/migi_temp.h"
+#include "migi.h"
+#include "migi_string.h"
+#include "string_builder.h"
+#include "migi_lexer.h"
+#include "dynamic_array.h"
+#include "migi_temp.h"
 
 // TODO: generate special case for:
 // - unions [?] (undefined behaviour to access the wrong member)
@@ -232,6 +233,8 @@ void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent
 #define DEFAULT_OUTPUT_DIR "./gen"
 
 int main(int argc, char *argv[]) {
+    temp_init();
+
     shift_args(argc, argv);
     if (argc == 0) {
         fprintf(stderr, "error: no filename provided\n");
@@ -245,8 +248,8 @@ int main(int argc, char *argv[]) {
         output_dir = shift_args(argc, argv);
     }
 
-    StringBuilder reader = {0};
-    read_file(&reader, input_file);
+    StringBuilder reader = sb_init();
+    sb_push_file(&reader, input_file);
     String file_data = sb_to_string(&reader);
 
     Lexer lexer = {.string = file_data};
@@ -283,18 +286,18 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    StringBuilder writer = {0};
+    StringBuilder writer = sb_init();
 
     generate_string_printer(&writer);
     String filename_string = temp_format("%s/String_printer.gen.c", output_dir);
-    write_file(&writer, filename_string);
+    sb_to_file(&writer, filename_string);
     printf("Generated printer for `String`: `%.*s`\n", SV_FMT(filename_string));
     sb_reset(&writer);
 
     array_foreach(&structs, StructDef, struct_def) {
         generate_struct_printer(&writer, *struct_def, DEFAULT_INDENT_LEVEL);
         String filename_struct = temp_format("%s/%.*s_printer.gen.c", output_dir, SV_FMT(struct_def->name));
-        write_file(&writer, filename_struct);
+        sb_to_file(&writer, filename_struct);
         printf("Generated printer for `%.*s`: `%.*s`\n",
                 SV_FMT(struct_def->name), SV_FMT(filename_struct));
 

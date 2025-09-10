@@ -10,23 +10,24 @@
 #ifdef DYNAMIC_ARRAY_USE_ARENA
 
 #include "arena.h"
-#define ARRAY_ARENA_REALLOC arena_realloc
 
-#define array_reserve(arena, arr, len)                                         \
-do {                                                                           \
-    size_t new_length = (arr)->length + (len);                                 \
-    if (new_length > (arr)->capacity) {                                        \
-        size_t old_capacity = (arr)->capacity;                                 \
-        if ((arr)->capacity == 0 && new_length < DYNAMIC_ARRAY_INIT_CAP) {     \
-            (arr)->capacity = DYNAMIC_ARRAY_INIT_CAP;                          \
-        } else {                                                               \
-            (arr)->capacity = next_power_of_two(new_length);                   \
-        }                                                                      \
-        (arr)->data = ARRAY_ARENA_REALLOC((arena), __typeof__((arr)->data[0]), \
-                (arr)->data, old_capacity, (arr)->capacity);                   \
-        assertf((arr)->data, "array_reserve: allocation failed");              \
-    }                                                                          \
-} while(0)                                                                     \
+#define array_reserve(arena, arr, len)                                     \
+do {                                                                       \
+    size_t new_length = (arr)->length + (len);                             \
+    if (new_length > (arr)->capacity) {                                    \
+        size_t old_capacity = (arr)->capacity;                             \
+        if ((arr)->capacity == 0 && new_length < DYNAMIC_ARRAY_INIT_CAP) { \
+            (arr)->capacity = DYNAMIC_ARRAY_INIT_CAP;                      \
+        } else {                                                           \
+            (arr)->capacity = next_power_of_two(new_length);               \
+        }                                                                  \
+        (arr)->data = arena_realloc_bytes((arena), (arr)->data,            \
+            (old_capacity)*sizeof((arr)->data[0]),                         \
+            ((arr)->capacity)*sizeof((arr)->data[0]),                      \
+            _Alignof(void *));                                             \
+        assertf((arr)->data, "array_reserve: allocation failed");          \
+    }                                                                      \
+} while(0)
 
 
 #define array_add(arena, array, item)          \
