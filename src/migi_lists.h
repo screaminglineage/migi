@@ -7,8 +7,107 @@
 #include <stddef.h>
 #include <string.h>
 
-// TODO: add basic stack and queue macros
 // TODO: forward declare all functions
+
+// Singly Linked Stack
+#define stack_push(head, node)     \
+    ((head)                        \
+        ? ((node)->next = (head)), \
+          ((head) = (node))        \
+        : ((head) = (node)))
+
+#define stack_pop(head)         \
+    ((head)                     \
+        ? (head) = (head)->next \
+        : (head))
+
+// Singly Linked Queue
+#define queue_push(head, tail, node) \
+    ((tail)                          \
+        ? ((tail)->next = (node)),   \
+          ((tail) = (node))          \
+        : ((tail) = (head) = (node)))
+
+#define queue_pop(head, tail)     \
+    (((head) != (tail))           \
+        ? ((head) = (head)->next) \
+        : ((head) = (tail) = NULL))
+
+
+// Doubly Linked Deque
+#define dll_push_head(head, tail, node) \
+    ((head)                             \
+        ? ((node)->next = (head)),      \
+          ((head)->prev = (node)),      \
+          ((head) = (node))             \
+        : ((head) = (tail) = (node)))
+
+#define dll_push_tail(head, tail, node) \
+    ((tail)                             \
+        ? ((node)->prev = (tail)),      \
+          ((tail)->next = (node)),      \
+          ((tail) = (node))             \
+        : ((tail) = (head) = (node)))
+
+#define dll_pop_head(head, tail)  \
+    (((head) != (tail))           \
+        ? ((head) = (head)->next) \
+        : ((head) = (tail) = NULL))
+
+#define dll_pop_tail(head, tail)  \
+    (((head) != (tail))           \
+        ? ((tail) = (tail)->prev) \
+        : ((head) = (tail) = NULL))
+
+
+// Insert node after `after`, inserts after tail if `after` is NULL
+// Returns the inserted `node`
+#define dll_insert_after(head, tail, after, node)     \
+    ((after)                                          \
+        ? ((node)->next = (after)->next),             \
+          ((node)->prev = (after)),                   \
+                                                      \
+          (after)->next                               \
+            ? ((after)->next->prev = (node)), (void)0 \
+            : (void)0,                                \
+          ((after)->next = (node)),                   \
+                                                      \
+          ((after) == (tail))                         \
+            ? ((tail) = (node)), (node)               \
+            : (node)                                  \
+        : dll_push_tail((head), (tail), (node)))
+
+
+// Insert node before `before`, inserts at head if `before` is NULL
+// Returns the inserted `node`
+#define dll_insert_before(head, tail, before, node)    \
+    ((before)                                          \
+        ? ((node)->next = (before)),                   \
+          ((node)->prev = (before)->prev),             \
+                                                       \
+          (before)->prev                               \
+            ? ((before)->prev->next = (node)), (void)0 \
+            : (void)0,                                 \
+          ((before)->prev = (node)),                   \
+                                                       \
+          ((before) == (head))                         \
+            ? ((head) = (node)), (node)                \
+            : (node)                                   \
+        : dll_push_head((head), (tail), (node)))
+
+
+// Replace `node` with `node_new`
+// NOTE: doesn't modify the next/prev pointers of `node`
+#define dll_replace(head, tail, node, node_new)      \
+    (node_new)->next = (node)->next,                 \
+    (node_new)->prev = (node)->prev,                 \
+    (node)->next                                     \
+        ? ((node)->next->prev = (node_new)), (void)0 \
+        : (void)0,                                   \
+    (node)->prev                                     \
+        ? ((node)->prev->next = (node_new)), (void)0 \
+        : (void)0
+
 
 typedef struct StringNode StringNode;
 struct StringNode {
@@ -28,14 +127,7 @@ migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, c
 static void strlist_push_string(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
     node->string = str;
-    node->next = NULL;
-    if (!list->tail) {
-        list->head = node;
-        list->tail = node;
-    } else {
-        list->tail->next = node;
-        list->tail = node;
-    }
+    queue_push(list->head, list->tail, node);
     list->size += str.length;
     list->length += 1;
 }
@@ -126,8 +218,6 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
 // Convenience macro with some flags set to 0
 #define string_split(arena, str, delimiter) \
     (string_split_ex((arena), (str), (delimiter), 0))
-
-
 
 
 #endif // MIGI_LISTS_H

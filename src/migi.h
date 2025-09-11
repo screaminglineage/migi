@@ -202,15 +202,13 @@ do {                        \
     for (size_t i = 0; i < (length) - 1; i++) { \
         printf(fmt", ", (arr)[i]);              \
     }                                           \
-    printf(fmt"]\n", (arr)[(length) - 1]);
+    if ((length) > 0) printf(fmt"]\n", (arr)[(length) - 1]);
 
-#define list_print(list, type, item, fmt)                      \
-    printf("[");                                               \
-    for (type *node = (list); node->next; node = node->next) { \
-        printf(fmt", ", (node)->(item));                       \
-    }                                                          \
-    node = node->next;                                         \
-    printf(fmt"]\n", (list)->(item));
+#define list_print(list, type, value, fmt)               \
+    for (type *node = (list); node; node = node->next) { \
+        printf(fmt", ", (node)->value);                  \
+    }                                                    \
+    printf("\n");
 
 
 #define mem_eq(a, b, length) \

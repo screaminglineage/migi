@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 
 #pragma GCC diagnostic push
@@ -454,8 +455,8 @@ void test_string_split_and_join() {
     }
 
     StringList list = string_split_ex(a, SV("2020-11--03 23:59@"), SV("- :@"), Split_AsChars|Split_SkipEmpty);
-    String expected = strlist_join(a, &list, SV("/"));
-    assert(string_eq(expected, SV("2020/11/03/23/59")));
+    String expected = strlist_join(a, &list, SV("-"));
+    assert(string_eq(expected, SV("2020-11-03-23-59")));
 
     list = string_split(a, SV("--foo--bar--baz--"), SV("--"));
     expected = strlist_join(a, &list, SV("=="));
@@ -837,9 +838,207 @@ void test_smol_map() {
     free(values.data);
 }
 
+void test_singly_linked_list() {
+    typedef struct IntNode IntNode;
+    struct IntNode {
+        int x;
+        IntNode *next;
+    };
+
+    Arena *a = arena_init();
+    IntNode *top = NULL;
+    for (size_t i = 0; i < 10; i++) {
+        IntNode *n = arena_new(a, IntNode);
+        n->x = i;
+        stack_push(top, n);
+    }
+
+    for (size_t i = 0; i < 10; i++) {
+        printf("%d ", top->x);
+        stack_pop(top);
+    }
+    printf("\n");
+
+    IntNode *start = NULL, *end = NULL;
+    for (size_t i = 0; i < 10; i++) {
+        IntNode *n = arena_new(a, IntNode);
+        n->x = i;
+        queue_push(start, end, n);
+    }
+
+    for (size_t i = 0; i < 10; i++) {
+        printf("%d ", start->x);
+        queue_pop(start, end);
+    }
+    printf("\n");
+}
+
+void test_doubly_linked_list() {
+    typedef struct IntNode IntNode;
+    struct IntNode {
+        int x;
+        IntNode *next;
+        IntNode *prev;
+    };
+
+    Arena *a = arena_init();
+
+    // forwards iteration
+    {
+        IntNode *head = NULL, *tail = NULL;
+        for (size_t i = 0; i < 10; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            n->x = i;
+            dll_push_head(head, tail, n);
+        }
+        for (IntNode *end = tail; end; end=end->prev) {
+            printf("%d ", end->x);
+        }
+        printf("\n");
+    }
+
+    // reverse iteration
+    {
+        IntNode *head = NULL, *tail = NULL;
+        for (size_t i = 0; i < 10; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            n->x = i;
+            dll_push_tail(head, tail, n);
+        }
+        for (IntNode *end = tail; end; end=end->prev) {
+            printf("%d ", end->x);
+        }
+        printf("\n");
+    }
+
+    // popping head
+    {
+        IntNode *head = NULL, *tail = NULL;
+        for (size_t i = 0; i < 10; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            n->x = i;
+            dll_push_tail(head, tail, n);
+        }
+        for (size_t i = 0; i < 10; i++) {
+            printf("%d ", head->x);
+            dll_pop_head(head, tail);
+        }
+        assert(head == tail && tail == NULL);
+        printf("\n");
+    }
+
+    // popping tail
+    {
+        IntNode *head = NULL, *tail = NULL;
+        for (size_t i = 0; i < 10; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            n->x = i;
+            dll_push_head(head, tail, n);
+        }
+        for (size_t i = 0; i < 10; i++) {
+            printf("%d ", tail->x);
+            dll_pop_tail(head, tail);
+        }
+        assert(head == tail && tail == NULL);
+        printf("\n");
+    }
+
+    {
+        typedef struct FloatNode FloatNode;
+        struct FloatNode {
+            float x;
+            FloatNode *next;
+            FloatNode *prev;
+        };
+
+        printf("insert after\n");
+        // insert after when empty
+        {
+            FloatNode *head = NULL, *tail = NULL, *null = NULL;
+
+            FloatNode *node = arena_new(a, FloatNode);
+            dll_insert_after(head, tail, null, node)->x = 3.14;
+            node = arena_new(a, FloatNode);
+            dll_insert_after(head, tail, null, node)->x = 1.16;
+            node = arena_new(a, FloatNode);
+            dll_insert_after(head, tail, head, node)->x = 1.71;
+            list_print(head, FloatNode, x, "%.2f");
+        }
+
+        // insert before when empty
+        {
+            FloatNode *head = NULL, *tail = NULL, *null = NULL;
+
+            FloatNode *node = arena_new(a, FloatNode);
+            dll_insert_before(head, tail, null, node)->x = 3.14;
+            node = arena_new(a, FloatNode);
+            dll_insert_before(head, tail, null, node)->x = 1.16;
+            node = arena_new(a, FloatNode);
+            dll_insert_before(head, tail, tail, node)->x = 1.71;
+            list_print(head, FloatNode, x, "%.2f");
+        }
+
+        FloatNode *head = NULL, *tail = NULL;
+        for (size_t i = 0; i < 5; i++) {
+            FloatNode *n = arena_new(a, FloatNode);
+            n->x = i;
+            dll_push_tail(head, tail, n);
+        }
+        FloatNode *mid = head;
+        for (size_t i = 0; i < 5; i++) {
+            FloatNode *n = arena_new(a, FloatNode);
+            n->x = -(float)i;
+            dll_push_head(head, tail, n);
+        }
+        FloatNode *n = arena_new(a, FloatNode);
+        n->x = 0.5;
+        dll_insert_after(head, tail, mid, n);
+
+        n = arena_new(a, FloatNode);
+        n->x = -0.5;
+        dll_insert_before(head, tail, mid, n);
+
+        FloatNode *null = NULL;
+        n = arena_new(a, FloatNode);
+        n->x = 5;
+        dll_insert_after(head, tail, null, n);
+
+        n = arena_new(a, FloatNode);
+        n->x = -5;
+        dll_insert_before(head, tail, null, n);
+
+        list_print(head, FloatNode, x, "%.1f");
+    }
+
+    {
+        IntNode *head = NULL, *tail = NULL;
+        for (size_t i = 0; i < 5; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            dll_push_head(head, tail, n)->x = i;
+        }
+        IntNode *mid = tail;
+        for (size_t i = 0; i < 5; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            dll_push_tail(head, tail, n)->x = i;
+        }
+        IntNode *n = arena_new(a, IntNode);
+        n->x = 100;
+        dll_replace(head, tail, mid, n);
+        n = arena_new(a, IntNode);
+        n->x = 1000;
+        dll_replace(head, tail, mid, n);
+        list_print(head, IntNode, x, "%d");
+    }
+}
+
+void test_linked_list() {
+    test_singly_linked_list();
+    test_doubly_linked_list();
+}
 
 int main() {
-    test_smol_map();
+    test_linked_list();
+
     printf("\nExiting successfully\n");
     return 0;
 }
