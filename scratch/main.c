@@ -389,18 +389,21 @@ typedef struct {
 static void assert_string_split(StringSplitTest t) {
     size_t count = 0;
     size_t char_count = 0;
-    if (t.actual.size != 0) {
+    if (t.actual.total_size != 0) {
         list_foreach(t.actual.head, StringNode, node) {
+            // strlist stores in reverse order
+            String expected = t.expected.data[t.expected.length - count - 1];
+            String actual = node->string;
+
             assert(count < t.expected.length);
-            assertf(string_eq(node->string, t.expected.data[count]),
-                    "expected: `%.*s,` got: `%.*s`",
-                    SV_FMT(t.expected.data[count]), SV_FMT(node->string));
+            assertf(string_eq(actual, expected), "expected: `%.*s,` got: `%.*s`",
+                    SV_FMT(expected), SV_FMT(actual));
             count++;
-            char_count += node->string.length;
+            char_count += actual.length;
         }
     }
     assertf(count == t.expected.length, "expected length: %zu, actual length: %zu", t.expected.length, count);
-    assert(char_count == t.actual.size);
+    assert(char_count == t.actual.total_size);
 }
 
 
@@ -461,6 +464,9 @@ void test_string_split_and_join() {
     list = string_split(a, SV("--foo--bar--baz--"), SV("--"));
     expected = strlist_join(a, &list, SV("=="));
     assert(string_eq(expected, SV("==foo==bar==baz==")));
+
+    expected = strlist_join(a, &list, SV(""));
+    assert(string_eq(expected, SV("foobarbaz")));
 }
 
 
@@ -476,6 +482,8 @@ void linear_arena_stress_test() {
 }
 
 void test_string_list() {
+    test_string_split_and_join();
+
     Arena *a = arena_init();
     StringList sl = {0};
 
@@ -943,6 +951,7 @@ void test_doubly_linked_list() {
         printf("\n");
     }
 
+    // insert after
     {
         typedef struct FloatNode FloatNode;
         struct FloatNode {
@@ -950,33 +959,6 @@ void test_doubly_linked_list() {
             FloatNode *next;
             FloatNode *prev;
         };
-
-        printf("insert after\n");
-        // insert after when empty
-        {
-            FloatNode *head = NULL, *tail = NULL, *null = NULL;
-
-            FloatNode *node = arena_new(a, FloatNode);
-            dll_insert_after(head, tail, null, node)->x = 3.14;
-            node = arena_new(a, FloatNode);
-            dll_insert_after(head, tail, null, node)->x = 1.16;
-            node = arena_new(a, FloatNode);
-            dll_insert_after(head, tail, head, node)->x = 1.71;
-            list_print(head, FloatNode, x, "%.2f");
-        }
-
-        // insert before when empty
-        {
-            FloatNode *head = NULL, *tail = NULL, *null = NULL;
-
-            FloatNode *node = arena_new(a, FloatNode);
-            dll_insert_before(head, tail, null, node)->x = 3.14;
-            node = arena_new(a, FloatNode);
-            dll_insert_before(head, tail, null, node)->x = 1.16;
-            node = arena_new(a, FloatNode);
-            dll_insert_before(head, tail, tail, node)->x = 1.71;
-            list_print(head, FloatNode, x, "%.2f");
-        }
 
         FloatNode *head = NULL, *tail = NULL;
         for (size_t i = 0; i < 5; i++) {
@@ -998,16 +980,7 @@ void test_doubly_linked_list() {
         n->x = -0.5;
         dll_insert_before(head, tail, mid, n);
 
-        FloatNode *null = NULL;
-        n = arena_new(a, FloatNode);
-        n->x = 5;
-        dll_insert_after(head, tail, null, n);
-
-        n = arena_new(a, FloatNode);
-        n->x = -5;
-        dll_insert_before(head, tail, null, n);
-
-        list_print(head, FloatNode, x, "%.1f");
+        list_print(head, FloatNode, "%.1f", node->x);
     }
 
     {
@@ -1027,7 +1000,28 @@ void test_doubly_linked_list() {
         n = arena_new(a, IntNode);
         n->x = 1000;
         dll_replace(head, tail, mid, n);
-        list_print(head, IntNode, x, "%d");
+        list_print(head, IntNode, "%d", node->x);
+    }
+
+    {
+        IntNode *head = NULL, *tail = NULL;
+        for (size_t i = 0; i < 5; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            dll_push_head(head, tail, n)->x = i;
+        }
+        IntNode *mid = tail;
+        for (size_t i = 0; i < 5; i++) {
+            IntNode *n = arena_new(a, IntNode);
+            dll_push_tail(head, tail, n)->x = i;
+        }
+        list_print(head, IntNode, "%d", node->x);
+        dll_remove(head, tail, mid);
+        dll_remove(head, tail, mid); // removing mid again does nothing
+
+        // mid still has next and prev pointers
+        dll_remove(head, tail, mid->next);
+        dll_remove(head, tail, mid->prev);
+        list_print(head, IntNode, "%d", node->x);
     }
 }
 
@@ -1037,7 +1031,7 @@ void test_linked_list() {
 }
 
 int main() {
-    test_linked_list();
+
 
     printf("\nExiting successfully\n");
     return 0;

@@ -11,6 +11,9 @@ BUILD := ./build
 main: scratch/main.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/main.c -lm -o ${BUILD}/main
 
+test_array_list: scratch/test_array_list.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test_array_list.c -o  ${BUILD}/test_array_list
+
 test_arena: scratch/test_arena.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test_arena.c -lm -o  ${BUILD}/test_arena
 

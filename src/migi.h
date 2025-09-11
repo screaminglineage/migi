@@ -4,7 +4,6 @@
 #include <stdio.h>     // needed for prints in asserts
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>    // needed for array_extend
 #include <stdlib.h>
 
 typedef uint8_t byte;
@@ -195,20 +194,31 @@ do {                        \
         .length = sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))                \
     }
 
+
 // Print an array with a pointer and a length. The printf
 // format string for the type needs to be passed in as well
-#define array_print(arr, length, fmt)           \
-    printf("[");                                \
-    for (size_t i = 0; i < (length) - 1; i++) { \
-        printf(fmt", ", (arr)[i]);              \
-    }                                           \
-    if ((length) > 0) printf(fmt"]\n", (arr)[(length) - 1]);
+#define array_print(arr, length, fmt)                   \
+do {                                                    \
+    printf("[");                                        \
+    for (size_t i = 0; i < (length) - 1; i++) {         \
+        printf(fmt", ", (arr)[i]);                      \
+    }                                                   \
+    if ((length) > 0) printf(fmt, (arr)[(length) - 1]); \
+    printf("]\n");                                      \
+} while (0)
 
-#define list_print(list, type, value, fmt)               \
-    for (type *node = (list); node; node = node->next) { \
-        printf(fmt", ", (node)->value);                  \
-    }                                                    \
-    printf("\n");
+
+#define list_print(head, type, ...)                 \
+do {                                                \
+    printf("[");                                    \
+    type *node = (list);                            \
+    for (; node && node->next; node = node->next) { \
+        printf(__VA_ARGS__);                        \
+        printf(", ");                               \
+    }                                               \
+    if (node) printf(__VA_ARGS__);                  \
+    printf("]\n");                                  \
+} while (0)
 
 
 #define mem_eq(a, b, length) \
@@ -231,8 +241,8 @@ do {                        \
 
 
 // Iterate over a linked list
-#define list_foreach(list, type, item) \
-    for (type *(item) = (list); (item); (item) = (item)->next)
+#define list_foreach(head, type, item) \
+    for (type *(item) = (head); (item); (item) = (item)->next)
 
 
 // Slightly cursed macros that probably shouldn't be used much

@@ -60,53 +60,65 @@
         : ((head) = (tail) = NULL))
 
 
-// Insert node after `after`, inserts after tail if `after` is NULL
-// Returns the inserted `node`
-#define dll_insert_after(head, tail, after, node)     \
-    ((after)                                          \
-        ? ((node)->next = (after)->next),             \
-          ((node)->prev = (after)),                   \
-                                                      \
-          (after)->next                               \
-            ? ((after)->next->prev = (node)), (void)0 \
-            : (void)0,                                \
-          ((after)->next = (node)),                   \
-                                                      \
-          ((after) == (tail))                         \
-            ? ((tail) = (node)), (node)               \
-            : (node)                                  \
-        : dll_push_tail((head), (tail), (node)))
+// Insert node after `after` and returns the inserted `node`
+#define dll_insert_after(head, tail, after, node) \
+    (((node)->next = (after)->next),               \
+    ((node)->prev = (after)),                     \
+                                                  \
+    (after)->next                                 \
+        ? ((after)->next->prev = (node)), (void)0 \
+        : (void)0,                                \
+    ((after)->next = (node)),                     \
+                                                  \
+    ((after) == (tail))                           \
+        ? ((tail) = (node)), (node)               \
+        : (node))
 
 
-// Insert node before `before`, inserts at head if `before` is NULL
-// Returns the inserted `node`
-#define dll_insert_before(head, tail, before, node)    \
-    ((before)                                          \
-        ? ((node)->next = (before)),                   \
-          ((node)->prev = (before)->prev),             \
-                                                       \
-          (before)->prev                               \
-            ? ((before)->prev->next = (node)), (void)0 \
-            : (void)0,                                 \
-          ((before)->prev = (node)),                   \
-                                                       \
-          ((before) == (head))                         \
-            ? ((head) = (node)), (node)                \
-            : (node)                                   \
-        : dll_push_head((head), (tail), (node)))
+// Insert node before `before` and returns the inserted `node`
+#define dll_insert_before(head, tail, before, node) \
+    (((node)->next = (before)),                      \
+    ((node)->prev = (before)->prev),                \
+                                                    \
+    (before)->prev                                  \
+        ? ((before)->prev->next = (node)), (void)0  \
+        : (void)0,                                  \
+    ((before)->prev = (node)),                      \
+                                                    \
+    ((before) == (head))                            \
+        ? ((head) = (node)), (node)                 \
+        : (node))
+
 
 
 // Replace `node` with `node_new`
 // NOTE: doesn't modify the next/prev pointers of `node`
 #define dll_replace(head, tail, node, node_new)      \
-    (node_new)->next = (node)->next,                 \
+    ((node_new)->next = (node)->next,                \
     (node_new)->prev = (node)->prev,                 \
     (node)->next                                     \
         ? ((node)->next->prev = (node_new)), (void)0 \
         : (void)0,                                   \
     (node)->prev                                     \
         ? ((node)->prev->next = (node_new)), (void)0 \
-        : (void)0
+        : (void)0)
+
+
+// Remove `node` from linked list
+// NOTE: doesn't modify the next/prev pointers of `node`
+#define dll_remove(head, tail, node)                   \
+    ((node)->next                                      \
+        ? ((node)->next->prev = (node)->prev), (void)0 \
+        : (void)0,                                     \
+    (node)->prev                                       \
+        ? ((node)->prev->next = (node)->next), (void)0 \
+        : (void)0,                                     \
+    ((node) == (head))                                 \
+        ? ((head) = (node)->next), (void)0             \
+        : (void)0,                                     \
+    ((node) == (tail))                                 \
+        ? ((tail) = (node)->prev), (void)0             \
+        : (void)0)
 
 
 typedef struct StringNode StringNode;
@@ -117,9 +129,8 @@ struct StringNode {
 
 typedef struct {
     StringNode *head;
-    StringNode *tail;
-    size_t size;
     size_t length;
+    size_t total_size;
 } StringList;
 
 migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...);
@@ -127,8 +138,8 @@ migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, c
 static void strlist_push_string(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
     node->string = str;
-    queue_push(list->head, list->tail, node);
-    list->size += str.length;
+    stack_push(list->head, node);
+    list->total_size += str.length;
     list->length += 1;
 }
 
@@ -158,34 +169,31 @@ static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
 }
 
 static String strlist_to_string(Arena *a, StringList *list) {
-    // TODO: no need to clear `mem` as it will be overwritten anyway
-    char *mem = arena_push(a, char, list->size);
-    char *mem_start = mem;
+    char *mem = arena_push_nonzero(a, char, list->total_size);
+    char *mem_end = mem + list->total_size;
     for (StringNode *node = list->head; node != NULL; node = node->next) {
-        memcpy(mem, node->string.data, node->string.length);
-        mem += node->string.length;
+        mem_end -= node->string.length;
+        memcpy(mem_end, node->string.data, node->string.length);
     }
-    return (String){mem_start, list->size};
+    return (String){mem, list->total_size};
 }
 
 static String strlist_join(Arena *a, StringList *list, String join_with) {
-    size_t total_size = list->size + (list->length - 1) * join_with.length;
-    // TODO: no need to clear `mem` as it will be overwritten anyway
-    char *mem = arena_push(a, char, total_size);
-    char *mem_start = mem;
+    size_t total_size = list->total_size + (list->length - 1) * join_with.length;
+    char *mem = arena_push_nonzero(a, char, total_size);
+    char *mem_end = mem + total_size;
 
     StringNode *node = list->head;
-    while (node->next != NULL) {
-        memcpy(mem, node->string.data, node->string.length);
-        mem += node->string.length;
+    for (; node->next; node = node->next) {
+        mem_end -= node->string.length;
+        memcpy(mem_end, node->string.data, node->string.length);
 
-        memcpy(mem, join_with.data, join_with.length);
-        mem += join_with.length;
-
-        node = node->next;
+        mem_end -= join_with.length;
+        memcpy(mem_end, join_with.data, join_with.length);
     }
-    memcpy(mem, node->string.data, node->string.length);
-    return (String){mem_start, total_size};
+    mem_end -= node->string.length;
+    memcpy(mem_end, node->string.data, node->string.length);
+    return (String){mem, total_size};
 }
 
 typedef enum {
@@ -218,6 +226,42 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
 // Convenience macro with some flags set to 0
 #define string_split(arena, str, delimiter) \
     (string_split_ex((arena), (str), (delimiter), 0))
+
+
+#define ARRAYLIST_DEFAULT_CAP 64
+#define ARRAYLIST_ALIGN 8
+
+#define ArrayList(type)  \
+struct {                 \
+    type *head;          \
+    type *tail;          \
+    size_t total_length; \
+}
+
+#define arrlist_init_capacity(arena, list, node_type, cap)              \
+do {                                                                    \
+    node_type *next = arena_new((arena), node_type);                    \
+    next->data = arena_push_bytes((arena), sizeof(next->data[0])*(cap), \
+                                 ARRAYLIST_ALIGN, true);                \
+    next->capacity = (cap);                                             \
+    queue_push((list)->head, (list)->tail, next);                       \
+} while(0)
+
+
+#define arrlist_add(arena, list, node_type, n)                       \
+do {                                                                 \
+    IntNode *tail = (list)->tail;                                    \
+                                                                     \
+    if (!tail || tail->length >= tail->capacity) {                   \
+        size_t capacity = ARRAYLIST_DEFAULT_CAP;                     \
+        if (tail && tail->capacity != 0) capacity = tail->capacity;  \
+                                                                     \
+        arrlist_init_capacity((arena), (list), node_type, capacity); \
+        tail = (list)->tail;                                         \
+    }                                                                \
+    tail->data[tail->length++] = n;                                  \
+    (list)->total_length++;                                          \
+} while (0)
 
 
 #endif // MIGI_LISTS_H
