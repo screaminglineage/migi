@@ -11,6 +11,9 @@ BUILD := ./build
 main: scratch/main.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/main.c -lm -o ${BUILD}/main
 
+test: scratch/test.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test.c -lm -o ${BUILD}/test
+
 test_array_list: scratch/test_array_list.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test_array_list.c -o  ${BUILD}/test_array_list
 
@@ -43,3 +46,7 @@ hashmap_release: scratch/test_hashmap.c src/*.h
 @PHONY=run
 run: main
 	${BUILD}/main
+
+@PHONY=test_run
+test_run: test
+	${BUILD}/test

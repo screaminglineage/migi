@@ -31,7 +31,7 @@ void test_arena() {
 
     {
         static byte buffer[1*KB];
-        Arena *a = arena_init(.type = Arena_Static, .backing_buffer = buffer, .backing_buffer_size = sizeof(buffer));
+        Arena *a = arena_init_static(buffer, sizeof(buffer));
 
         String string = SV("hello world!");
         char *str = arena_copy(a, char, string.data, string.length);
@@ -155,9 +155,8 @@ void test_arena() {
 }
 
 
-
 int main() {
     test_arena();
-
+    printf("\nExiting Successfully\n");
     return 0;
 }

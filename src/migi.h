@@ -131,7 +131,7 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
     migi_crash())
 
 #define todo() crash_with_message("%s: not yet implemented!", __func__)
-#define todof crash_with_message
+#define todof(...) crash_with_message(__VA_ARGS__)
 
 // todo() which returns an expression of any type instead of the regular void expression
 // Eg.: `int x = todo_expr(int);` will compile but crash at runtime
@@ -211,7 +211,7 @@ do {                                                    \
 #define list_print(head, type, ...)                 \
 do {                                                \
     printf("[");                                    \
-    type *node = (list);                            \
+    type *node = (head);                            \
     for (; node && node->next; node = node->next) { \
         printf(__VA_ARGS__);                        \
         printf(", ");                               \

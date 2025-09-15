@@ -44,8 +44,6 @@ typedef struct {
     size_t commit_size;
     size_t reserve_size;
     size_t type;
-    void *backing_buffer;
-    size_t backing_buffer_size;
 } ArenaOptions;
 
 typedef struct {
@@ -60,7 +58,7 @@ typedef struct {
         .reserve_size = ARENA_DEFAULT_RESERVE_SIZE, \
         .type = Arena_Linear,                       \
         __VA_ARGS__                                 \
-    })
+    }, NULL, 0)
 
 static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size);
 static void arena_free(Arena *arena);
@@ -95,27 +93,37 @@ static void arena_reset(Arena *arena);
 static inline Checkpoint arena_save(Arena *arena);
 static void arena_rewind(Checkpoint checkpoint);
 
+// Create a temporary region within the arena
+// NOTE: Using `break` will return early without rewinding the checkpoint
+// Using `continue` will also return early but will rewind the checkpoint
+#define arena_temp(a, temp)                 \
+    for (Checkpoint temp = arena_save((a)); \
+        temp.arena;                         \
+        arena_rewind(temp), temp.arena = NULL)
 
-static Arena *arena__init(ArenaOptions opt) {
-    // always align to page size
-    size_t reserve_size = align_up(opt.reserve_size, OS_PAGE_SIZE);
-    // commit_size must not be greater than reserve_size
-    size_t commit_size = clamp_top(align_up(opt.commit_size, OS_PAGE_SIZE), reserve_size);
-
-    byte *mem = opt.backing_buffer;
-    size_t reserved = opt.backing_buffer_size;
-    size_t committed = opt.backing_buffer_size;
+static Arena *arena__init(ArenaOptions opt, void *backing_buffer, size_t backing_buffer_size) {
+    byte *mem = backing_buffer;
+    size_t reserved = backing_buffer_size;
+    size_t committed = backing_buffer_size;
+    size_t reserve_size = backing_buffer_size;
+    size_t commit_size = backing_buffer_size;
 
     // backing buffer was not provided
     if (!mem) {
+        // always align to page size
+        reserve_size = align_up(opt.reserve_size, OS_PAGE_SIZE);
+        // commit_size must not be greater than reserve_size
+        commit_size = clamp_top(align_up(opt.commit_size, OS_PAGE_SIZE), reserve_size);
+
         mem = memory_reserve(reserve_size);
         reserved = reserve_size;
         memory_commit(mem, commit_size);
         committed = commit_size;
     }
 
-    // ensures that the contents are always aligned properly (64 > max possible alignment)
+    // ensures that the contents are always aligned properly (64 should always be aligned)
     static_assert(sizeof(Arena) == 64, "arena header size should be 64 bytes");
+    assertf(committed >= sizeof(Arena), "arena header must fit within allocation");
 
     // plant the header at the beginning of the allocation
     Arena *arena = (Arena *)mem;
@@ -126,23 +134,18 @@ static Arena *arena__init(ArenaOptions opt) {
     arena->reserved = reserved;
     arena->committed = committed;
 
-    // TODO: change the default reserve and commit sizes
-    // depending on if the arena is chained or linear
-    if (opt.type == Arena_Static) {
-        arena->commit_size  = opt.backing_buffer_size;
-        arena->reserve_size = opt.backing_buffer_size;
-    } else {
-        arena->commit_size  = commit_size;
-        arena->reserve_size = reserve_size;
-    }
+    // TODO: Change the default reserve sizes depending on if the arena is
+    // chained or linear. Linear arenas for example should reserve much more
+    // than 1*GB
+    arena->commit_size  = commit_size;
+    arena->reserve_size = reserve_size;
 
     arena->type = opt.type;
     return arena;
 }
 
-
 static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size) {
-    return arena_init(.type = Arena_Static, .backing_buffer = backing_buffer, .backing_buffer_size = backing_buffer_size);
+    return arena__init((ArenaOptions){.type = Arena_Static}, backing_buffer, backing_buffer_size);
 }
 
 static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clear_mem) {
@@ -164,7 +167,7 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
             .commit_size = commit_size,
             .reserve_size = reserve_size,
             .type = current->type
-        });
+        }, NULL, 0);
         next->prev = current;
         current = next;
         arena->current = current;
