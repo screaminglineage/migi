@@ -62,8 +62,8 @@ typedef struct {
 
 // Optional tracking of maximum probe length for statistics
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
-    static size_t _hashmap_max_probe_length = 0;
-    static size_t _hashmap_probes = 0;
+    static size_t hashmap__max_probe_length = 0;
+    static size_t hashmap__probes = 0;
 #endif
 
 // NOTE: Any function that takes in an arena will allocate memory
@@ -279,7 +279,7 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
     size_t dist = 0;
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
-    _hashmap_probes = 0;
+    hashmap__probes = 0;
 #endif
 
     while (true) {
@@ -314,8 +314,8 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
         }
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
-        _hashmap_probes++;
-        _hashmap_max_probe_length = max(_hashmap_max_probe_length, _hashmap_probes);
+        hashmap__probes++;
+        hashmap__max_probe_length = max(hashmap__max_probe_length, hashmap__probes);
 #endif
         dist++;
         i = (i + 1) & (header->capacity - 1);

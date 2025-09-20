@@ -178,9 +178,9 @@ typedef struct {
     size_t index;
 } WeightIndex;
 
-static int compare_weights(const void *_a, const void *_b) {
-    const WeightIndex *a = _a;
-    const WeightIndex *b = _b;
+static int compare_weights(const void *a_, const void *b_) {
+    const WeightIndex *a = a_;
+    const WeightIndex *b = b_;
     if (a->weight > b->weight) {
         return 1;
     } else if (a->weight < b->weight) {

@@ -65,7 +65,7 @@ static bool string_eq_cstr(String a, const char *b) {
     return memcmp(a.data, b, a.length) == 0;
 }
 
-bool _string_eq_any(String to_match, String *matches, size_t matches_len) {
+bool string_eq_any_slice(String to_match, String *matches, size_t matches_len) {
     for (size_t i = 0; i < matches_len; i++) {
         if (string_eq(to_match, matches[i])) {
             return true;
@@ -75,7 +75,7 @@ bool _string_eq_any(String to_match, String *matches, size_t matches_len) {
 }
 
 #define string_eq_any(to_match, ...) \
-    (_string_eq_any((to_match), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
+    (string_eq_any_slice((to_match), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
 static int64_t string_find_char(String haystack, char needle) {
     for (size_t i = 0; i < haystack.length; i++) {
@@ -216,7 +216,7 @@ static String string_skip_while_rev(String str, string_skip_while_func *skip_cha
 
 // Special case for `string_skip_while`
 // Probably the most common use for skipping in a string
-static bool _string_is_equal_chars(char ch, void *data) {
+static bool string__is_equal_chars(char ch, void *data) {
     String chars = *(String *)data;
     for (size_t i = 0; i < chars.length; i++) {
         if (ch == chars.data[i]) return true;
@@ -226,12 +226,12 @@ static bool _string_is_equal_chars(char ch, void *data) {
 
 // Skips from start of string as long as one of the elements of `chars` are present
 static String string_skip_chars(String str, String chars) {
-    return string_skip_while(str, _string_is_equal_chars, &chars);
+    return string_skip_while(str, string__is_equal_chars, &chars);
 }
 
 // Skips from end of string as long as one of the elements of `chars` are present
 static String string_skip_chars_rev(String str, String chars) {
-    return string_skip_while_rev(str, _string_is_equal_chars, &chars);
+    return string_skip_while_rev(str, string__is_equal_chars, &chars);
 }
 
 // TODO: check for other whitespace characters
@@ -436,7 +436,7 @@ static String string__format(Arena *arena, const char *fmt, va_list args) {
     return (String){ .data = mem, .length = actual - 1 };
 }
 
-migi_printf_format(2, 3) static String string_format(Arena *arena, const char *fmt, ...) {
+migi_printf_format(2, 3) static String stringf(Arena *arena, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     String result = string__format(arena, fmt, args);
