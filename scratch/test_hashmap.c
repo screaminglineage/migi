@@ -62,23 +62,23 @@ void test_basic() {
     }
     printf("\n");
 
-    assert(mem_eq_single(&hm.keys[0], &(String){0}));  assert(mem_eq_single(&hm.values[0], &((Point){0})));
-    assert(mem_eq_single(&hm.keys[1], &(SV("foo"))));  assert(mem_eq_single(&hm.values[1], &((Point){1, 2})));
-    assert(mem_eq_single(&hm.keys[2], &(SV("bar"))));  assert(mem_eq_single(&hm.values[2], &((Point){3, 4})));
-    assert(mem_eq_single(&hm.keys[3], &(SV("baz"))));  assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
-    assert(mem_eq_single(&hm.keys[4], &(SV("bla"))));  assert(mem_eq_single(&hm.values[4], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[0], &(String){0}));  assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[1], &(SV("foo"))));  assert(mem_eq(&hm.values[1], &((Point){1, 2})));
+    assert(mem_eq(&hm.keys[2], &(SV("bar"))));  assert(mem_eq(&hm.values[2], &((Point){3, 4})));
+    assert(mem_eq(&hm.keys[3], &(SV("baz"))));  assert(mem_eq(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[4], &(SV("bla"))));  assert(mem_eq(&hm.values[4], &((Point){7, 8})));
 
     Point deleted = hashmap_pop(&hm, SV("bar"));
     assert(deleted.x == 3 && deleted.y == 4);
 
     Point t = hashmap_get(&hm, SV("bar"));
-    assertf(mem_eq_single(&t, &(Point){0}), "empty returned for deleted keys");
+    assertf(mem_eq(&t, &(Point){0}), "empty returned for deleted keys");
 
     Point bla = hashmap_get(&hm, SV("bla"));
     assert(bla.x == 7 && bla.y == 8);
 
     Point x = hashmap_pop(&hm, SV("aaaaa"));
-    assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
+    assertf(mem_eq(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of `foo`
     hashmap_put(a, &hm, SV("foo"), ((Point){10, 20}));
@@ -87,10 +87,10 @@ void test_basic() {
     hashmap_foreach(&hm, pair) {
         printf("%.*s: (Point){%d %d}\n", SV_FMT(*pair.key), pair.value->x, pair.value->y);
     }
-    assert(mem_eq_single(&hm.keys[0], &((String){0})));  assert(mem_eq_single(&hm.values[0], &((Point){0})));
-    assert(mem_eq_single(&hm.keys[1], &(SV("foo"))));    assert(mem_eq_single(&hm.values[1], &((Point){10, 20})));
-    assert(mem_eq_single(&hm.keys[2], &(SV("bla"))));    assert(mem_eq_single(&hm.values[2], &((Point){7, 8})));
-    assert(mem_eq_single(&hm.keys[3], &(SV("baz"))));    assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[0], &((String){0})));  assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[1], &(SV("foo"))));    assert(mem_eq(&hm.values[1], &((Point){10, 20})));
+    assert(mem_eq(&hm.keys[2], &(SV("bla"))));    assert(mem_eq(&hm.values[2], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[3], &(SV("baz"))));    assert(mem_eq(&hm.values[3], &((Point){5, 6})));
 }
 
 void test_default_values() {
@@ -266,12 +266,12 @@ void test_type_safety() {
     unused(del_int);
     // Point del_int = hashmap_pop(&map, SV("abcd"));
 
-    assert(mem_eq_single(&map.keys[0], &(String){0}));    assert(mem_eq_single(&map.values[0], &(int64_t){0}));
-    assert(mem_eq_single(&map.keys[1], &(SV("ijkl"))));   assert(mem_eq_single(&map.values[1], &(int64_t){100}));
+    assert(mem_eq(&map.keys[0], &(String){0}));    assert(mem_eq(&map.values[0], &(int64_t){0}));
+    assert(mem_eq(&map.keys[1], &(SV("ijkl"))));   assert(mem_eq(&map.values[1], &(int64_t){100}));
 
-    assert(mem_eq_single(&map2.keys[0], &(String){0}));    assert(mem_eq_single(&map2.values[0], &(int64_t){0}));
-    assert(mem_eq_single(&map2.keys[1], &(SV("abcd"))));   assert(mem_eq_single(&map2.values[1], &((Point){1, 2})));
-    assert(mem_eq_single(&map2.keys[2], &(SV("efgh"))));   assert(mem_eq_single(&map2.values[2], &((Point){3, 4})));
+    assert(mem_eq(&map2.keys[0], &(String){0}));    assert(mem_eq(&map2.values[0], &(int64_t){0}));
+    assert(mem_eq(&map2.keys[1], &(SV("abcd"))));   assert(mem_eq(&map2.values[1], &((Point){1, 2})));
+    assert(mem_eq(&map2.keys[2], &(SV("efgh"))));   assert(mem_eq(&map2.values[2], &((Point){3, 4})));
 
     hashmap_foreach(&map, pair) {
         printf("%.*s: %ld", SV_FMT(*pair.key), *pair.value);
@@ -376,23 +376,23 @@ void test_basic_struct_key() {
     }
     printf("\n");
 
-    assert(mem_eq_single(&hm.keys[0], &((Foo){0})));           assert(mem_eq_single(&hm.values[0], &((Point){0})));
-    assert(mem_eq_single(&hm.keys[1], &((Foo){1, 2, 1.0f})));  assert(mem_eq_single(&hm.values[1], &((Point){1, 2})));
-    assert(mem_eq_single(&hm.keys[2], &((Foo){3, 4, 2.0f})));  assert(mem_eq_single(&hm.values[2], &((Point){3, 4})));
-    assert(mem_eq_single(&hm.keys[3], &((Foo){5, 6, 3.0f})));  assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
-    assert(mem_eq_single(&hm.keys[4], &((Foo){7, 8, 4.0f})));  assert(mem_eq_single(&hm.values[4], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[0], &((Foo){0})));           assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[1], &((Foo){1, 2, 1.0f})));  assert(mem_eq(&hm.values[1], &((Point){1, 2})));
+    assert(mem_eq(&hm.keys[2], &((Foo){3, 4, 2.0f})));  assert(mem_eq(&hm.values[2], &((Point){3, 4})));
+    assert(mem_eq(&hm.keys[3], &((Foo){5, 6, 3.0f})));  assert(mem_eq(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[4], &((Foo){7, 8, 4.0f})));  assert(mem_eq(&hm.values[4], &((Point){7, 8})));
 
     Point deleted = hashmap_pop(&hm, ((Foo){3, 4, 2.0f}));
     assert(deleted.x == 3 && deleted.y == 4);
 
     Point t = hashmap_get(&hm, ((Foo){3, 4, 2.0f}));
-    assertf(mem_eq_single(&t, &(Point){0}), "empty returned for deleted keys");
+    assertf(mem_eq(&t, &(Point){0}), "empty returned for deleted keys");
 
     Point bla = hashmap_get(&hm, ((Foo){7, 8, 4.0f}));
     assert(bla.x == 7 && bla.y == 8);
 
     Point x = hashmap_pop(&hm, ((Foo){99, 99, 9.9f}));
-    assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
+    assertf(mem_eq(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of `(Foo){1, 2, 1.0f}`
     hashmap_put(a, &hm, ((Foo){1, 2, 1.0f}), ((Point){10, 20}));
@@ -403,10 +403,10 @@ void test_basic_struct_key() {
                pair.key->a, pair.key->b, pair.key->f,
                pair.value->x, pair.value->y);
     }
-    assert(mem_eq_single(&hm.keys[0], &((Foo){0})));             assert(mem_eq_single(&hm.values[0], &((Point){0})));
-    assert(mem_eq_single(&hm.keys[1], &((Foo){1, 2, 1.0f})));    assert(mem_eq_single(&hm.values[1], &((Point){10, 20})));
-    assert(mem_eq_single(&hm.keys[2], &((Foo){7, 8, 4.0f})));    assert(mem_eq_single(&hm.values[2], &((Point){7, 8})));
-    assert(mem_eq_single(&hm.keys[3], &((Foo){5, 6, 3.0f})));    assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[0], &((Foo){0})));             assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[1], &((Foo){1, 2, 1.0f})));    assert(mem_eq(&hm.values[1], &((Point){10, 20})));
+    assert(mem_eq(&hm.keys[2], &((Foo){7, 8, 4.0f})));    assert(mem_eq(&hm.values[2], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[3], &((Foo){5, 6, 3.0f})));    assert(mem_eq(&hm.values[3], &((Point){5, 6})));
 }
 
 
@@ -452,23 +452,23 @@ void test_basic_primitive_key() {
     }
     printf("\n");
 
-    assert(mem_eq_single(&hm.keys[0], &(int){0}));   assert(mem_eq_single(&hm.values[0], &((Point){0})));
-    assert(mem_eq_single(&hm.keys[1], &(int){1}));   assert(mem_eq_single(&hm.values[1], &((Point){1, 2})));
-    assert(mem_eq_single(&hm.keys[2], &(int){2}));   assert(mem_eq_single(&hm.values[2], &((Point){3, 4})));
-    assert(mem_eq_single(&hm.keys[3], &(int){3}));   assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
-    assert(mem_eq_single(&hm.keys[4], &(int){4}));   assert(mem_eq_single(&hm.values[4], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[0], &(int){0}));   assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[1], &(int){1}));   assert(mem_eq(&hm.values[1], &((Point){1, 2})));
+    assert(mem_eq(&hm.keys[2], &(int){2}));   assert(mem_eq(&hm.values[2], &((Point){3, 4})));
+    assert(mem_eq(&hm.keys[3], &(int){3}));   assert(mem_eq(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[4], &(int){4}));   assert(mem_eq(&hm.values[4], &((Point){7, 8})));
 
     Point deleted = hashmap_pop(&hm, 2);
     assert(deleted.x == 3 && deleted.y == 4);
 
     Point t = hashmap_get(&hm, 2);
-    assertf(mem_eq_single(&t, &(Point){0}), "empty returned for deleted keys");
+    assertf(mem_eq(&t, &(Point){0}), "empty returned for deleted keys");
 
     Point bla = hashmap_get(&hm, 4);
     assert(bla.x == 7 && bla.y == 8);
 
     Point x = hashmap_pop(&hm, 999);
-    assertf(mem_eq_single(&x, &(Point){0}), "empty returned for non-existent keys");
+    assertf(mem_eq(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of key=1
     hashmap_put(a, &hm, 1, ((Point){10, 20}));
@@ -477,10 +477,10 @@ void test_basic_primitive_key() {
     hashmap_foreach(&hm, pair) {
         printf("%d: (Point){%d %d}\n", *pair.key, pair.value->x, pair.value->y);
     }
-    assert(mem_eq_single(&hm.keys[0], &(int){0}));   assert(mem_eq_single(&hm.values[0], &((Point){0})));
-    assert(mem_eq_single(&hm.keys[1], &(int){1}));   assert(mem_eq_single(&hm.values[1], &((Point){10, 20})));
-    assert(mem_eq_single(&hm.keys[2], &(int){4}));   assert(mem_eq_single(&hm.values[2], &((Point){7, 8})));
-    assert(mem_eq_single(&hm.keys[3], &(int){3}));   assert(mem_eq_single(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[0], &(int){0}));   assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[1], &(int){1}));   assert(mem_eq(&hm.values[1], &((Point){10, 20})));
+    assert(mem_eq(&hm.keys[2], &(int){4}));   assert(mem_eq(&hm.values[2], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[3], &(int){3}));   assert(mem_eq(&hm.values[3], &((Point){5, 6})));
 }
 
 

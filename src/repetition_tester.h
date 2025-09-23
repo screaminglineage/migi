@@ -4,19 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
-#include <errno.h>
-
-#include "migi.h"
-
-#ifdef _WIN32
-#error "Not supported on windows"
-#endif
-
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/time.h>
-#include <sys/resource.h>
+#include <inttypes.h>
 
 typedef int64_t i64;
 typedef uint64_t u64;
@@ -48,13 +36,18 @@ typedef struct {
     char *name;
 } Tester;
 
+static Tester tester_init_with_name(char *name, u32 seconds_to_try, u64 cpu_freq, u64 byte_count);
+static Tester tester_init(u32 seconds_to_try, u64 cpu_freq, u64 byte_count);
+static void tester_begin(Tester *tester);
+static void tester_end(Tester *tester);
+static void tester_print_stats(Tester *tester);
+static double tester_get_min_throughput(Tester *tester, StatsKind stat, int unit);
 
-Tester tester_init_with_name(char *name, u32 seconds_to_try, u64 cpu_freq, u64 byte_count);
-Tester tester_init(u32 seconds_to_try, u64 cpu_freq, u64 byte_count);
-void tester_begin(Tester *tester);
-void tester_end(Tester *tester);
-void tester_print_stats(Tester *tester);
-double tester_get_min_throughput(Tester *tester, StatsKind stat, int unit);
+
+static i64 get_page_faults();
+
+// define to only include the header
+#ifndef REPETITION_TESTER_AS_HEADER
 
 #include "timing.h"
 
@@ -79,6 +72,7 @@ Tester tester_init_with_name(char *name, u32 seconds_to_try, u64 cpu_freq, u64 b
 }
 
 Tester tester_init(u32 seconds_to_try, u64 cpu_freq, u64 byte_count) {
+
 #ifdef REPETITION_TESTER_LIVE_VIEW
     printf("\x1b[?25l");
 #endif
@@ -96,15 +90,6 @@ Tester tester_init(u32 seconds_to_try, u64 cpu_freq, u64 byte_count) {
         .try_for_time = seconds_to_try*cpu_freq,
         .byte_count = byte_count,
     };
-}
-
-i64 get_page_faults() {
-    struct rusage usage = {0};
-    if (getrusage(RUSAGE_SELF, &usage) == -1) {
-        printf("get_page_faults: error: failed to read usage: %s\n", strerror(errno));
-        return -1;
-    }
-    return usage.ru_majflt + usage.ru_minflt;
 }
 
 void tester_begin(Tester *tester) {
@@ -158,17 +143,17 @@ void tester_print_stats(Tester *tester) {
     double min_time_sec = (double)tester->stats[StatsTime].min/(double)tester->cpu_freq;
     double max_time_sec = (double)tester->stats[StatsTime].max/(double)tester->cpu_freq;
     double avg_time_sec = (double)tester->stats[StatsTime].total/((double)tester->count * (double)tester->cpu_freq);
-    double data = tester->byte_count;
+    double data = (double)tester->byte_count;
     double gb = (1024.0*1024.0*1024.0);
 
     printf("Data: %.2f mb\n", tester->byte_count/(1024.0*1024.0));
     printf("Estimated CPU Frequency: %.3f ghz\n", tester->cpu_freq/gb);
-    printf("Min: %.3f ms at %.4f gb/s (Page Faults: %lu, %.3f k/fault)\n",
+    printf("Min: %.3f ms at %.4f gb/s (Page Faults: %"PRIu64", %.3f k/fault)\n",
             min_time_sec*1000.0,
             data/(gb*min_time_sec),
             tester->stats[StatsPageFault].min,
             (double)(tester->byte_count/1024.0)/(double)tester->stats[StatsPageFault].min);
-    printf("Max: %.3f ms at %.4f gb/s (Page Faults: %lu, %.3f k/fault)\n",
+    printf("Max: %.3f ms at %.4f gb/s (Page Faults: %"PRIu64", %.3f k/fault)\n",
             max_time_sec*1000.0,
             data/(gb*max_time_sec),
             tester->stats[StatsPageFault].max,
@@ -179,6 +164,36 @@ void tester_print_stats(Tester *tester) {
             (double)tester->stats[StatsPageFault].total/(double)tester->count);
     printf("\x1b[?25h");
 }
+
+
+#ifdef _WIN32
+#include "migi.h"
+
+i64 get_page_faults() {
+    todo();
+    return 0;
+}
+
+#else
+
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <string.h>
+#include <errno.h>
+
+i64 get_page_faults() {
+    struct rusage usage = {0};
+    if (getrusage(RUSAGE_SELF, &usage) == -1) {
+        printf("get_page_faults: error: failed to read usage: %s\n", strerror(errno));
+        return -1;
+    }
+    return usage.ru_majflt + usage.ru_minflt;
+}
+
+#endif // _WIN32
+#endif // REPETITION_TESTER_AS_HEADER
 
 
 #endif // REPETITION_TESTER_H

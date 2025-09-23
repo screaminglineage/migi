@@ -3,10 +3,26 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <string.h>
 
 #include "migi.h"
-#include "migi_memory.h"
+
+// Use malloc/free instead of OS memory mapping
+// TODO: use max_align_t for arena__alignment
+#ifdef ARENA_USE_MALLOC
+    #define arena__reserve(size)        (malloc((size)))
+    #define arena__commit(mem, size)    (void)(size), (mem)
+    #define arena__decommit(mem, size)  ((void)(mem), (void)(size))
+    #define arena__release(mem, size)   ((void)(size), free((mem)))
+    #define arena__alignment()          (8)
+#else
+    #include "migi_memory.h"
+    #define arena__reserve(size)        memory_reserve(size)
+    #define arena__commit(mem, size)    memory_commit(mem, size)
+    #define arena__decommit(mem, size)  memory_decommit(mem, size)
+    #define arena__release(mem, size)   memory_release(mem, size)
+    #define arena__alignment()          memory_page_size()
+#endif
 
 #ifndef ARENA_DEFAULT_RESERVE_SIZE
     #define ARENA_DEFAULT_RESERVE_SIZE 1*GB
@@ -111,13 +127,13 @@ static Arena *arena__init(ArenaOptions opt, void *backing_buffer, size_t backing
     // backing buffer was not provided
     if (!mem) {
         // always align to page size
-        reserve_size = align_up(opt.reserve_size, OS_PAGE_SIZE);
+        reserve_size = align_up(opt.reserve_size, arena__alignment());
         // commit_size must not be greater than reserve_size
-        commit_size = clamp_top(align_up(opt.commit_size, OS_PAGE_SIZE), reserve_size);
+        commit_size = clamp_top(align_up(opt.commit_size, arena__alignment()), reserve_size);
 
-        mem = memory_reserve(reserve_size);
+        mem = arena__reserve(reserve_size);
         reserved = reserve_size;
-        memory_commit(mem, commit_size);
+        arena__commit(mem, commit_size);
         committed = commit_size;
     }
 
@@ -180,7 +196,7 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
     // commit memory if needed
     if (current->type != Arena_Static && alloc_end > current->committed) {
         size_t new_committed = clamp_top(align_up(alloc_end, current->commit_size), current->reserved);
-        memory_commit((byte *)current + current->committed, new_committed - current->committed);
+        arena__commit((byte *)current + current->committed, new_committed - current->committed);
         current->committed = new_committed;
     }
     avow(alloc_end <= current->reserved, "%s: out of memory", __func__);
@@ -208,7 +224,7 @@ static void arena_pop_bytes(Arena *arena, size_t size) {
 
             Arena *temp = current;
             current = current->prev;
-            memory_release(temp, temp->reserved);
+            arena__release(temp, temp->reserved);
         }
         arena->current = current;
     }
@@ -220,7 +236,7 @@ static void arena_pop_bytes(Arena *arena, size_t size) {
     // decommit excess region
     if (current->type != Arena_Static) {
         size_t new_committed = align_up(new_position, current->commit_size);
-        memory_decommit((byte *)current + new_committed, current->committed - new_committed);
+        arena__decommit((byte *)current + new_committed, current->committed - new_committed);
         current->committed = new_committed;
     }
     current->position = new_position;
@@ -241,7 +257,7 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
 
             if (current->position > current->committed) {
                 size_t new_committed = align_up(current->position, current->commit_size);
-                memory_commit((byte *)current + current->committed, new_committed - current->committed);
+                arena__commit((byte *)current + current->committed, new_committed - current->committed);
                 current->committed = new_committed;
             }
             return old;
@@ -255,7 +271,7 @@ static void arena_reset(Arena *arena) {
     while (current->prev) {
         Arena *temp = current;
         current = current->prev;
-        memory_release(temp, temp->reserved);
+        arena__release(temp, temp->reserved);
     }
     current->position = sizeof(Arena);
     arena->current = current;
@@ -270,7 +286,7 @@ static void arena_free(Arena *arena) {
         while (current) {
             Arena *temp = current;
             current = current->prev;
-            memory_release(temp, temp->reserved);
+            arena__release(temp, temp->reserved);
         }
     }
 }
@@ -293,7 +309,7 @@ static void arena_rewind(Checkpoint checkpoint) {
     while (current && current != checkpoint.current) {
         Arena *temp = current;
         current = current->prev;
-        memory_release(temp, temp->reserved);
+        arena__release(temp, temp->reserved);
     }
     checkpoint.arena->current = current;
 
@@ -301,7 +317,7 @@ static void arena_rewind(Checkpoint checkpoint) {
     // decommit excess region
     if (current->type != Arena_Static) {
         size_t new_committed = align_up(new_position, current->commit_size);
-        memory_decommit((byte *)current + new_committed, current->committed - new_committed);
+        arena__decommit((byte *)current + new_committed, current->committed - new_committed);
         current->committed = new_committed;
     }
     current->position = new_position;

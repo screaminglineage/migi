@@ -20,12 +20,12 @@ typedef uint8_t byte;
 #define PS (1000ull*NS)
 #define FS (1000ull*PS)
 
-#define min(a, b) ((a) < (b)? (a): (b))
-#define max(a, b) ((a) > (b)? (a): (b))
+#define migi_min(a, b) ((a) < (b)? (a): (b))
+#define migi_max(a, b) ((a) > (b)? (a): (b))
 #define between(value, start, end) ((start) <= (value) && (value) <= (end))
 
-#define clamp_top(a, b) (min(a, b))
-#define clamp_bottom(a, b) (max(a, b))
+#define clamp_top(a, b) (migi_min(a, b))
+#define clamp_bottom(a, b) (migi_max(a, b))
 
 // Return value if it lies in [low, high], otherwise return the respective end (low or high)
 #define clamp(value, low, high) (clamp_bottom(clamp_top((value), (high)), (low)))
@@ -75,9 +75,9 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 }
 
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined (__clang__)
     #define migi_crash() __builtin_trap()
-#elif _MSC_VER
+#elif defined(_MSC_VER)
     #define migi_crash() __debugbreak()
 #else
     #define migi_crash() (*(volatile int *)0 = 0)
@@ -106,12 +106,11 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
     #define avow assertf
 
 #else
-// assert is implemented as an expression and so it must be
-// replaced by the expression passed in
-// this also keeps the expression even if asserts are disabled
-// TODO: make assert completely empty here, will require going through every usage of assert to remove those that do side-effects
-   #define assert(expr) ((void)(expr))
-   #define assertf(expr, ...) ((void)(expr))
+// assert is implemented as an expression and so it must be replaced by the
+// expression passed in this also keeps the expression even if asserts are
+// disabled
+    #define assert(expr) ((void)(expr))
+    #define assertf(expr, ...) ((void)(expr))
 
 // fallback to slightly simpler implementation when asserts are disabled
    #define avow(expr, ...)                                                      \
@@ -121,7 +120,16 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
          : (void)0)
 #endif
 
-#define static_assert _Static_assert
+#ifdef _Static_assert
+    #define static_assert _Static_assert
+#else
+    #define static_assert(expr, ...)           \
+    do {                                       \
+        int static_assert_tmp[!(expr)? -1: 1]; \
+        (void)static_assert_tmp;               \
+    } while (0)
+#endif
+
 
 #define crash_with_message(...)             \
     (printf("%s:%d: ", __FILE__, __LINE__), \
@@ -164,11 +172,11 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 #endif
 
 
-#define mem_swap(a, b)      \
-do {                        \
-    __typeof__(a) temp = a; \
-    a = b;                  \
-    b = temp;               \
+#define mem_swap(type, a, b) \
+do {                         \
+    type temp = a;           \
+    a = b;                   \
+    b = temp;                \
 } while(0)
 
 // Incrementally shift command line arguments
@@ -221,10 +229,10 @@ do {                                                \
 } while (0)
 
 
-#define mem_eq(a, b, length) \
+#define mem_eq_array(a, b, length) \
     (memcmp((a), (b), sizeof(*(a))*(length)) == 0)
 
-#define mem_eq_single(a, b) mem_eq(a, b, 1)
+#define mem_eq(a, b) mem_eq_array(a, b, 1)
 
 #define mem_clear_array(mem, length) \
     (memset((mem), 0, sizeof(*(mem))*(length)))

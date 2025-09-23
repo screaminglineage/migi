@@ -198,7 +198,7 @@ void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent
     size_t members_length = struct_def.members.length;
     size_t max_name_length = 0;
     for (size_t i = 0; i < members_length; i++) {
-        max_name_length = max(max_name_length, struct_def.members.data[i].name.length);
+        max_name_length = migi_max(max_name_length, struct_def.members.data[i].name.length);
     }
 
     // TODO: save the index of data and length so that this loop is not required here

@@ -1,3 +1,9 @@
+#define _CRT_SECURE_NO_WARNINGS
+
+// MSVC needs this macro to define math constants (M_PI, etc.)
+#ifdef _MSC_VER
+    #define _USE_MATH_DEFINES
+#endif
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -5,11 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
+#include "migi_memory.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
+#ifdef __GNUC__
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-function"
+#endif // ifdef _GNU_C
 
 #include "timing.h"
 
@@ -39,7 +47,10 @@
 
 #include "smol_map.h"
 
-#pragma GCC diagnostic pop
+#ifdef __GNUC__
+    #pragma GCC diagnostic pop
+#endif
+
 
 bool baz_error(int x) {
     return_if_false(x != 0, printf("%s: failed\n", __func__));
@@ -94,29 +105,29 @@ void test_linear_arena_regular(Arena *arena) {
         arena_rewind(save);
     }
 
-    size_t count = getpagesize() / sizeof(int);
+    size_t count = memory_page_size() / sizeof(int);
     int *a = arena_push(arena, int, count);
     random_array(a, int, count);
 
-    byte *x = arena_push_bytes(arena, getpagesize(), 1, true);
+    byte *x = arena_push_bytes(arena, memory_page_size(), 1, true);
     unused(x);
     int *c = arena_realloc(arena, int, a, count, 2 * count);
 
-    assertf(mem_eq(a, c, count), "a and c are equal upto count");
+    assertf(mem_eq_array(a, c, count), "a and c are equal upto count");
     assertf(a != c, "a and c are separate allocations!");
 
-    assertf(arena->current->position == sizeof(Arena) + (size_t)(4 * getpagesize()),
+    assertf(arena->current->position == sizeof(Arena) + (size_t)(4 * memory_page_size()),
             "4 allocations are left");
     arena_pop(arena, int, count);
 
-    assertf(arena->current->position == sizeof(Arena) + (size_t)(3 * getpagesize()),
+    assertf(arena->current->position == sizeof(Arena) + (size_t)(3 * memory_page_size()),
             "3 allocations are left");
     arena_free(arena);
 }
 
 void test_linear_arena_rewind() {
     Arena *arena1 = arena_init(.type = Arena_Linear);
-    size_t size = getpagesize() * 4;
+    size_t size = memory_page_size() * 4;
 
     byte *mem = arena_push_bytes(arena1, size, 1, false);
     random_bytes(mem, size);
@@ -130,7 +141,7 @@ void test_linear_arena_rewind() {
     random_bytes(mem, size);
     arena_rewind(checkpoint);
     assertf(old_capacity == arena1->current->reserved &&
-                mem_eq(arena1->current->data, arena2->current->data, arena1->current->position - sizeof(Arena)),
+                mem_eq_array(arena1->current->data, arena2->current->data, arena1->current->position - sizeof(Arena)),
             "rewinded arena is equivalent to old one");
 }
 
@@ -143,6 +154,12 @@ void test_linear_arena() {
 
 #define BUF_SIZE 16*MB
     static byte buf[BUF_SIZE];
+
+// FUCK YOU MICROSOFT
+// More Info: https://stackoverflow.com/questions/27793470/why-does-small-give-an-error-about-char
+// (TODO: fix this by not including whatever fucking header it auto-includes by default)
+#undef small
+
     Arena *small = arena_init_static(buf, BUF_SIZE);
 #undef BUF_SIZE
 
@@ -177,7 +194,7 @@ void test_chained_arena() {
     printf("%d %d\n", a[0], b[256]);
 
     arena_reset(arena);
-    char *c = arena_push(arena, char, reserved * 1.25);
+    char *c = arena_push(arena, char, (size_t)(reserved * 1.25));
     c[26] = 14;
     int *d = arena_realloc(arena, int, NULL, 0, reserved);
     d[30] = 14;
@@ -195,7 +212,7 @@ void test_chained_arena() {
     double *f = arena_push(arena, double, 100);
     random_array(f, double, 100);
     double *g = arena_realloc(arena, double, f, 100, 500);
-    assertf(f == g && mem_eq(f, g, 100), "previous allocation was reused");
+    assertf(f == g && mem_eq_array(f, g, 100), "previous allocation was reused");
 
     arena_rewind(checkpoint);
     assertf(arena->current == saved_tail && arena->current->position == saved_tail_length,
@@ -228,16 +245,16 @@ void test_string_builder_formatted() {
     assert(sb_length(&sb) == 67 + 67);
 
     {
-        StringBuilder sb = sb_init();
-        sb_push_string(&sb, SV("foo"));
-        sb_push_string(&sb, SV("bar"));
-        sb_push_string(&sb, SV("baz"));
-        sb_pushf(&sb, "\nhello world! %d, %.*s, %f\n", 12, SV_FMT(SV("more stuff")), 3.14);
-        sb_pushf(&sb, "abcd efgh 12345678 %x\n", 0xdeadbeef);
+        StringBuilder sb1 = sb_init();
+        sb_push_string(&sb1, SV("foo"));
+        sb_push_string(&sb1, SV("bar"));
+        sb_push_string(&sb1, SV("baz"));
+        sb_pushf(&sb1, "\nhello world! %d, %.*s, %f\n", 12, SV_FMT(SV("more stuff")), 3.14);
+        sb_pushf(&sb1, "abcd efgh 12345678 %x\n", 0xdeadbeef);
 
-        String str = sb_to_string(&sb);
+        String str = sb_to_string(&sb1);
         printf("%.*s\n", SV_FMT(str));
-        sb_free(&sb);
+        sb_free(&sb1);
     }
 
     static char buf[1*MB];
@@ -248,13 +265,22 @@ void test_string_builder_formatted() {
     sb_pushf(&sb, "%s\n", cstr);
     printf("%s", sb_to_cstr(&sb));
     assert(sb_length(&sb) == 67 + 67 + str.length + 1);
+
+    {
+
+        char buffer[2048] = {0};
+        StringBuilder sb_static = sb_init_static(buffer, sizeof(buffer));
+        sb_pushf(&sb_static, "%.*s/%s:%d\n", SV_FMT(SV("FILE PATH")), __FILE__, __LINE__);
+        printf("%.*s", SV_FMT(sb_to_string(&sb_static)));
+    }
 }
 
 void test_random() {
     size_t size = 1 * MB;
+    Arena *arena = arena_init();
     time_t seed = time(NULL);
-    byte *buf1 = malloc(size);
-    byte *buf2 = malloc(size);
+    byte *buf1 = arena_push_nonzero(arena, byte, size);
+    byte *buf2 = arena_push_nonzero(arena, byte, size);
 
     migi_seed(seed);
     random_bytes(buf1, size);
@@ -263,7 +289,7 @@ void test_random() {
     random_bytes(buf2, size);
 
     int a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-    array_shuffle(a, int, array_len(a));
+    array_shuffle(arena, a, int, array_len(a));
     array_print(a, array_len(a), "%d");
 
     typedef struct {
@@ -274,12 +300,12 @@ void test_random() {
         (Foo){1, 2, "12"}, (Foo){2, 3, "23"}, (Foo){3, 4, "34"},
         (Foo){4, 5, "45"}, (Foo){5, 6, "56"},
     };
-    array_shuffle(b, Foo, array_len(b));
+    array_shuffle(arena, b, Foo, array_len(b));
     for (size_t i = 0; i < array_len(b); i++) {
         printf("%d %d %s\n", b[i].a, b[i].b, b[i].foo);
     }
 
-    assertf(mem_eq(buf1, buf2, size),
+    assertf(mem_eq_array(buf1, buf2, size),
             "random with same seed must have same data");
 
     for (size_t i = 0; i < 10; i++) {
@@ -295,8 +321,8 @@ void test_random() {
     int sample_size = 1000000;
     int total = 0;
     for (int i = 0; i < sample_size; i++) {
-        int a = random_choose_fuzzy(arr, int, weights);
-        frequencies[a] += 1;
+        int chosen = random_choose_fuzzy(arena, arr, int, weights);
+        frequencies[chosen] += 1;
         total += 1;
     }
 
@@ -332,12 +358,12 @@ void test_dynamic_array() {
     }
     array_extend(a, &ints_new, &ints);
 #else
-    for (size_t i = 0; i < 100; i++) {
+    for (int i = 0; i < 100; i++) {
         array_add(&ints, i);
     }
 
     array_reserve(&ints_new, 100);
-    for (size_t i = 0; i < 100; i++) {
+    for (int i = 0; i < 100; i++) {
         array_add(&ints_new, 2 * i);
     }
     array_extend(&ints_new, &ints);
@@ -620,7 +646,7 @@ void test_string() {
 
 void test_swap() {
     int a = 1, b = 2;
-    mem_swap(a, b);
+    mem_swap(int, a, b);
     assertf(b == 1 && a == 2, "swapping things work");
 
     typedef struct {
@@ -629,7 +655,7 @@ void test_swap() {
     } Foo;
 
     Foo f1 = {1, 2, 'a'}, f2 = {3, 4, 'b'};
-    mem_swap(f1, f2);
+    mem_swap(Foo, f1, f2);
     assertf(f1.a == 3 && f1.b == 4 && f1.c == 'b' && f2.a == 1 && f2.b == 2 &&
                 f2.c == 'a',
             "swapping things work");
@@ -649,7 +675,7 @@ void test_return_slice() {
     Arena *a = arena_init();
     IntSlice slice = return_slice(a);
     int arr[] = {1,2,3,4,5};
-    assert(slice.length == array_len(arr) && mem_eq(slice.data, arr, slice.length));
+    assert(slice.length == array_len(arr) && mem_eq_array(slice.data, arr, slice.length));
 }
 
 void test_string_split_first() {
@@ -745,8 +771,8 @@ void test_temp_allocator() {
     for (size_t i = 0; i < 1000; i++) {
         assert(string_eq(SV("3-2-1 go!"), temp_format("%d-%d-%d go!", 3, 2, 1)));
         int *a = temp_alloc(int, 25);
-        for (size_t i = 0; i < 25; i++) {
-            a[i] = i;
+        for (int j = 0; j < 25; j++) {
+            a[j] = j;
         }
     }
     temp_rewind(c);
@@ -758,10 +784,10 @@ void test_temp_allocator() {
 void test_dynamic_deque() {
     Deque d = deque_init();
 
-    for (size_t i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1000; i++) {
         *deque_push_head(&d, int, 1) = i;
     }
-    for (size_t i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1000; i++) {
         *deque_push_tail(&d, int, 1) = i;
     }
     deque_pop_head(&d, int, 3);
@@ -769,7 +795,7 @@ void test_dynamic_deque() {
     deque_pop_tail(&d, int, 2);
     deque_pop_head(&d, int, 2);
 
-    for (size_t i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1000; i++) {
         *deque_push_head(&d, int, 1) = i;
     }
     deque_free(&d);
@@ -827,7 +853,7 @@ void test_smol_map() {
         array_add(&values, data[i].b);
     }
 
-    int x = 0;
+    uint64_t x = 0;
     x = values.data[smol_lookup(0, &shm, string_hash(SV("World")), 0)];   assert (x == 123);
     x = values.data[smol_lookup(0, &shm, string_hash(SV("random")), 0)];  assert (x == 0);
     x = values.data[smol_lookup(0, &shm, string_hash(SV("Bar")), 0)];     assert (x == 124);
@@ -855,7 +881,7 @@ void test_singly_linked_list() {
 
     Arena *a = arena_init();
     IntNode *top = NULL;
-    for (size_t i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         IntNode *n = arena_new(a, IntNode);
         n->x = i;
         stack_push(top, n);
@@ -868,7 +894,7 @@ void test_singly_linked_list() {
     printf("\n");
 
     IntNode *start = NULL, *end = NULL;
-    for (size_t i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         IntNode *n = arena_new(a, IntNode);
         n->x = i;
         queue_push(start, end, n);
@@ -894,7 +920,7 @@ void test_doubly_linked_list() {
     // forwards iteration
     {
         IntNode *head = NULL, *tail = NULL;
-        for (size_t i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             IntNode *n = arena_new(a, IntNode);
             n->x = i;
             dll_push_head(head, tail, n);
@@ -908,7 +934,7 @@ void test_doubly_linked_list() {
     // reverse iteration
     {
         IntNode *head = NULL, *tail = NULL;
-        for (size_t i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             IntNode *n = arena_new(a, IntNode);
             n->x = i;
             dll_push_tail(head, tail, n);
@@ -922,7 +948,7 @@ void test_doubly_linked_list() {
     // popping head
     {
         IntNode *head = NULL, *tail = NULL;
-        for (size_t i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             IntNode *n = arena_new(a, IntNode);
             n->x = i;
             dll_push_tail(head, tail, n);
@@ -938,7 +964,7 @@ void test_doubly_linked_list() {
     // popping tail
     {
         IntNode *head = NULL, *tail = NULL;
-        for (size_t i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             IntNode *n = arena_new(a, IntNode);
             n->x = i;
             dll_push_head(head, tail, n);
@@ -961,9 +987,9 @@ void test_doubly_linked_list() {
         };
 
         FloatNode *head = NULL, *tail = NULL;
-        for (size_t i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             FloatNode *n = arena_new(a, FloatNode);
-            n->x = i;
+            n->x = (float)i;
             dll_push_tail(head, tail, n);
         }
         FloatNode *mid = head;
@@ -985,12 +1011,12 @@ void test_doubly_linked_list() {
 
     {
         IntNode *head = NULL, *tail = NULL;
-        for (size_t i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             IntNode *n = arena_new(a, IntNode);
             dll_push_head(head, tail, n)->x = i;
         }
         IntNode *mid = tail;
-        for (size_t i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             IntNode *n = arena_new(a, IntNode);
             dll_push_tail(head, tail, n)->x = i;
         }
@@ -1005,12 +1031,12 @@ void test_doubly_linked_list() {
 
     {
         IntNode *head = NULL, *tail = NULL;
-        for (size_t i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             IntNode *n = arena_new(a, IntNode);
             dll_push_head(head, tail, n)->x = i;
         }
         IntNode *mid = tail;
-        for (size_t i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             IntNode *n = arena_new(a, IntNode);
             dll_push_tail(head, tail, n)->x = i;
         }
@@ -1025,13 +1051,13 @@ void test_doubly_linked_list() {
     }
 }
 
+// TODO: loop through and compare the snapshots of each of these tests
 void test_linked_list() {
     test_singly_linked_list();
     test_doubly_linked_list();
 }
 
 int main() {
-    
 
 
     printf("\nExiting successfully\n");

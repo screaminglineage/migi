@@ -73,7 +73,7 @@ static inline Deque deque_init_ex(size_t total) {
 }
 
 static inline void deque_free(Deque *deque) {
-    memory_free(deque->data, deque->total);
+    memory_release(deque->data, deque->total);
     mem_clear(deque);
 }
 

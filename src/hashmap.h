@@ -180,7 +180,7 @@ static void hm_internal_insert_entry(HashmapHeader *header, HashmapHashEntry ent
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
         if (cur_dist < dist) {
-            mem_swap(entry, header->entries[i]);
+            mem_swap(HashmapHashEntry, entry, header->entries[i]);
             dist = cur_dist;
         }
 
@@ -299,7 +299,7 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
                 break;
             }
         } else if (key_type == HashmapKey_Other) {
-            if (mem_eq((byte *)search_key, map_key, key_size)) {
+            if (mem_eq_array((byte *)search_key, map_key, key_size)) {
                 result.is_present = true;
                 result.entry_index = i;
                 break;
@@ -315,7 +315,7 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
         hashmap__probes++;
-        hashmap__max_probe_length = max(hashmap__max_probe_length, hashmap__probes);
+        hashmap__max_probe_length = migi_max(hashmap__max_probe_length, hashmap__probes);
 #endif
         dist++;
         i = (i + 1) & (header->capacity - 1);

@@ -56,7 +56,7 @@ static String string_copy(Arena *arena, String str) {
 
 static bool string_eq(String a, String b) {
     if (a.length != b.length) return false;
-    return !a.length || mem_eq(a.data, b.data, a.length);
+    return !a.length || mem_eq_array(a.data, b.data, a.length);
 }
 
 static bool string_eq_cstr(String a, const char *b) {
@@ -85,7 +85,7 @@ static int64_t string_find_char(String haystack, char needle) {
 }
 
 static int64_t string_find_char_rev(String haystack, char needle) {
-    for (int i = haystack.length - 1; i >= 0; i--) {
+    for (int64_t i = haystack.length - 1; i >= 0; i--) {
         if (haystack.data[i] == needle) return i;
     }
     return -1;
@@ -97,7 +97,7 @@ static int64_t string_find(String haystack, String needle) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
     for (size_t i = 0; i <= haystack.length - needle.length; i++) {
-        if (mem_eq(haystack.data + i, needle.data, needle.length)) {
+        if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
             return i;
         }
     }
@@ -109,8 +109,8 @@ static int64_t string_find_rev(String haystack, String needle) {
     if (needle.length > haystack.length) return -1;
     if (needle.length == 0 && haystack.length == 0) return 0;
 
-    for (int i = haystack.length - needle.length; i >= 0; i--) {
-        if (mem_eq(haystack.data + i, needle.data, needle.length)) {
+    for (int64_t i = haystack.length - needle.length; i >= 0; i--) {
+        if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
             return i;
         }
     }
@@ -146,14 +146,14 @@ static String string_take(String str, size_t amount) {
 }
 
 // Get index of suffix or -1 if not found
-static int string_find_suffix(String str, String suffix) {
+static int64_t string_find_suffix(String str, String suffix) {
     if (suffix.length > str.length) return -1;
     // memcmp forbids NULL pointers even if the size is 0
     if (!suffix.data) return 0;
     if (!str.data) return -1;
 
-    int start = str.length - suffix.length;
-    return (mem_eq(str.data + start, suffix.data, suffix.length))? start: -1;
+    int64_t start = str.length - suffix.length;
+    return (mem_eq_array(str.data + start, suffix.data, suffix.length))? start: -1;
 }
 
 static bool string_starts_with(String str, String prefix) {
@@ -162,7 +162,7 @@ static bool string_starts_with(String str, String prefix) {
     if (!prefix.data) return true;
     if (!str.data) return false;
 
-    return mem_eq(str.data, prefix.data, prefix.length);
+    return mem_eq_array(str.data, prefix.data, prefix.length);
 }
 
 static bool string_ends_with(String str, String suffix) {
@@ -357,8 +357,8 @@ static SplitIterator string_split_chars_next(String *str, String delims) {
     for (size_t i = 0; i < delims.length; i++) {
         int64_t new_index = string_find_char(*str, delims.data[i]);
         if (new_index != -1) {
-            first_match = min(first_match, new_index);
-            last_match = max(last_match, new_index);
+            first_match = migi_min(first_match, new_index);
+            last_match = migi_max(last_match, new_index);
         }
     }
     if ((first_match == -1 || first_match == INT64_MAX) && (last_match < 0)) {
@@ -415,6 +415,8 @@ static String string__format(Arena *arena, const char *fmt, va_list args) {
     va_list args_saved;
     va_copy(args_saved, args);
 
+    // TODO: change this to simply calling vsnprintf first to get the actual
+    // and then to actually construct the formatted string
     int reserved = 1024;
     char *mem = arena_push(arena, char, reserved);
     int actual = vsnprintf(mem, reserved, fmt, args);
@@ -475,7 +477,7 @@ static StringResult read_file(Arena *arena, String filepath) {
     rewind(file);
 
     char *buf = arena_push(arena, char, length);
-    int n = fread(buf, sizeof(char), length, file);
+    int64_t n = fread(buf, sizeof(char), length, file);
     if (n != file_pos || ferror(file)) {
         fprintf(stderr, "%s: failed to read from file `%.*s`: \n", __func__, SV_FMT(filepath));
         fclose(file);

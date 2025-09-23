@@ -21,6 +21,13 @@ static StringBuilder sb_init() {
     };
 }
 
+static StringBuilder sb_init_static(char *buf, size_t buf_size) {
+    Arena *a = arena_init_static(buf, buf_size);
+    return (StringBuilder){
+        .arena = a
+    };
+}
+
 static size_t sb_length(StringBuilder *sb) {
     return sb->arena->position - sizeof(Arena);
 }

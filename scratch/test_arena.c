@@ -1,8 +1,9 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "migi.h"
 #include "arena.h"
@@ -20,9 +21,9 @@ void test_arena() {
         Arena *a = arena_init();
         *arena_new(a, int) = 12;
         assert(a->position == sizeof(Arena) + sizeof(int));
-        *arena_new(a, float) = 324.242;
+        *arena_new(a, float) = 324.242f;
         assert(a->position == sizeof(Arena) + sizeof(int) + sizeof(float));
-        *arena_new(a, Foo) = (Foo){1, 2, 'a', 3.14, 230912830912389};
+        *arena_new(a, Foo) = (Foo){1, 2, 'a', 3.14f, 23091283};
         assert(a->position == sizeof(Arena) + sizeof(int) + sizeof(float) + sizeof(Foo));
         arena_push(a, long, 10);
         assert(a->position == sizeof(Arena) + sizeof(int) + sizeof(float) + sizeof(Foo) + sizeof(long)*10);
@@ -43,8 +44,8 @@ void test_arena() {
     {
         Arena *a = arena_init(.type = Arena_Chained, .commit_size = 4*MB, .reserve_size = 64*MB);
         Checkpoint c = arena_save(a);
-        for (size_t i = 0; i < 10000; i++) {
-            *arena_new(a, Foo) = (Foo){i, i+1, i % 256, sinf(i), i*i};
+        for (int i = 0; i < 10000; i++) {
+            *arena_new(a, Foo) = (Foo){i, i+1, i % 256, sinf((float)i), i*i};
         }
         arena_rewind(c);
         arena_free(a);

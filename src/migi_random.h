@@ -10,6 +10,7 @@
 #include <string.h>
 #include <math.h>
 
+#include "arena.h"
 #include "migi.h"
 
 // MIGI_DONT_AUTO_SEED_RNG can be defined to allow the user manually seed the
@@ -159,18 +160,18 @@ static void random_bytes(void *buf, size_t size) {
     }
 }
 
-// TODO: look into improving this function
-static void random_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        int64_t index_a = random_range_exclusive(0, size);
-        int64_t index_b = random_range_exclusive(0, size);
+static void random_shuffle_bytes(Arena *temp, byte *buf, size_t elem_size, size_t size) {
+    Checkpoint c = arena_save(temp);
+    byte *temp_buf = arena_push_nonzero(c.arena, byte, elem_size);
 
-        // TODO: maybe use a temporary arena instead of a VLA
-        byte temp[elem_size];
-        memcpy(temp, &buf[elem_size*index_a], elem_size);
-        memcpy(&buf[elem_size*index_a], &buf[elem_size*index_b], elem_size);
-        memcpy(&buf[elem_size*index_b], temp, elem_size);
+    for (size_t i = 0; i < size - 1; i++) {
+        int64_t rand_index = random_range_exclusive(0, size);
+
+        memcpy(temp_buf, &buf[elem_size*i], elem_size);
+        memcpy(&buf[elem_size*i], &buf[elem_size*rand_index], elem_size);
+        memcpy(&buf[elem_size*rand_index], temp_buf, elem_size);
     }
+    arena_rewind(c);
 }
 
 typedef struct {
@@ -190,9 +191,10 @@ static int compare_weights(const void *a_, const void *b_) {
     }
 }
 
-static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, float *weights, size_t length) {
-    // TODO: use an arena rather than a VLA
-    WeightIndex weight_indices[length];
+static byte *random_choose_bytes_weighted(Arena *temp, byte *buf, size_t elem_size, float *weights, size_t length) {
+    Checkpoint c = arena_save(temp);
+    WeightIndex *weight_indices = arena_push_nonzero(c.arena, WeightIndex, length);
+
     for (size_t i = 0; i < length; i++) {
         weight_indices[i] = (WeightIndex){.weight = weights[i], .index = i};
     }
@@ -200,28 +202,33 @@ static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, float *we
 
     float choice = random_float();
     float accumulator = 0;
-    for (size_t i = 0; i < length; i++) {
+    size_t i = 0;
+    for (; i < length; i++) {
         accumulator += weight_indices[i].weight;
         if (choice <= accumulator) {
-            return buf + elem_size*weight_indices[i].index;
+            break;
         }
     }
-    migi_unreachablef("since choice is in [0, 1], it must already be selected");
+    arena_rewind(c);
+    return buf + elem_size*weight_indices[i].index;
 }
 
-static byte *random_choose_bytes_fuzzy(byte *buf, size_t elem_size, int64_t *weights, size_t length) {
-    int sum = 0;
+static byte *random_choose_bytes_fuzzy(Arena *temp, byte *buf, size_t elem_size, int64_t *weights, size_t length) {
+    int64_t sum = 0;
     for (size_t i = 0; i < length; i++) {
         sum += weights[i];
     }
     avow(sum != 0, "sum of weights must not be 0");
 
-    // TODO: use an arena rather than a VLA
-    float normalised_weights[length];
+    Checkpoint c = arena_save(temp);
+    float *normalised_weights = arena_push_nonzero(c.arena, float, length);
     for (size_t i = 0; i < length; i++) {
         normalised_weights[i] = (float)weights[i] / (float)sum;
     }
-    return random_choose_bytes_weighted(buf, elem_size, normalised_weights, length);
+
+    byte *result = random_choose_bytes_weighted(temp, buf, elem_size, normalised_weights, length);
+    arena_rewind(c);
+    return result;
 }
 
 
@@ -230,20 +237,24 @@ static byte *random_choose_bytes_fuzzy(byte *buf, size_t elem_size, int64_t *wei
     (random_bytes((byte *)(array), sizeof(type)*(size)))
 
 // Convenience macro to shuffle an array of any type
-#define array_shuffle(array, type, size) \
-    (random_shuffle_bytes((byte *)(array), sizeof(type), (size)))
+#define array_shuffle(temp, array, type, size) \
+    (random_shuffle_bytes((temp), (byte *)(array), sizeof(type), (size)))
 
 // Convenience macro to choose a random element from an designated initializer
 #define random_choose(...) \
     ((__VA_ARGS__)[random_range_exclusive(0, sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))])
 
 // Convenience macros to choose a random element from an array by weight
-#define random_choose_weighted(array, type, ...)                           \
-    (*(type *)(random_choose_bytes_weighted((byte *)(array), sizeof(type), \
+//
+// Weights must be from 0 to 1
+#define random_choose_weighted(temp, array, type, ...)                             \
+    (*(type *)(random_choose_bytes_weighted((temp), (byte *)(array), sizeof(type), \
             (__VA_ARGS__), sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))))
 
-#define random_choose_fuzzy(array, type, ...)                           \
-    (*(type *)(random_choose_bytes_fuzzy((byte *)(array), sizeof(type), \
+// Same as `random_choose_weighted` but weights can be any number
+#define random_choose_fuzzy(temp, array, type, ...)                             \
+    (*(type *)(random_choose_bytes_fuzzy((temp), (byte *)(array), sizeof(type), \
             (__VA_ARGS__), sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))))
+
 
 #endif // MIGI_RANDOM_H
