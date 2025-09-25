@@ -1,11 +1,16 @@
 #ifndef MIGI_MEMORY_H
 #define MIGI_MEMORY_H
 
-#include "migi.h"
 #include <stddef.h>
 #include <stdio.h>
 #define PROFILER_H_IMPLEMENTATION
 #include "profiler.h"
+
+#ifdef _WIN32
+    #include <windows.h>
+#endif
+
+#include "migi.h"
 
 #define align_up_page_size(n) (align_up((n), memory_page_size()))
 #define align_down_page_size(n) (align_down((n), memory_page_size()))

@@ -123,11 +123,8 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 #ifdef _Static_assert
     #define static_assert _Static_assert
 #else
-    #define static_assert(expr, ...)           \
-    do {                                       \
-        int static_assert_tmp[!(expr)? -1: 1]; \
-        (void)static_assert_tmp;               \
-    } while (0)
+    #define static_assert(expr, ...) \
+        int static_assert_tmp[!(expr)? -1: 1]
 #endif
 
 
@@ -186,22 +183,22 @@ do {                         \
 
 #define array_len(array) (sizeof(array) / sizeof(*(array)))
 
-// Creates a Slice (any struct with a data and length) from an array designated initializer
-#define migi_slice(slice_type, ...)                            \
-    (slice_type){                                              \
-        .data = __VA_ARGS__,                                   \
-        .length = sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__)) \
-    }
+
 
 // Creates a Slice (any struct with a data and length) from an 
 // array designated initializer and allocate the data on an arena
-#define migi_slice_dup(arena, slice_type, ...)                                \
-    (slice_type){                                                             \
-        .data = arena_copy(arena, __typeof__((__VA_ARGS__)[0]),               \
-                (__VA_ARGS__), sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))), \
-        .length = sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))                \
+#define slice_new(arena, type, slice, ...)                                                                     \
+    (slice){                                                                                                   \
+        .data = arena_copy_bytes(arena, (type[]){__VA_ARGS__}, sizeof((type[]){__VA_ARGS__}), _Alignof(type)), \
+        .length = sizeof((type[]){__VA_ARGS__}) / sizeof(type),                                                \
     }
 
+// Creates a Slice (any struct with a data and length) from an array designated initializer
+#define slice_from(type, slice, ...)                            \
+    (slice){                                                    \
+        .data = (type[]){__VA_ARGS__},                          \
+        .length = sizeof((type[]){__VA_ARGS__}) / sizeof(type), \
+    }
 
 // Print an array with a pointer and a length. The printf
 // format string for the type needs to be passed in as well
@@ -240,6 +237,7 @@ do {                                                \
 #define mem_clear(mem) mem_clear_array(mem, 1)
 
 
+// TODO: add an enumerated version of this?
 // Iterate over a dynamic array *by reference*
 // Should be used like array_foreach(&array, int, i) { ... }
 #define array_foreach(array, type, item)        \

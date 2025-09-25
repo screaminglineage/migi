@@ -349,22 +349,22 @@ void test_dynamic_array() {
 
 #ifdef DYNAMIC_ARRAY_USE_ARENA
     for (size_t i = 0; i < 100; i++) {
-        array_add(a, &ints, i);
+        array_push(a, &ints, i);
     }
 
     array_reserve(a, &ints_new, 100);
     for (size_t i = 0; i < 100; i++) {
-        array_add(a, &ints_new, 2 * i);
+        array_push(a, &ints_new, 2 * i);
     }
     array_extend(a, &ints_new, &ints);
 #else
     for (int i = 0; i < 100; i++) {
-        array_add(&ints, i);
+        array_push(&ints, i);
     }
 
     array_reserve(&ints_new, 100);
     for (int i = 0; i < 100; i++) {
-        array_add(&ints_new, 2 * i);
+        array_push(&ints_new, 2 * i);
     }
     array_extend(&ints_new, &ints);
 #endif
@@ -437,20 +437,20 @@ void test_string_split_and_join() {
     Arena *a = arena_init();
     StringSplitTest splits[] = {
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
+            .expected = slice_from(String, StringSlice, SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb")),
             .actual = string_split(a, SV("Mary had a little lamb"), SV(" "))
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
+            .expected = slice_from(String, StringSlice, SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb")),
             .actual =  string_split_ex(a, SV(" Mary    had   a   little   lamb "), SV(" "), Split_SkipEmpty)
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV(""), SV("Mary"), SV(""), SV(""), SV(""), SV("had"), SV(""), SV(""), 
-                    SV("a"), SV(""), SV(""), SV("little"), SV(""), SV(""), SV("lamb") }),
+            .expected = slice_from(String, StringSlice, SV(""), SV("Mary"), SV(""), SV(""), SV(""), SV("had"), SV(""), SV(""), 
+                    SV("a"), SV(""), SV(""), SV("little"), SV(""), SV(""), SV("lamb")),
             .actual =  string_split(a, SV(" Mary    had   a   little   lamb"), SV(" "))
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb"), SV("") }),
+            .expected = slice_from(String, StringSlice, SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb"), SV("")),
             .actual = string_split(a, SV("Mary--had--a--little--lamb--"), SV("--"))
         },
         {
@@ -458,23 +458,23 @@ void test_string_split_and_join() {
             .actual = string_split(a, SV("Mary had a little lamb"), SV(""))
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV(""), SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb") }),
+            .expected = slice_from(String, StringSlice, SV(""), SV("Mary"), SV("had"), SV("a"), SV("little"), SV("lamb")),
             .actual = string_split(a, SV(" Mary had a little lamb"), SV(" ")),
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV(""), SV("1"), SV("") }),
+            .expected = slice_from(String, StringSlice, SV(""), SV("1"), SV("")),
             .actual = string_split(a, SV("010"), SV("0"))
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV("03"), SV("23"), SV("59"), SV("") }),
+            .expected = slice_from(String, StringSlice, SV("2020"), SV("11"), SV("03"), SV("23"), SV("59"), SV("")),
             .actual = string_split_ex(a, SV("2020-11-03 23:59@"), SV("- :@"), Split_AsChars)
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV("03"), SV("23"), SV("59") }),
+            .expected = slice_from(String, StringSlice, SV("2020"), SV("11"), SV("03"), SV("23"), SV("59")),
             .actual = string_split_ex(a, SV("2020-11--03 23:59@"), SV("- :@"), Split_SkipEmpty|Split_AsChars)
         },
         {
-            .expected = migi_slice(StringSlice, (String[]){ SV("2020"), SV("11"), SV(""), SV("03"), SV("23"), SV("59"), SV("") }),
+            .expected = slice_from(String, StringSlice, SV("2020"), SV("11"), SV(""), SV("03"), SV("23"), SV("59"), SV("")),
             .actual = string_split_ex(a, SV("2020-11--03 23:59@"), SV("- :@"), Split_AsChars)
         },
     };
@@ -641,6 +641,39 @@ void test_string() {
                                                                                            SV("part starry starred repart parted")));
     }
 
+    // string_cut
+    {
+        StringCut cut = {0};
+
+        cut = string_cut(SV("hello world"), SV(" "));
+        assert(cut.valid == true
+           && string_eq(cut.head, SV("hello"))
+           && string_eq(cut.tail, SV("world")));
+
+        cut = string_cut(SV("hello==++==world"), SV("==++=="));
+        assert(cut.valid == true
+           && string_eq(cut.head, SV("hello"))
+           && string_eq(cut.tail, SV("world")));
+
+        cut = string_cut(SV("world"), SV("world"));
+        assert(cut.valid == true
+           && string_eq(cut.head, SV(""))
+           && string_eq(cut.tail, SV("")));
+
+        cut = string_cut(SV("world"), SV(""));
+        assert(cut.valid == true
+           && string_eq(cut.head, SV(""))
+           && string_eq(cut.tail, SV("world")));
+
+        cut = string_cut(SV("hello"), SV("llo"));
+        assert(cut.valid == true
+           && string_eq(cut.head, SV("he"))
+           && string_eq(cut.tail, SV("")));
+
+        cut = string_cut(SV("abcd"), SV("e"));
+        assert(cut.valid == false);
+    }
+
     todof("Add tests for other string functions");
 }
 
@@ -668,7 +701,7 @@ typedef struct {
 
 
 IntSlice return_slice(Arena *a) {
-    return migi_slice_dup(a, IntSlice, (int[]){1,2,3,4,5});
+    return slice_new(a, int, IntSlice, 1,2,3,4,5);
 }
 
 void test_return_slice() {
@@ -679,11 +712,11 @@ void test_return_slice() {
 }
 
 void test_string_split_first() {
-    String a = SV("2020-11--03 23:59@");
-    string_split_chars_foreach(a, SV("- :@"), it) {
+    String a = SV("2020-11--03 23:59");
+    string_split_chars_foreach(a, SV("- :"), it) {
         printf("=> `%.*s`\n", SV_FMT(it.split));
     }
-    assertf(string_eq(a, SV("2020-11--03 23:59@")), "original string remains intact");
+    assertf(string_eq(a, SV("2020-11--03 23:59")), "original string remains intact");
 
     String b = SV("a,b,c,");
     string_split_foreach(b, SV(","), it) {
@@ -847,10 +880,10 @@ void test_smol_map() {
     };
 
     Ints values = {0};
-    array_add(&values, 0); // reserving the 0th index
+    array_push(&values, 0); // reserving the 0th index
     for (size_t i = 0; i < array_len(data); i++) {
         smol_lookup(arena, &shm, string_hashfnv(data[i].a, 0), values.length);
-        array_add(&values, data[i].b);
+        array_push(&values, data[i].b);
     }
 
     uint64_t x = 0;
@@ -1058,7 +1091,15 @@ void test_linked_list() {
 }
 
 int main() {
+    // StringCut cut = {0};
+    // cut = string_cut(SV("world"), SV("world"));
+    // cut = string_cut(SV("world"), SV(""));
+    // asm("int3");
 
+    test_string();
+    test_string_split_and_join();
+    test_string_split_first();
+    test_string_list();
 
     printf("\nExiting successfully\n");
     return 0;

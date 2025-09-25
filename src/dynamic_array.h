@@ -30,7 +30,7 @@ do {                                                                       \
 } while(0)
 
 
-#define array_add(arena, array, item)          \
+#define array_push(arena, array, item)         \
 do {                                           \
     array_reserve((arena), (array), 1);        \
     (array)->data[(array)->length++] = (item); \
@@ -62,7 +62,7 @@ do {                                                                            
     }                                                                                 \
 } while(0)                                                                            \
 
-#define array_add(array, item)                 \
+#define array_push(array, item)                \
 do {                                           \
     array_reserve((array), 1);                 \
     (array)->data[(array)->length++] = (item); \
