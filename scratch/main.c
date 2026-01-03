@@ -665,6 +665,11 @@ void test_string() {
            && string_eq(cut.head, SV(""))
            && string_eq(cut.tail, SV("world")));
 
+        cut = string_cut(SV(""), SV(""));
+        assert(cut.valid == true
+           && string_eq(cut.head, SV(""))
+           && string_eq(cut.tail, SV("")));
+
         cut = string_cut(SV("hello"), SV("llo"));
         assert(cut.valid == true
            && string_eq(cut.head, SV("he"))
@@ -1091,11 +1096,6 @@ void test_linked_list() {
 }
 
 int main() {
-    // StringCut cut = {0};
-    // cut = string_cut(SV("world"), SV("world"));
-    // cut = string_cut(SV("world"), SV(""));
-    // asm("int3");
-
     test_string();
     test_string_split_and_join();
     test_string_split_first();

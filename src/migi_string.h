@@ -319,8 +319,6 @@ typedef struct {
     bool valid;
 } StringCut;
 
-// string_cut(SV("world"), SV("world"))
-// string_cut(SV("world"), SV(""))
 static StringCut string_cut(String str, String cut_at) {
     StringCut cut = {0};
     int64_t cut_index = string_find(str, cut_at);
