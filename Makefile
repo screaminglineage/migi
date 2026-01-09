@@ -3,7 +3,7 @@ BUILD := ./build
 ifeq ($(OS), Windows_NT)
 	# Extremely cursed but cant find any other way to solve this
 	# vcvars64.bat needs to be ran to prepare the environment for `cl` and `link` to work properly (find includes, etc.)
-	# However this cannot be a seperate recipe since Make runs each recipe in a subshell and any changes made by
+	# However this cannot be a separate recipe since Make runs each recipe in a subshell and any changes made by
 	# the script to the environment will be lost after it exits. Thus each command needs to be prefixed with running this script
 	CC := "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul && cl
 	INCLUDE := /I./src
@@ -30,6 +30,9 @@ endif
 
 main: scratch/main.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/main.c ${LINKMATH}  ${OUT}/main ${LINKFLAGS}
+
+walk_dir: scratch/walk_dir.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/walk_dir.c ${LINKMATH}  ${OUT}/walk_dir ${LINKFLAGS}
 
 test: scratch/test.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test.c ${LINKMATH} ${OUT}/test ${LINKFLAGS}
