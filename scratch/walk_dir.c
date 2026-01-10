@@ -26,6 +26,7 @@ typedef enum {
 
 typedef struct {
     Arena *arena;
+    Arena *temp_arena;
     FindFrame *find_frames;
     String current_dir;
     int depth;
@@ -51,19 +52,17 @@ typedef struct {
 // https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilea
 // TODO: come up with a better name
 // Search with wildcard appended to end of file
-static HANDLE find_first_file(Arena *arena, String dir, WIN32_FIND_DATA *file_data) {
+static HANDLE find_first_file(String dir, WIN32_FIND_DATA *file_data, Arena *temp) {
     HANDLE find = INVALID_HANDLE_VALUE;
-    arena_temp(arena, temp) {
-        String dir_with_wildcard = stringf(temp.arena, "%.*s\\*", SV_FMT(dir));
-        *arena_new(temp.arena, char) = 0;
-        find = FindFirstFile(dir_with_wildcard.data, file_data);
-    }
+    String dir_with_wildcard = stringf(temp, "%.*s\\*", SV_FMT(dir));
+    *arena_new(temp, char) = 0;
+    find = FindFirstFile(dir_with_wildcard.data, file_data);
     return find;
 }
 
 // TODO: maybe return a pointer to an opaque struct allocated on the arena
-// DirWalker is a bit too big (320 bytes) to be allocated on the stack anyway 
-DirWalker walker_init(Arena *arena, String filepath) {
+// DirWalker is a bit too big (384 bytes) to be allocated on the stack anyway 
+static DirWalker walker_init(Arena *arena, String filepath) {
     DirWalker walker = {0};
 
     if (filepath.length == 0) {
@@ -75,12 +74,16 @@ DirWalker walker_init(Arena *arena, String filepath) {
     walker.current_dir = filepath;
     walker.mode = DirWalkerMode_Recurse;
 
+    // should be greater than (MAX_PATH * 2) since find_first_file also uses it
+    size_t temp_path_buf_size = 2048;
+    char *temp_path_buf = arena_push(walker.arena, char, temp_path_buf_size);
+    walker.temp_arena = arena_init_static(temp_path_buf, temp_path_buf_size);
+
     return walker;
 }
 
 // TODO: come up with a better name since it also updates the mode of the walker itself rather than simply filling the entry
-// TODO: use another temporary arena that is cleared each time walker_next is called to store the stringf's
-void walker_fill_entry(DirWalker *w, DirEntry *entry) {
+static void walker_fill_entry(DirWalker *w, DirEntry *entry, int max_depth) {
     if (w->file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
         // skip `.` and `..`
         if (strcmp(w->file_data.cFileName, ".") == 0 || strcmp(w->file_data.cFileName, "..") == 0) {
@@ -98,14 +101,18 @@ void walker_fill_entry(DirWalker *w, DirEntry *entry) {
         entry->name = string_from_cstr(w->file_data.cFileName);
         entry->path = w->current_dir;
         entry->is_dir = true;
-        w->next_mode = DirWalkerMode_Recurse;
+        if (w->depth < max_depth) {
+            w->next_mode = DirWalkerMode_Recurse;
+        } else {
+            w->next_mode = DirWalkerMode_PopStack;
+        }
     } else {
         LARGE_INTEGER filesize = {
             .LowPart = w->file_data.nFileSizeLow,
             .HighPart = w->file_data.nFileSizeHigh
         };
         entry->size = filesize.QuadPart;
-        entry->path = stringf(w->arena, "%.*s\\%s", SV_FMT(w->current_dir), w->file_data.cFileName);
+        entry->path = stringf(w->temp_arena, "%.*s\\%s", SV_FMT(w->current_dir), w->file_data.cFileName);
         entry->name = string_from_cstr(w->file_data.cFileName);
         w->next_mode = DirWalkerMode_NextFile;
     }
@@ -113,13 +120,15 @@ void walker_fill_entry(DirWalker *w, DirEntry *entry) {
     w->mode = DirWalkerMode_Return;
 }
 
-DirEntry walker_next(DirWalker *w) {
+static DirEntry walker_next(DirWalker *w, int max_depth) {
     DirEntry entry = {0};
 
     while (true) {
+        arena_reset(w->temp_arena);
+
         switch (w->mode) {
             case DirWalkerMode_Recurse: {
-                w->find = find_first_file(w->arena, w->current_dir, &w->file_data);
+                w->find = find_first_file(w->current_dir, &w->file_data, w->temp_arena);
                 if (w->find == INVALID_HANDLE_VALUE) {
                     // DisplayErrorBox(TEXT("FindFirstFile"));
                     // TODO: print the error here
@@ -131,7 +140,7 @@ DirEntry walker_next(DirWalker *w) {
                     w->next_mode = DirWalkerMode_NextFile;
                     w->mode = DirWalkerMode_Return;
                 } else {
-                    walker_fill_entry(w, &entry);
+                    walker_fill_entry(w, &entry, max_depth);
                 }
             } break;
 
@@ -169,7 +178,7 @@ DirEntry walker_next(DirWalker *w) {
                     }
                     FindClose(w->find);
                 } else {
-                    walker_fill_entry(w, &entry);
+                    walker_fill_entry(w, &entry, max_depth);
                 }
             } break;
 
@@ -184,11 +193,12 @@ DirEntry walker_next(DirWalker *w) {
 }
 
 int main() {
-    String path = SV("C:\\Users\\Aditya\\Programming\\test");
+    String path = SV("C:\\Users\\Aditya\\Programming");
 
     Arena *arena = arena_init();
     DirWalker walker = walker_init(arena, path);
-    DirEntry file = walker_next(&walker);
+    int max_depth = 2;
+    DirEntry file = walker_next(&walker, max_depth);
     while (!file.over) {
         printf("Path: %.*s\n", SV_FMT(file.path));
         printf("Name: %.*s\n", SV_FMT(file.name));
@@ -196,8 +206,9 @@ int main() {
         printf("Hidden: %s\n", file.is_hidden? "yes": "no");
         printf("------------------------------------------\n");
 
-        file = walker_next(&walker);
+        file = walker_next(&walker, max_depth);
     }
+    arena_free(arena);
     return 0;
 }
 
