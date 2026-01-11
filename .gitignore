@@ -1,5 +1,6 @@
 main
 gen/*
 build/*
+profiling/*
 *.pdb
 *.obj

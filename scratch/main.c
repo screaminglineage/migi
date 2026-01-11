@@ -1096,11 +1096,6 @@ void test_linked_list() {
 }
 
 int main() {
-    test_string();
-    test_string_split_and_join();
-    test_string_split_first();
-    test_string_list();
-
     printf("\nExiting successfully\n");
     return 0;
 }
