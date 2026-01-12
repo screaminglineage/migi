@@ -37,6 +37,7 @@
 #include "migi_lists.h"
 #include "migi_random.h"
 #include "migi_string.h"
+#include "dynamic_string.h"
 #include "string_builder.h"
 
 #define POOL_ALLOC_COUNT_ALLOCATIONS
@@ -1095,7 +1096,24 @@ void test_linked_list() {
     test_doubly_linked_list();
 }
 
+void test_dynamic_string() {
+    DString a = DS("hello");
+    dstring_push(&a, SV(" world"));
+    dstring_push_cstr(&a, " GGWP!!!!");
+    dstring_push(&a, SV("\nTEST"));
+    dstring_pushf(&a, " - %d %f %s %.*s", 123, -23423.123, "does this", SV_FMT(SV("even work??")));
+
+    const char *actual = dstring_to_temp_cstr(&a);
+    const char *expected = "hello world GGWP!!!!\nTEST - 123 -23423.123000 does this even work??";
+    assertf(strcmp(actual, expected) == 0, "strings should be equal");
+    assertf(a.string.data[a.string.length] == 0, "null terminator is present but popped off actual string");
+
+    dstring_free(&a);
+    assertf(mem_eq(&a, &((DString){0})), "dynamic string should be zeroed out");
+}
+
 int main() {
+    test_dynamic_string();
     printf("\nExiting successfully\n");
     return 0;
 }

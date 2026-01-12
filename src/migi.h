@@ -120,13 +120,17 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
          : (void)0)
 #endif
 
-#ifdef _Static_assert
-    #define static_assert _Static_assert
-#else
-    #define static_assert(expr, ...) \
-        int static_assert_tmp[!(expr)? -1: 1]
-#endif
 
+#if defined( __STDC_VERSION__ ) && __STDC_VERSION__ >= 201112L
+    #define static_assert(expr, msg) _Static_assert(expr, msg)
+#else
+    #if defined(_MSC_VER)
+        #define static_assert(expr, msg) enum { static__assert__tmp(__COUNTER__) = 1 / (!!(expr)) }
+    #else
+        #define static_assert(expr, msg) \
+            typedef char static__assert__tmp[!(expr)? -1: 1] __attribute__((unused))
+    #endif
+#endif
 
 #define crash_with_message(...)             \
     (printf("%s:%d: ", __FILE__, __LINE__), \

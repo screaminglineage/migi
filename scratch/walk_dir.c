@@ -12,9 +12,11 @@
 
 typedef struct FindFrame FindFrame;
 struct FindFrame {
-    HANDLE find;
     String dir_name;
     FindFrame *next;
+
+    // WIN32 specific
+    HANDLE find;
 };
 
 typedef enum {
