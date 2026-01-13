@@ -125,7 +125,9 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
     #define static_assert(expr, msg) _Static_assert(expr, msg)
 #else
     #if defined(_MSC_VER)
-        #define static_assert(expr, msg) enum { static__assert__tmp(__COUNTER__) = 1 / (!!(expr)) }
+        #define static__assert__tmp1(count) static__assert__tmp_##count
+        #define static__assert__tmp(count) static__assert__tmp1(count)
+        #define static_assert(expr, msg) typedef char static__assert__tmp(__COUNTER__)[(expr)? 1: -1]
     #else
         #define static_assert(expr, msg) \
             typedef char static__assert__tmp[!(expr)? -1: 1] __attribute__((unused))
