@@ -29,7 +29,7 @@ typedef struct {
     Arena *temp_arena;
     FindFrame *find_frames;
     String current_dir;
-    int depth;
+    uint32_t depth;
     DirWalkerMode mode;
     DirWalkerMode next_mode;
 
@@ -83,7 +83,7 @@ static DirWalker walker_init(Arena *arena, String filepath) {
 }
 
 // TODO: come up with a better name since it also updates the mode of the walker itself rather than simply filling the entry
-static void walker_fill_entry(DirWalker *w, DirEntry *entry, int max_depth) {
+static void walker_fill_entry(DirWalker *w, DirEntry *entry, uint32_t max_depth) {
     if (w->file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
         // skip `.` and `..`
         if (strcmp(w->file_data.cFileName, ".") == 0 || strcmp(w->file_data.cFileName, "..") == 0) {
@@ -120,7 +120,7 @@ static void walker_fill_entry(DirWalker *w, DirEntry *entry, int max_depth) {
     w->mode = DirWalkerMode_Return;
 }
 
-static DirEntry walker_next(DirWalker *w, int max_depth) {
+static DirEntry walker_next(DirWalker *w, uint32_t max_depth) {
     DirEntry entry = {0};
 
     while (true) {
@@ -197,7 +197,9 @@ int main() {
 
     Arena *arena = arena_init();
     DirWalker walker = walker_init(arena, path);
-    int max_depth = 2;
+
+    // -1 for no limit
+    uint32_t max_depth = 2;
     DirEntry file = walker_next(&walker, max_depth);
     while (!file.over) {
         printf("Path: %.*s\n", SV_FMT(file.path));
