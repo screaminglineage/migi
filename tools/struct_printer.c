@@ -120,7 +120,7 @@ bool parse_struct_members(Lexer *lexer, StructDef *struct_def) {
         } else if (string_eq(member.name, SV("length"))) {
             has_field_length = true;
         } 
-        array_add(&struct_def->members, member);
+        array_push(&struct_def->members, member);
         if (!expect_token(lexer, Tok_Semicolon)) return false;
     }
     struct_def->has_data_and_length = has_field_data && has_field_length;
@@ -282,7 +282,7 @@ int main(int argc, char *argv[]) {
             }
             if (struct_def.name.length == 0) continue;
             if (!expect_token(&lexer, Tok_Semicolon)) continue;
-            array_add(&structs, struct_def);
+            array_push(&structs, struct_def);
         }
     }
 

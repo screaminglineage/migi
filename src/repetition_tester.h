@@ -167,11 +167,17 @@ void tester_print_stats(Tester *tester) {
 
 
 #ifdef _WIN32
-#include "migi.h"
+#include <windows.h>
+#include <psapi.h>
 
 i64 get_page_faults() {
-    todo();
-    return 0;
+    PROCESS_MEMORY_COUNTERS counters = {0};
+    BOOL ret = GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters));
+    if (ret == 0) {
+        fprintf(stderr, "get_page_faults: error: failed to read usage: %ld\n", GetLastError());
+        return -1;
+    }
+    return counters.PageFaultCount;
 }
 
 #else
@@ -186,7 +192,7 @@ i64 get_page_faults() {
 i64 get_page_faults() {
     struct rusage usage = {0};
     if (getrusage(RUSAGE_SELF, &usage) == -1) {
-        printf("get_page_faults: error: failed to read usage: %s\n", strerror(errno));
+        fprintf(stderr, "get_page_faults: error: failed to read usage: %s\n", strerror(errno));
         return -1;
     }
     return usage.ru_majflt + usage.ru_minflt;

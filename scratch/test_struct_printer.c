@@ -46,10 +46,10 @@ int main() {
 
     Ints arr = {0};
     for (size_t i = 0; i < 10; i++) {
-        array_add(&arr, i);
+        array_push(&arr, i);
     }
 
-    Strings strings = migi_slice(Strings, (String[]){SV("hello"), SV("world"), SV("Generated!")});
+    Strings strings = slice_from(String, Strings, SV("hello"), SV("world"), SV("Generated!"));
     strings.more = (void *)0x8000f;
 
     Foo f = {

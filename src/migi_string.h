@@ -119,7 +119,7 @@ static int64_t string_find_rev(String haystack, String needle) {
 
 // Slice string into [start, end) (exclusive range)
 static String string_slice(String str, size_t start, size_t end) {
-    assertf(start < str.length && end <= str.length, "string_slice: index out of bounds");
+    assertf(start <= str.length && end <= str.length, "string_slice: index out of bounds");
     return (String){
         .data = str.data + start,
         .length = end - start
@@ -314,6 +314,24 @@ static String string_replace(Arena *arena, String str, String find, String repla
 }
 
 typedef struct {
+    String head;
+    String tail;
+    bool valid;
+} StringCut;
+
+static StringCut string_cut(String str, String cut_at) {
+    StringCut cut = {0};
+    int64_t cut_index = string_find(str, cut_at);
+    if (cut_index == -1) {
+        return cut;
+    }
+    cut.head = string_slice(str, 0, cut_index);
+    cut.tail = string_slice(str, cut_index + cut_at.length, str.length);
+    cut.valid = true;
+    return cut;
+}
+
+typedef struct {
     bool is_over;
     String string;
 } SplitIterator;
@@ -374,28 +392,28 @@ static SplitIterator string_split_chars_next(String *str, String delims) {
 
 // Iterator-like macros to loop over each string split
 // Use `it.split` to get the splits each time
-#define string_split_foreach(str, split_at, it)          \
-    for (struct { String copy;                           \
-                  String split;                          \
-                  SplitIterator it;                      \
-                  bool over; }                           \
-        it = { .copy = (str), };                         \
-        it.it = string_split_next(&it.copy, (split_at)), \
-            it.split = it.it.string,                     \
-            !it.over;                                    \
-        it.it.is_over? it.over = true: it.over)
+#define string_split_foreach(str, split_at, it)            \
+    for (struct { String _copy;                            \
+                  String split;                            \
+                  SplitIterator _it;                       \
+                  bool over; }                             \
+        it = { ._copy = (str), };                          \
+        it._it = string_split_next(&it._copy, (split_at)), \
+            it.split = it._it.string,                      \
+            !it.over;                                      \
+        it._it.is_over? it.over = true: it.over)
 
 
-#define string_split_chars_foreach(str, delims, it)          \
-    for (struct { String copy;                               \
-                  String split;                              \
-                  SplitIterator it;                          \
-                  bool over; }                               \
-        it = { .copy = (str), };                             \
-        it.it = string_split_chars_next(&it.copy, (delims)), \
-            it.split = it.it.string,                         \
-            !it.over;                                        \
-        it.it.is_over? it.over = true: it.over)
+#define string_split_chars_foreach(str, delims, it)            \
+    for (struct { String _copy;                                \
+                  String split;                                \
+                  SplitIterator _it;                           \
+                  bool over; }                                 \
+        it = { ._copy = (str), };                              \
+        it._it = string_split_chars_next(&it._copy, (delims)), \
+            it.split = it._it.string,                          \
+            !it.over;                                          \
+        it._it.is_over? it.over = true: it.over)
 
 
 static inline uint64_t string_hashfnv(String string, uint64_t seed) {

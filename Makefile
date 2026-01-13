@@ -49,8 +49,11 @@ test_hashmap: scratch/test_hashmap.c src/*.h
 test_lexer: scratch/test_lexer.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/test_lexer.c ${OUT}/test_lexer ${LINKFLAGS}
 
+msi-hashmap: scratch/msi-hashmap.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/msi-hashmap.c ${OUT}/msi-hashmap ${LINKFLAGS}
+
 ${BUILD}/struct_printer: tools/struct_printer.c src/*.h
-	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} tools/struct_printer.c ${OUT}/struct_printer ${LINKFLAGS}
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${INCLUDE} tools/struct_printer.c ${OUT}/struct_printer ${LINKFLAGS}
 
 test_struct_printer: ${BUILD}/struct_printer scratch/test_struct_printer.c
 	${BUILD}/struct_printer scratch/test_struct_printer.c gen                                  \
