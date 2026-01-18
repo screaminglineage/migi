@@ -260,7 +260,7 @@ void test_string_builder_formatted() {
 
     static char buf[1*MB];
     Arena *a = arena_init_static(buf, sizeof(buf));
-    String str = read_file(a, SV("./src/string_builder.h")).string;
+    String str = string_from_file(a, SV("./src/string_builder.h"));
     const char *cstr = string_to_cstr(a, str);
 
     sb_pushf(&sb, "%s\n", cstr);
@@ -1113,7 +1113,9 @@ void test_dynamic_string() {
 }
 
 int main() {
-    test_dynamic_string();
+    migi_log(Log_Debug, "hello");
+    migi_log(Log_Debug, "hello %s", "world");
+
     printf("\nExiting successfully\n");
     return 0;
 }

@@ -149,9 +149,9 @@ void test_arena() {
     // reading/writing files
     {
         Arena *arena = arena_init();
-        StringResult res = read_file(arena, SV("scratch/test_arena.c"));
+        StringResult res = string_from_file(arena, SV("scratch/test_arena.c"));
         assert(res.ok);
-        assert(write_file(res.string, SV("build/test_arena-dumped.c"), arena));
+        assert(string_to_file(res.string, SV("build/test_arena-dumped.c"), arena));
     }
 }
 

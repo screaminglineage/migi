@@ -58,8 +58,8 @@ static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
     va_end(args);
 }
 
-static bool sb_push_file(StringBuilder *sb, String filename) {
-    return read_file(sb->arena, filename).ok;
+static void sb_push_file(StringBuilder *sb, String filename) {
+    string_from_file(sb->arena, filename);
 }
 
 void sb_reset(StringBuilder *sb) {
@@ -93,7 +93,7 @@ static const char *sb_to_cstr(StringBuilder *sb) {
 }
 
 static bool sb_to_file(StringBuilder *sb, String filename) {
-    return write_file(sb_to_string(sb), filename, sb->arena);
+    return string_to_file(sb_to_string(sb), filename, sb->arena);
 }
 
 #endif // MIGI_STRING_BUILDER_H

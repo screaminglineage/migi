@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "migi.h"
 #include "arena.h"
 
@@ -465,27 +464,25 @@ migi_printf_format(2, 3) static String stringf(Arena *arena, const char *fmt, ..
 }
 
 
-typedef struct {
-    bool ok;
-    String string;
-} StringResult;
-
+// TODO: passing in a directory as filepath causes ftell to return LONG_MAX which overflows the arena
 // TODO: use linux syscalls instead of C stdlib
-static StringResult read_file(Arena *arena, String filepath) {
-    Checkpoint c = arena_save(arena);
-    FILE *file = fopen(string_to_cstr(arena, filepath), "r");
-    arena_rewind(c);
+static String string_from_file(Arena *arena, String filepath) {
+    String result = {0};
 
-    StringResult result = {0};
+    FILE *file = NULL;
+    arena_temp(arena, temp) {
+        file = fopen(string_to_cstr(temp.arena, filepath), "r");
+    }
+
     if (!file) {
-        fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
+        migi_log(Log_Error, "failed to open file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
         return result;
     }
 
     fseek(file, 0, SEEK_END);
-    int64_t file_pos = ftell(file);
+    long file_pos = ftell(file);
     if (file_pos == -1) {
-        fprintf(stderr, "%s: couldnt read file position in `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
+        migi_log(Log_Error, "couldnt read file position in `%.*s`: %s", SV_FMT(filepath), strerror(errno));
         fclose(file);
         return result;
     }
@@ -497,35 +494,34 @@ static StringResult read_file(Arena *arena, String filepath) {
     char *buf = arena_push(arena, char, length);
     int64_t n = fread(buf, sizeof(char), length, file);
     if (n != file_pos || ferror(file)) {
-        fprintf(stderr, "%s: failed to read from file `%.*s`: \n", __func__, SV_FMT(filepath));
+        migi_log(Log_Error, "failed to read from file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
         fclose(file);
         return result;
     }
 
     fclose(file);
-    result = (StringResult){
-        .ok = true,
-        .string = (String){
-            .data = buf,
-            .length = length,
-        }
+    result = (String){
+        .data = buf,
+        .length = length,
     };
     return result;
 }
 
+
 // TODO: use linux syscalls instead of C stdlib
-static bool write_file(String string, String filepath, Arena *temp) {
-    Checkpoint c = arena_save(temp);
-    FILE *file = fopen(string_to_cstr(temp, filepath), "w");
-    arena_rewind(c);
+static bool string_to_file(String string, String filepath, Arena *arena) {
+    FILE *file = NULL;
+    arena_temp(arena, temp) {
+        file = fopen(string_to_cstr(temp.arena, filepath), "w");
+    }
 
     if (!file) {
-        fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
+        migi_log(Log_Error, "failed to open file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
         return false;
     }
     size_t n = fwrite(string.data, sizeof(char), string.length, file);
     if (n != string.length) {
-        fprintf(stderr, "%s: failed to write to file `%.*s`: \n", __func__, SV_FMT(filepath));
+        migi_log(Log_Error, "failed to write to file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
         fclose(file);
         return false;
     }

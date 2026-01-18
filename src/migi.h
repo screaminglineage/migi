@@ -1,6 +1,7 @@
 #ifndef MIGI_H
 #define MIGI_H
 
+#include <stdarg.h>
 #include <stdio.h>     // needed for prints in asserts
 #include <stdbool.h>
 #include <stdint.h>
@@ -284,5 +285,55 @@ do {                                                \
         __VA_ARGS__;                        \
         return val;                         \
     }
+
+typedef enum {
+    Log_Debug,
+    Log_Info,
+    Log_Warning,
+    Log_Error,
+
+    Log_Count,
+} LogLevel;
+
+static struct {
+    const char *name;
+    const char *colour_code;
+} MIGI_LOG_LEVELS[] = {
+    [Log_Debug]   = { "DEBUG",   "\033[35m" },
+    [Log_Info]    = { "INFO",    "\033[32m" },
+    [Log_Warning] = { "WARNING", "\033[33m" },
+    [Log_Error]   = { "ERROR",   "\033[31m" },
+};
+static_assert(array_len(MIGI_LOG_LEVELS) == Log_Count, "the number of log levels has changed");
+
+// TODO: maybe make this thread_local?
+#ifdef MIGI_DEBUG_LOGS
+    static LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Debug;
+#else
+    static LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Info;
+#endif
+
+// `context` is usually the name of the function (passed in as __func__) calling migi_log
+migi_printf_format(5, 6)
+static void migi_log_ex(LogLevel level, const char *file, int line, const char *context, const char *fmt, ...) {
+    if (level < MIGI_GLOBAL_LOG_LEVEL) return;
+
+    if (level == Log_Debug) {
+        fprintf(stderr, "%s:%d: ", file, line);
+    }
+
+    const char *bold_code  = "\033[1m";
+    const char *reset_code = "\033[0m";
+    fprintf(stderr, "%s%s[%s]%s %s: ", bold_code, MIGI_LOG_LEVELS[level].colour_code,
+            MIGI_LOG_LEVELS[level].name, reset_code, context);
+
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
+    va_end(args);
+}
+
+#define migi_log(level, ...) migi_log_ex(level, __FILE__, __LINE__, __func__, __VA_ARGS__)
 
 #endif // MIGI_H

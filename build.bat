@@ -20,7 +20,7 @@ set "CFlags=/nologo /W4 /wd4200 /wd4146 /wd4127 /I../src"
 set "LinkFlags=/link /INCREMENTAL:NO"
 
 if "%Debug%"=="1" (
-    set "CFlags=%CFlags% /Zi %Sanitizer%"
+    set "CFlags=%CFlags% %Sanitizer% /Zi /DMIGI_DEBUG_LOGS"
 ) else (
     set "CFlags=%CFlags% /O2"
 )

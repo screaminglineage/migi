@@ -1,31 +1,14 @@
 BUILD := ./build
-
-ifeq ($(OS), Windows_NT)
-	# Extremely cursed but cant find any other way to solve this
-	# vcvars64.bat needs to be ran to prepare the environment for `cl` and `link` to work properly (find includes, etc.)
-	# However this cannot be a separate recipe since Make runs each recipe in a subshell and any changes made by
-	# the script to the environment will be lost after it exits. Thus each command needs to be prefixed with running this script
-	CC := "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul && cl
-	INCLUDE := /I./src
-	DEBUGFLAGS := /Zi
-	CFLAGS := /nologo /W4 /wd4200 /wd4146 /wd4127
-	LINKMATH :=
-	LINKFLAGS := /link /INCREMENTAL:NO
-	SANITIZERS := /fsanitize=address
-	OUT := /Fe${BUILD}
-	RELEASEFLAGS := /O2 /DMIGI_DISABLE_ASSERTS
-else
-	CC := gcc
-	# CC := clang -fdiagnostics-color=always
-	INCLUDE := -I./src
-	DEBUGFLAGS := -ggdb
-	CFLAGS := -Wall -Wextra -Wno-unused-function -Wno-override-init
-	LINKMATH := -lm
-	LINKFLAGS := 
-	SANITIZERS := -fsanitize=undefined,address
-	OUT := -o ${BUILD}
-	RELEASEFLAGS := -O3 -DMIGI_DISABLE_ASSERTS
-endif
+CC := gcc
+# CC := clang -fdiagnostics-color=always
+INCLUDE := -I./src
+DEBUGFLAGS := -ggdb -DMIGI_DEBUG_LOGS
+CFLAGS := -Wall -Wextra -Wno-unused-function -Wno-override-init
+LINKMATH := -lm
+LINKFLAGS := 
+SANITIZERS := -fsanitize=undefined,address
+OUT := -o ${BUILD}
+RELEASEFLAGS := -O3 -DMIGI_DISABLE_ASSERTS
 
 
 main: scratch/main.c src/*.h
