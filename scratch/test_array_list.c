@@ -3,7 +3,7 @@
 
 #include "arena.h"
 #include "migi.h"
-#include "migi_lists.h"
+#include "migi_list.h"
 
 typedef struct IntNode IntNode;
 struct IntNode {

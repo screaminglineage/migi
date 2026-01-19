@@ -34,7 +34,7 @@
 
 // #define DYNAMIC_ARRAY_USE_ARENA
 #include "dynamic_array.h"
-#include "migi_lists.h"
+#include "migi_list.h"
 #include "migi_random.h"
 #include "migi_string.h"
 #include "dynamic_string.h"
@@ -418,8 +418,7 @@ static void assert_string_split(StringSplitTest t) {
     size_t char_count = 0;
     if (t.actual.total_size != 0) {
         list_foreach(t.actual.head, StringNode, node) {
-            // strlist stores in reverse order
-            String expected = t.expected.data[t.expected.length - count - 1];
+            String expected = t.expected.data[count];
             String actual = node->string;
 
             assert(count < t.expected.length);
@@ -603,6 +602,67 @@ void test_string() {
         assert(string_find(SV("abc"),    SV(""))       == 0);
         assert(string_find(SV(""),       SV("a"))      == -1);
         assert(string_find(SV("aaaaa"),  SV("aa"))     == 0);
+    }
+
+    // string_starts_with
+    {
+        assert(string_starts_with(SV("hello"),  SV("he"))     == true);
+        assert(string_starts_with(SV("hello"),  SV("hello"))  == true);
+        assert(string_starts_with(SV("hello"),  SV("h"))      == true);
+        assert(string_starts_with(SV("hello"),  SV("llo"))    == false);
+        assert(string_starts_with(SV("short"),  SV("longer")) == false);
+        assert(string_starts_with(SV("abc"),    SV("abcd"))   == false);
+        assert(string_starts_with(SV("abc"),    SV(""))       == true);
+        assert(string_starts_with(SV(""),       SV(""))       == true);
+        assert(string_starts_with(SV(""),       SV("a"))      == false);
+    }
+
+    // string_ends_with
+    {
+        assert(string_ends_with(SV("hello"),  SV("lo"))     == true);
+        assert(string_ends_with(SV("hello"),  SV("hello"))  == true);
+        assert(string_ends_with(SV("hello"),  SV("he"))     == false);
+        assert(string_ends_with(SV("short"),  SV("longer")) == false);
+        assert(string_ends_with(SV("abc"),    SV("abcd"))   == false);
+        assert(string_ends_with(SV("abc"),    SV(""))       == true);
+        assert(string_ends_with(SV(""),       SV(""))       == true);
+        assert(string_ends_with(SV(""),       SV("a"))      == false);
+    }
+
+    // string_slice
+    {
+        assert(string_eq(string_slice(SV("hello"), 0, 5), SV("hello")));
+        assert(string_eq(string_slice(SV("hello"), 0, 2), SV("he")));
+        assert(string_eq(string_slice(SV("hello"), 2, 5), SV("llo")));
+        assert(string_eq(string_slice(SV("hello"), 1, 4), SV("ell")));
+        assert(string_eq(string_slice(SV("abc"), 0, 0), SV("")));
+        assert(string_eq(string_slice(SV("abc"), 1, 1), SV("")));
+        assert(string_eq(string_slice(SV("abc"), 4, 4), SV("")));
+        assert(string_eq(string_slice(SV("abc"), 5, 5), SV("")));
+        assert(string_eq(string_slice(SV(""), 0, 0), SV("")));
+        assert(string_eq(string_slice(SV(""), 1, 2), SV("")));
+    }
+
+    // string_skip
+    {
+        assert(string_eq(string_skip(SV("hello"), 0), SV("hello")));
+        assert(string_eq(string_skip(SV("hello"), 3), SV("lo")));
+        assert(string_eq(string_skip(SV("hello"), 1), SV("ello")));
+        assert(string_eq(string_skip(SV("hello"), 5), SV("")));
+        assert(string_eq(string_skip(SV("hello"), 10), SV("")));
+        assert(string_eq(string_skip(SV(""), 0), SV("")));
+        assert(string_eq(string_skip(SV(""), 1), SV("")));
+    }
+
+    // string_take
+    {
+        assert(string_eq(string_take(SV("hello"), 0), SV("")));
+        assert(string_eq(string_take(SV("hello"), 3), SV("hel")));
+        assert(string_eq(string_take(SV("hello"), 1), SV("h")));
+        assert(string_eq(string_take(SV("hello"), 5), SV("hello")));
+        assert(string_eq(string_take(SV("hello"), 10), SV("hello")));
+        assert(string_eq(string_take(SV(""), 0), SV("")));
+        assert(string_eq(string_take(SV(""), 1), SV("")));
     }
 
     // string_find_rev
@@ -888,7 +948,7 @@ void test_smol_map() {
     Ints values = {0};
     array_push(&values, 0); // reserving the 0th index
     for (size_t i = 0; i < array_len(data); i++) {
-        smol_lookup(arena, &shm, string_hashfnv(data[i].a, 0), values.length);
+        smol_lookup(arena, &shm, string_hash(data[i].a), values.length);
         array_push(&values, data[i].b);
     }
 
@@ -1106,15 +1166,14 @@ void test_dynamic_string() {
     const char *actual = dstring_to_temp_cstr(&a);
     const char *expected = "hello world GGWP!!!!\nTEST - 123 -23423.123000 does this even work??";
     assertf(strcmp(actual, expected) == 0, "strings should be equal");
-    assertf(a.string.data[a.string.length] == 0, "null terminator is present but popped off actual string");
+    assertf(a.data[a.length] == 0, "null terminator is present but popped off actual string");
 
     dstring_free(&a);
     assertf(mem_eq(&a, &((DString){0})), "dynamic string should be zeroed out");
 }
 
 int main() {
-    migi_log(Log_Debug, "hello");
-    migi_log(Log_Debug, "hello %s", "world");
+    test_dynamic_string();
 
     printf("\nExiting successfully\n");
     return 0;

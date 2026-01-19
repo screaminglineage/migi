@@ -1,6 +1,6 @@
 #include "arena.h"
 #include "migi_string.h"
-#include "migi_lists.h"
+#include "migi_list.h"
 
 typedef struct Node Node;
 struct Node {

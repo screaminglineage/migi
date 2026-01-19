@@ -8,7 +8,7 @@
 
 #include "migi_string.h"
 #include "arena.h"
-#include "migi_lists.h"
+#include "migi_list.h"
 #include "dynamic_string.h"
 
 typedef struct FindHandles FindHandles;

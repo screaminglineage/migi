@@ -73,6 +73,7 @@ bool string_eq_any_slice(String to_match, String *matches, size_t matches_len) {
     return false;
 }
 
+// Check if string matches any element of an array
 #define string_eq_any(to_match, ...) \
     (string_eq_any_slice((to_match), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
@@ -118,7 +119,8 @@ static int64_t string_find_rev(String haystack, String needle) {
 
 // Slice string into [start, end) (exclusive range)
 static String string_slice(String str, size_t start, size_t end) {
-    assertf(start <= str.length && end <= str.length, "string_slice: index out of bounds");
+    start = clamp_top(start, str.length);
+    end = clamp_top(end, str.length);
     return (String){
         .data = str.data + start,
         .length = end - start
@@ -128,40 +130,30 @@ static String string_slice(String str, size_t start, size_t end) {
 // Skip `amount` characters from beginning of string
 // If `amount` == `str.length`, then returns an empty string
 static String string_skip(String str, size_t amount) {
-    assertf(amount <= str.length, "string_skip: index out of bounds");
-    return (String){
-        .data = str.data + amount,
-        .length = str.length - amount,
-    };
+    return string_slice(str, amount, str.length);
 }
 
 // Take `amount` characters from beginning of string
 static String string_take(String str, size_t amount) {
-    assertf(amount <= str.length, "string_take: index out of bounds");
-    return (String){
-        .data = str.data,
-        .length = amount,
-    };
+    return string_slice(str, 0, amount);
 }
 
 // Get index of suffix or -1 if not found
 static int64_t string_find_suffix(String str, String suffix) {
     if (suffix.length > str.length) return -1;
-    // memcmp forbids NULL pointers even if the size is 0
-    if (!suffix.data) return 0;
-    if (!str.data) return -1;
 
-    int64_t start = str.length - suffix.length;
-    return (mem_eq_array(str.data + start, suffix.data, suffix.length))? start: -1;
+    size_t start = str.length - suffix.length;
+    bool match = string_eq(string_slice(str, start, str.length), suffix);
+    if (match) {
+        return start;
+    } else {
+        return -1;
+    }
 }
 
 static bool string_starts_with(String str, String prefix) {
     if (prefix.length > str.length) return false;
-    // memcmp forbids NULL pointers even if the size is 0
-    if (!prefix.data) return true;
-    if (!str.data) return false;
-
-    return mem_eq_array(str.data, prefix.data, prefix.length);
+    return string_eq(string_slice(str, 0, prefix.length), prefix);
 }
 
 static bool string_ends_with(String str, String suffix) {
@@ -415,7 +407,7 @@ static SplitIterator string_split_chars_next(String *str, String delims) {
         it._it.is_over? it.over = true: it.over)
 
 
-static inline uint64_t string_hashfnv(String string, uint64_t seed) {
+static inline uint64_t string_hash_fnv(String string, uint64_t seed) {
     uint64_t h = seed? seed: 0x100;
     for (size_t i = 0; i < string.length; i++) {
         h ^= string.data[i] & 255;
@@ -425,7 +417,7 @@ static inline uint64_t string_hashfnv(String string, uint64_t seed) {
 }
 
 static inline uint64_t string_hash(String string) {
-    return string_hashfnv(string, 0);
+    return string_hash_fnv(string, 0);
 }
 
 static String string__format(Arena *arena, const char *fmt, va_list args) {

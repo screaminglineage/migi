@@ -128,7 +128,7 @@ struct StringNode {
 };
 
 typedef struct {
-    StringNode *head;
+    StringNode *head, *tail;
     size_t length;
     size_t total_size;
 } StringList;
@@ -138,7 +138,7 @@ migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, c
 static void strlist_push_string(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
     node->string = str;
-    stack_push(list->head, node);
+    queue_push(list->head, list->tail, node);
     list->total_size += str.length;
     list->length += 1;
 }
@@ -170,10 +170,10 @@ static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
 
 static String strlist_to_string(Arena *a, StringList *list) {
     char *mem = arena_push_nonzero(a, char, list->total_size);
-    char *mem_end = mem + list->total_size;
+    char *dest = mem;
     for (StringNode *node = list->head; node != NULL; node = node->next) {
-        mem_end -= node->string.length;
-        memcpy(mem_end, node->string.data, node->string.length);
+        memcpy(dest, node->string.data, node->string.length);
+        dest += node->string.length;
     }
     return (String){mem, list->total_size};
 }
@@ -181,18 +181,17 @@ static String strlist_to_string(Arena *a, StringList *list) {
 static String strlist_join(Arena *a, StringList *list, String join_with) {
     size_t total_size = list->total_size + (list->length - 1) * join_with.length;
     char *mem = arena_push_nonzero(a, char, total_size);
-    char *mem_end = mem + total_size;
 
+    char *dest = mem;
     StringNode *node = list->head;
     for (; node->next; node = node->next) {
-        mem_end -= node->string.length;
-        memcpy(mem_end, node->string.data, node->string.length);
+        memcpy(dest, node->string.data, node->string.length);
+        dest += node->string.length;
 
-        mem_end -= join_with.length;
-        memcpy(mem_end, join_with.data, join_with.length);
+        memcpy(dest, join_with.data, join_with.length);
+        dest += join_with.length;
     }
-    mem_end -= node->string.length;
-    memcpy(mem_end, node->string.data, node->string.length);
+    memcpy(dest, node->string.data, node->string.length);
     return (String){mem, total_size};
 }
 
@@ -223,7 +222,7 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
     return strings;
 }
 
-// Convenience macro with some flags set to 0
+// Convenience macro with all flags set to 0
 #define string_split(arena, str, delimiter) \
     (string_split_ex((arena), (str), (delimiter), 0))
 
@@ -250,7 +249,7 @@ do {                                                                    \
 
 #define arrlist_add(arena, list, node_type, n)                       \
 do {                                                                 \
-    IntNode *tail = (list)->tail;                                    \
+    node_type *tail = (list)->tail;                                  \
                                                                      \
     if (!tail || tail->length >= tail->capacity) {                   \
         size_t capacity = ARRAYLIST_DEFAULT_CAP;                     \

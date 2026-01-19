@@ -10,7 +10,13 @@
 #include "migi_string.h"
 
 typedef struct {
-    String string;
+    union {
+        String as_string;
+        struct {
+            const char *data;
+            size_t length;
+        };
+    };
     size_t capacity;
 } DString;
 
@@ -18,7 +24,7 @@ typedef struct {
 #define DSTRING_INIT_CAP 32
 
 #define DS(cstr) dstring_new((cstr), sizeof(cstr) - 1)
-#define DS_FMT(ds) (int)(ds).string.length, (ds).string.data
+#define DS_FMT(ds) SV_FMT((ds).as_string)
 
 static DString dstring_new(const char *data, size_t length);
 static void dstring_free(DString *dstr);
@@ -45,15 +51,15 @@ static DString dstring_new(const char *data, size_t length) {
         .length = length
     };
     return (DString){
-        .string = string,
+        .as_string = string,
         .capacity = DSTRING_INIT_CAP
     };
 }
 
 static const char *dstring_to_temp_cstr(DString *dstr) {
     dstring_push_char(dstr, 0);
-    dstr->string.length -= 1;
-    return dstr->string.data;
+    dstr->length -= 1;
+    return dstr->data;
 }
 
 static DString dstring_from_string(String str) {
@@ -61,16 +67,16 @@ static DString dstring_from_string(String str) {
 }
 
 static void dstring_push_buffer(DString *dstr, const char *data, size_t length) {
-    size_t new_length = dstr->string.length + length;
+    size_t new_length = dstr->length + length;
     if (new_length < dstr->capacity) {
-        memcpy((char *)(dstr->string.data + dstr->string.length), data, length);
+        memcpy((char *)(dstr->data + dstr->length), data, length);
     } else {
         size_t new_capacity = next_power_of_two(new_length);
-        dstr->string.data = realloc((char *)dstr->string.data, new_capacity);
-        avow(dstr->string.data, "dstring__push: out of memory");
+        dstr->data = realloc((char *)dstr->data, new_capacity);
+        avow(dstr->data, "dstring__push: out of memory");
         dstr->capacity = new_capacity;
     }
-    dstr->string.length = new_length;
+    dstr->length = new_length;
 }
 
 static void dstring_push_char(DString *dstr, char ch) {
@@ -95,29 +101,29 @@ static void dstring_pushf(DString *dstr, const char *fmt, ...) {
 
     // vsnprintf doesnt count the null terminator
     int push_length = vsnprintf(NULL, 0, fmt, args) + 1;
-    size_t new_length = dstr->string.length + push_length;
+    size_t new_length = dstr->length + push_length;
 
     if (new_length > dstr->capacity) {
         size_t new_capacity = next_power_of_two(new_length);
-        dstr->string.data = realloc((char *)dstr->string.data, new_capacity);
-        avow(dstr->string.data, "dstring__push: out of memory");
+        dstr->data = realloc((char *)dstr->data, new_capacity);
+        avow(dstr->data, "dstring__push: out of memory");
         dstr->capacity = new_capacity;
     }
-    vsnprintf((char *)(dstr->string.data + dstr->string.length), push_length, fmt, args_saved);
+    vsnprintf((char *)(dstr->data + dstr->length), push_length, fmt, args_saved);
     // popping off the null terminator
-    dstr->string.length = new_length - 1;
+    dstr->length = new_length - 1;
 
     va_end(args_saved);
     va_end(args);
 }
 
 static void dstring_consume(DString *dstr, DString *dstr_other) {
-    dstring_push_buffer(dstr, dstr_other->string.data, dstr_other->string.length);
+    dstring_push_buffer(dstr, dstr_other->data, dstr_other->length);
     dstring_free(dstr_other);
 }
 
 static void dstring_free(DString *dstr) {
-    free((char *)dstr->string.data);
+    free((char *)dstr->data);
     *dstr = (DString){0};
 }
 
