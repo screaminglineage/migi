@@ -45,7 +45,7 @@ static void dstring_push_buffer(DString *dstr, const char *data, size_t length);
 static void dstring_consume(DString *dstr, DString *dstr_other);
 
 static DString dstring_new(const char *data, size_t length) {
-    size_t size_bytes = DSTRING_INIT_CAP * sizeof(*data);
+    size_t size_bytes = clamp_bottom(DSTRING_INIT_CAP, next_power_of_two(length));
     String string = {
         .data = memcpy(malloc(size_bytes), data, length),
         .length = length
@@ -68,14 +68,13 @@ static DString dstring_from_string(String str) {
 
 static void dstring_push_buffer(DString *dstr, const char *data, size_t length) {
     size_t new_length = dstr->length + length;
-    if (new_length < dstr->capacity) {
-        memcpy((char *)(dstr->data + dstr->length), data, length);
-    } else {
+    if (new_length >= dstr->capacity) {
         size_t new_capacity = next_power_of_two(new_length);
         dstr->data = realloc((char *)dstr->data, new_capacity);
         avow(dstr->data, "dstring__push: out of memory");
         dstr->capacity = new_capacity;
     }
+    memcpy((char *)(dstr->data + dstr->length), data, length);
     dstr->length = new_length;
 }
 
@@ -92,6 +91,7 @@ static void dstring_push(DString *dstr, String str) {
     dstring_push_buffer(dstr, str.data, str.length);
 }
 
+migi_printf_format(2, 3)
 static void dstring_pushf(DString *dstr, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
