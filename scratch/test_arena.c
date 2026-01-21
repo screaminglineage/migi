@@ -9,7 +9,7 @@
 #include "arena.h"
 #include "migi_string.h"
 
-void test_arena() {
+void test_arena_functions() {
     typedef struct {
         int a, b;
         char c;
@@ -43,7 +43,7 @@ void test_arena() {
 
     {
         Arena *a = arena_init(.type = Arena_Chained, .commit_size = 4*MB, .reserve_size = 64*MB);
-        Checkpoint c = arena_save(a);
+        Temp tmp = arena_save(a);
         for (int i = 0; i < 10000; i++) {
             *arena_new(a, Foo) = (Foo){i, i+1, i % 256, sinf((float)i), i*i};
         }
@@ -53,7 +53,7 @@ void test_arena() {
 
     {
         Arena *a = arena_init(.type = Arena_Chained, .commit_size = 3*KB, .reserve_size = 8*KB);
-        Checkpoint c = arena_save(a);
+        Temp tmp = arena_save(a);
         char *data = arena_push(a, char, 4*KB + 1);
         memset(data, 0xff, 4*KB);
         data = arena_push(a, char, 8*KB);
@@ -120,7 +120,7 @@ void test_arena() {
     {
         Arena *a = arena_init(.type = Arena_Chained, .commit_size = 3*KB, .reserve_size = 1*MB);
         arena_push(a, char, 1*KB);
-        Checkpoint c = arena_save(a);
+        Temp tmp = arena_save(a);
         for (size_t i = 0; i < 1022; i++) {
             arena_push(a, char, 1*KB);
         }
@@ -149,12 +149,42 @@ void test_arena() {
     // reading/writing files
     {
         Arena *arena = arena_init();
-        StringResult res = string_from_file(arena, SV("scratch/test_arena.c"));
-        assert(res.ok);
-        assert(string_to_file(res.string, SV("build/test_arena-dumped.c"), arena));
+        String str = string_from_file(arena, SV("scratch/test_arena.c"));
+        assert(str.length > 0);
+        assert(string_to_file(str, SV("build/test_arena-dumped.c")));
     }
 }
 
+String bar(Arena *a) {
+    Temp tmp = arena_temp(a);
+    String foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SV_FMT(SV("testing!!!")));
+
+    int *temp = arena_push(c.arena, int, 64);
+    for (size_t i = 0; i < 64; i++) {
+        temp[i] = i;
+    }
+    arena_temp_release(c);
+
+    return foo;
+}
+
+void test_arena_temp() {
+    Temp tmp = arena_temp();
+    String foo = bar(c.arena);
+
+    int *temp = arena_push(c.arena, int, 64);
+    for (size_t i = 0; i < 64; i++) {
+        temp[i] = i;
+    }
+
+    assertf(string_eq(foo, SV("hello world 123 4.510000, testing!!!\n")), "data is not overwritten");
+    arena_temp_release(c);
+}
+
+void test_arena() {
+    test_arena_functions();
+    test_arena_temp();
+}
 
 int main() {
     test_arena();

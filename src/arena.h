@@ -66,7 +66,7 @@ typedef struct {
     Arena *arena;
     Arena *current;
     size_t position;
-} Checkpoint;
+} Temp;
 
 #define arena_init(...)                             \
     arena__init((ArenaOptions){                     \
@@ -106,16 +106,30 @@ static inline void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_
 
 static void arena_reset(Arena *arena);
 
-static inline Checkpoint arena_save(Arena *arena);
-static void arena_rewind(Checkpoint checkpoint);
+static inline Temp arena_save(Arena *arena);
+static void arena_rewind(Temp checkpoint);
 
 // Create a temporary region within the arena
 // NOTE: Using `break` will return early without rewinding the checkpoint
 // Using `continue` will also return early but will rewind the checkpoint
-#define arena_temp(a, temp)                 \
-    for (Checkpoint temp = arena_save((a)); \
-        temp.arena;                         \
+#define arena_region(a, temp)         \
+    for (Temp temp = arena_save((a)); \
+        temp.arena;                   \
         arena_rewind(temp), temp.arena = NULL)
+
+
+// Thread local global arenas
+// Each is alternated between being the "main" and "temporary" storage
+// 2 arenas are enough for most cases
+threadvar Arena *GLOBAL_SCRATCH_ARENAS[2] = {0};
+static Temp arena_temp_conflicts(Arena **conflicts, size_t conflicts_length);
+static void arena_temp_release(Temp c);
+
+// Convenience macro
+#define arena_temp(...)                              \
+    arena_temp_conflicts((Arena *[]){ __VA_ARGS__ }, \
+        sizeof((Arena *[]){ __VA_ARGS__ }) / sizeof(Arena *))
+
 
 static Arena *arena__init(ArenaOptions opt, void *backing_buffer, size_t backing_buffer_size) {
     byte *mem = backing_buffer;
@@ -291,15 +305,15 @@ static void arena_free(Arena *arena) {
     }
 }
 
-static inline Checkpoint arena_save(Arena *arena) {
-    return (Checkpoint) {
+static inline Temp arena_save(Arena *arena) {
+    return (Temp) {
         .arena = arena,
         .current = arena->current,
         .position = arena->current->position
     };
 }
 
-static void arena_rewind(Checkpoint checkpoint) {
+static void arena_rewind(Temp checkpoint) {
     // TODO: assert that the current position is after the checkpoint
     assert(checkpoint.arena);
     assert(checkpoint.current);
@@ -321,6 +335,40 @@ static void arena_rewind(Checkpoint checkpoint) {
         current->committed = new_committed;
     }
     current->position = new_position;
+}
+
+
+static Temp arena_temp_conflicts(Arena **conflicts, size_t conflicts_length) {
+    int index = -1;
+    for (size_t i = 0; i < array_len(GLOBAL_SCRATCH_ARENAS); i++) {
+        bool has_conflict = false;
+        for (size_t j = 0; j < conflicts_length; j++) {
+            if (GLOBAL_SCRATCH_ARENAS[i] == conflicts[j]) {
+                has_conflict = true;
+                break;
+            }
+        }
+        if (!has_conflict) {
+            index = i;
+            break;
+        }
+    }
+
+    if (index == -1) {
+        return (Temp){0};
+    }
+
+    Arena **selected = &GLOBAL_SCRATCH_ARENAS[index];
+    if (!*selected) {
+        *selected = arena_init();
+    }
+
+    return arena_save(*selected);
+}
+
+
+static void arena_temp_release(Temp c) {
+    arena_rewind(c);
 }
 
 #endif // MIGI_ARENA_H

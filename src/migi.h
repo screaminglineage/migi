@@ -175,6 +175,14 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
     #define migi_printf_format(format_index, vararg_index)
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+    #define threadvar __thread
+#elif defined(_MSC_VER)
+    #define threadvar __declspec(thread)
+#else
+    #error "threadvar is not supported for compiler"
+#endif
+
 
 #define mem_swap(type, a, b) \
 do {                         \
@@ -310,9 +318,9 @@ static_assert(array_len(MIGI_LOG_LEVELS) == Log_Count, "the number of log levels
 
 // TODO: maybe make this thread_local?
 #ifdef MIGI_DEBUG_LOGS
-    static LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Debug;
+    threadvar LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Debug;
 #else
-    static LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Info;
+    threadvar LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Info;
 #endif
 
 // `context` is usually the name of the function (passed in as __func__) calling migi_log

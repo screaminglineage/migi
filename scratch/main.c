@@ -99,7 +99,7 @@ void test_linear_arena_dup() {
 void test_linear_arena_regular(Arena *arena) {
     // unaligned read check
     {
-        Checkpoint save = arena_save(arena);
+        Temp save = arena_save(arena);
         arena_push(arena, char, 1);
         *arena_new(arena, uint64_t) = 12;
         arena_pop(arena, uint64_t, 1);
@@ -135,7 +135,7 @@ void test_linear_arena_rewind() {
 
     Arena *arena2 = arena_init(.type = Arena_Linear);
     arena_copy_bytes(arena2, arena1->current->data, arena1->current->position - sizeof(Arena), 1);
-    Checkpoint checkpoint = arena_save(arena1);
+    Temp checkpoint = arena_save(arena1);
     uint64_t old_capacity = arena1->current->reserved;
 
     mem = arena_push_bytes(arena1, size, 1, true);
@@ -178,7 +178,7 @@ void test_chained_arena() {
     size_t reserved = 16*KB;
     Arena *arena = arena_init(.type = Arena_Chained, .reserve_size = reserved);
 
-    Checkpoint save = arena_save(arena);
+    Temp save = arena_save(arena);
     {
         // unaligned read check
         arena_push(arena, char, 1);
@@ -203,7 +203,7 @@ void test_chained_arena() {
 
     Arena *saved_tail = arena->current;
     size_t saved_tail_length = arena->current->position;
-    Checkpoint checkpoint = arena_save(arena);
+    Temp checkpoint = arena_save(arena);
 
     int *e =
         arena_realloc(arena, int, d, reserved, reserved * 2);
@@ -290,7 +290,7 @@ void test_random() {
     random_bytes(buf2, size);
 
     int a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-    array_shuffle(arena, a, int, array_len(a));
+    array_shuffle(a, int, array_len(a));
     array_print(a, array_len(a), "%d");
 
     typedef struct {
@@ -301,7 +301,7 @@ void test_random() {
         (Foo){1, 2, "12"}, (Foo){2, 3, "23"}, (Foo){3, 4, "34"},
         (Foo){4, 5, "45"}, (Foo){5, 6, "56"},
     };
-    array_shuffle(arena, b, Foo, array_len(b));
+    array_shuffle(b, Foo, array_len(b));
     for (size_t i = 0; i < array_len(b); i++) {
         printf("%d %d %s\n", b[i].a, b[i].b, b[i].foo);
     }
@@ -322,7 +322,7 @@ void test_random() {
     int sample_size = 1000000;
     int total = 0;
     for (int i = 0; i < sample_size; i++) {
-        int chosen = random_choose_fuzzy(arena, arr, int, weights);
+        int chosen = random_choose_fuzzy(arr, int, weights);
         frequencies[chosen] += 1;
         total += 1;
     }
@@ -513,10 +513,10 @@ void test_string_list() {
     Arena *a = arena_init();
     StringList sl = {0};
 
-    strlist_push_string(a, &sl, SV("This is a "));
-    strlist_push_string(a, &sl, SV("string being built "));
+    strlist_push(a, &sl, SV("This is a "));
+    strlist_push(a, &sl, SV("string being built "));
     strlist_push_cstr(a, &sl, "over time");
-    strlist_push(a, &sl, '!');
+    strlist_push_char(a, &sl, '!');
 
     char *s = "\nMore Stuff Here\n";
     size_t len = strlen(s);
@@ -866,7 +866,7 @@ void test_pool_allocator() {
 
 void test_temp_allocator() {
     temp_init();
-    Checkpoint c = temp_save();
+    Temp tmp = temp_save();
     for (size_t i = 0; i < 1000; i++) {
         assert(string_eq(SV("3-2-1 go!"), temp_format("%d-%d-%d go!", 3, 2, 1)));
         int *a = temp_alloc(int, 25);
@@ -874,7 +874,7 @@ void test_temp_allocator() {
             a[j] = j;
         }
     }
-    temp_rewind(c);
+    temp_rewind(tmp);
 
     assert(temp_allocator_global_arena->current == temp_allocator_global_arena->current);
     assert(temp_allocator_global_arena->current->position == sizeof(Arena));
@@ -1173,8 +1173,7 @@ void test_dynamic_string() {
 }
 
 int main() {
-    test_dynamic_string();
-
+    test_string_builder_formatted();
     printf("\nExiting successfully\n");
     return 0;
 }

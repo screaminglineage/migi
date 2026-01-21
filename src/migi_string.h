@@ -461,10 +461,9 @@ migi_printf_format(2, 3) static String stringf(Arena *arena, const char *fmt, ..
 static String string_from_file(Arena *arena, String filepath) {
     String result = {0};
 
-    FILE *file = NULL;
-    arena_temp(arena, temp) {
-        file = fopen(string_to_cstr(temp.arena, filepath), "r");
-    }
+    Temp tmp = arena_save(arena);
+    FILE *file = fopen(string_to_cstr(tmp.arena, filepath), "r");
+    arena_rewind(tmp);
 
     if (!file) {
         migi_log(Log_Error, "failed to open file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
@@ -501,11 +500,10 @@ static String string_from_file(Arena *arena, String filepath) {
 
 
 // TODO: use linux syscalls instead of C stdlib
-static bool string_to_file(String string, String filepath, Arena *arena) {
-    FILE *file = NULL;
-    arena_temp(arena, temp) {
-        file = fopen(string_to_cstr(temp.arena, filepath), "w");
-    }
+static bool string_to_file(String string, String filepath) {
+    Temp tmp = arena_temp();
+    FILE *file = fopen(string_to_cstr(tmp.arena, filepath), "w");
+    arena_temp_release(tmp);
 
     if (!file) {
         migi_log(Log_Error, "failed to open file `%.*s`: %s", SV_FMT(filepath), strerror(errno));

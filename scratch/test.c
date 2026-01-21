@@ -92,8 +92,8 @@ void rack_write_i64(Rack *rack, int64_t num) {
     node->as.i64 = num;
 }
 
-void rack__dump_node(FILE *file, RackNode node) {
-    fprintf(file, "%s", RACK_NODE_NAMES[node.type]);
+void rack__dump_node(Arena *arena, StringList *list, RackNode node) {
+    strlist_push_cstr(arena, list, RACK_NODE_NAMES[node.type]);
 
     switch (node.type) {
         case RackNode_String: {
@@ -106,8 +106,8 @@ void rack__dump_node(FILE *file, RackNode node) {
             string_length[2] = (string.length >> 16);
             string_length[3] = (string.length >> 24);
 
-            fwrite(string_length, sizeof(char), sizeof(uint32_t), file);
-            fwrite(string.data, sizeof(char), string.length, file);
+            strlist_push_buffer(arena, list, string_length, sizeof(uint32_t));
+            strlist_push(arena, list, string);
         } break;
 
         case RackNode_I64: {
@@ -118,7 +118,7 @@ void rack__dump_node(FILE *file, RackNode node) {
             for (size_t i = 0; i < sizeof(int64_t); i++) {
                 num_as_bytes[i] = num >> 8 * i;
             }
-            fwrite(num_as_bytes, sizeof(char), sizeof(int64_t), file);
+            strlist_push_buffer(arena, list, num_as_bytes, sizeof(int64_t));
         } break;
 
         case RackNode_U64:
@@ -131,24 +131,17 @@ void rack__dump_node(FILE *file, RackNode node) {
     }
 }
 
-bool rack_dump(Rack *rack, String filepath, Arena *temp) {
-    Checkpoint mark = arena_save(temp);
-    FILE *file = fopen(string_to_cstr(temp, filepath), "w");
-    if (!file) {
-        arena_rewind(mark);
-        fprintf(stderr, "%s: failed to open file `%.*s`: %s\n", __func__, SV_FMT(filepath), strerror(errno));
-        return false;
-    }
-    arena_rewind(mark);
-
+bool rack_dump(Rack *rack, String filepath) {
+    StringList list = {0};
+    Temp tmp = arena_temp();
     list_foreach(rack->pairs, RackPair, pair) {
-        rack__dump_node(file, pair->key);
-        rack__dump_node(file, pair->value);
-        arena_rewind(mark);
+        rack__dump_node(tmp.arena, &list, pair->key);
+        rack__dump_node(tmp.arena, &list, pair->value);
     }
 
-    fclose(file);
-    return true;
+    bool res = string_to_file(strlist_to_string(tmp.arena, &list), filepath);
+    arena_temp_release(tmp);
+    return res;
 }
 
 RackNode rack__load_node(Arena *arena, String *rack_str, String filepath) {
@@ -214,13 +207,13 @@ RackNode rack__load_node(Arena *arena, String *rack_str, String filepath) {
     return node;
 }
 
-// TODO: read_file data is not cleared and sticks around in the same arena
 bool rack_load(Arena *arena, Rack *rack, String filepath) {
-    StringResult res = read_file(arena, filepath);
-    if (!res.ok) {
+    Temp tmp = arena_temp(arena);
+    String rack_str = string_from_file(tmp.arena, filepath);
+    if (rack_str.length == 0) {
+        arena_temp_release(tmp);
         return false;
     }
-    String rack_str = res.string;
 
     while (rack_str.length != 0) {
         RackPair *pair = arena_new(arena, RackPair);
@@ -228,6 +221,7 @@ bool rack_load(Arena *arena, Rack *rack, String filepath) {
         pair->value = rack__load_node(arena, &rack_str, filepath);
         stack_push(rack->pairs, pair);
     }
+    arena_temp_release(tmp);
     return true;
 }
 
@@ -253,27 +247,26 @@ void rack__print_node(RackNode node) {
 }
 
 int main() {
-    Arena *arena = arena_init();
-
     String filepath = SV("data.rack");
+    Temp tmp = arena_temp();
+
     Rack rack = {0};
+    rack_begin_pair(tmp.arena, &rack);
+    rack_write_string(tmp.arena, &rack, SV("Steel Ball Run"));
+    rack_write_string(tmp.arena, &rack, SV("Johnny Joestar"));
 
-    rack_begin_pair(arena, &rack);
-    rack_write_string(arena, &rack, SV("Steel Ball Run"));
-    rack_write_string(arena, &rack, SV("Johnny Joestar"));
-
-    rack_begin_pair(arena, &rack);
-    rack_write_string(arena, &rack, SV("Jojolion"));
+    rack_begin_pair(tmp.arena, &rack);
+    rack_write_string(tmp.arena, &rack, SV("Jojolion"));
     rack_write_i64(&rack, 8);
 
-    rack_begin_pair(arena, &rack);
-    rack_write_string(arena, &rack, SV("Jojolands"));
+    rack_begin_pair(tmp.arena, &rack);
+    rack_write_string(tmp.arena, &rack, SV("Jojolands"));
     rack_write_i64(&rack, 9);
 
-    rack_dump(&rack, filepath, arena);
+    rack_dump(&rack, filepath);
 
     Rack rack1 = {0};
-    rack_load(arena, &rack1, filepath);
+    rack_load(tmp.arena, &rack1, filepath);
     list_foreach(rack1.pairs, RackPair, pair) {
         rack__print_node(pair->key);
         printf(": ");
@@ -281,5 +274,6 @@ int main() {
         printf("\n");
     }
 
+    arena_temp_release(tmp);
     return 0;
 }

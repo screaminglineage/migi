@@ -135,7 +135,7 @@ typedef struct {
 
 migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...);
 
-static void strlist_push_string(Arena *a, StringList *list, String str) {
+static void strlist_push(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
     node->string = str;
     queue_push(list->head, list->tail, node);
@@ -143,19 +143,19 @@ static void strlist_push_string(Arena *a, StringList *list, String str) {
     list->length += 1;
 }
 
-static void strlist_push(Arena *a, StringList *list, char ch) {
+static void strlist_push_char(Arena *a, StringList *list, char ch) {
     char *data = arena_new(a, char);
     *data = ch;
-    strlist_push_string(a, list, (String){data, 1});
+    strlist_push(a, list, (String){data, 1});
 }
 
-static void strlist_push_cstr(Arena *a, StringList *list, char *cstr) {
-    strlist_push_string(a, list, string_from_cstr(cstr));
+static void strlist_push_cstr(Arena *a, StringList *list, const char *cstr) {
+    strlist_push(a, list, string_from_cstr(cstr));
 }
 
 static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t length) {
     char *data = arena_copy(a, char, str, length);
-    strlist_push_string(a, list, (String){data, length});
+    strlist_push(a, list, (String){data, length});
 }
 
 // NOTE: strlist_pushf doesnt append a null terminator at the end
@@ -165,7 +165,7 @@ static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
     va_start(args, fmt);
     String string = string__format(a, fmt, args);
     va_end(args);
-    strlist_push_string(a, list, string);
+    strlist_push(a, list, string);
 }
 
 static String strlist_to_string(Arena *a, StringList *list) {
@@ -216,7 +216,7 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
             : string_split_next(&str, delimiter);
 
         if (next.string.length != 0 || !(flags & Split_SkipEmpty)) {
-            strlist_push_string(a, &strings, next.string);
+            strlist_push(a, &strings, next.string);
         }
     }
     return strings;

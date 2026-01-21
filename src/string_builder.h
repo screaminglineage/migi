@@ -93,7 +93,7 @@ static const char *sb_to_cstr(StringBuilder *sb) {
 }
 
 static bool sb_to_file(StringBuilder *sb, String filename) {
-    return string_to_file(sb_to_string(sb), filename, sb->arena);
+    return string_to_file(sb_to_string(sb), filename);
 }
 
 #endif // MIGI_STRING_BUILDER_H
