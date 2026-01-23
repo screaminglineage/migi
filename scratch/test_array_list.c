@@ -1,9 +1,4 @@
-#include <stddef.h>
-#include <stdio.h>
-
-#include "arena.h"
 #include "migi.h"
-#include "migi_list.h"
 
 typedef struct IntNode IntNode;
 struct IntNode {

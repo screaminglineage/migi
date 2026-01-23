@@ -13,7 +13,7 @@
 #include "profiler.h"
 
 #include "arena.h"
-#include "migi.h"
+#include "migi_core.h"
 #include "migi_string.h"
 
 

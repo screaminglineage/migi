@@ -16,7 +16,7 @@
 // collisions. Either a really good hash function should be used, or a large
 // enough space should be allocated for the hashmap.
 
-#include "migi.h"
+#include "migi_core.h"
 #include "arena.h"
 
 #ifndef SMOL_MAP_DEFAULT_SIZE

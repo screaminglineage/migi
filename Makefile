@@ -14,6 +14,9 @@ RELEASEFLAGS := -O3 -DMIGI_DISABLE_ASSERTS
 main: scratch/main.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/main.c ${LINKMATH}  ${OUT}/main ${LINKFLAGS}
 
+build: scratch/build.c src/*.h
+	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/build.c ${LINKMATH}  ${OUT}/build ${LINKFLAGS}
+
 walk_dir: scratch/walk_dir.c src/*.h
 	${CC} ${CFLAGS} ${DEBUGFLAGS} ${SANITIZERS} ${INCLUDE} scratch/walk_dir.c ${LINKMATH}  ${OUT}/walk_dir ${LINKFLAGS}
 

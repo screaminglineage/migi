@@ -10,7 +10,7 @@
     #include <windows.h>
 #endif
 
-#include "migi.h"
+#include "migi_core.h"
 
 #define align_up_page_size(n) (align_up((n), memory_page_size()))
 #define align_down_page_size(n) (align_down((n), memory_page_size()))

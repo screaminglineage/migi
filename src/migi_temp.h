@@ -1,7 +1,7 @@
 #ifndef MIGI_TEMP_ALLOC_H
 #define MIGI_TEMP_ALLOC_H
 
-#include "migi.h"
+#include "migi_core.h"
 #include <stdarg.h>
 
 #ifndef ARENA_DEFAULT_ZONE_CAP

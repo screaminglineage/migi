@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "migi.h"
+#include "migi_core.h"
 #include "migi_string.h"
 
 typedef struct {
@@ -24,7 +24,6 @@ typedef struct {
 #define DSTRING_INIT_CAP 32
 
 #define DS(cstr) dstring_new((cstr), sizeof(cstr) - 1)
-#define DS_FMT(ds) SV_FMT((ds).as_string)
 
 static DString dstring_new(const char *data, size_t length);
 static void dstring_free(DString *dstr);

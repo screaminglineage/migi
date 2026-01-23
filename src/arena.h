@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "migi.h"
+#include "migi_core.h"
 
 // Use malloc/free instead of OS memory mapping
 // TODO: use max_align_t for arena__alignment

@@ -1,7 +1,7 @@
 #ifndef MIGI_LISTS_H
 #define MIGI_LISTS_H
 
-#include "migi.h"
+#include "migi_core.h"
 #include "migi_string.h"
 #include "arena.h"
 #include <stddef.h>
@@ -176,6 +176,29 @@ static String strlist_to_string(Arena *a, StringList *list) {
         dest += node->string.length;
     }
     return (String){mem, list->total_size};
+}
+
+static void strlist_extend(StringList *list, StringList *extend_with) {
+    // Update the head as well for an empty StringList
+    if (list->length == 0) {
+        list->head = extend_with->head;
+    } else {
+        list->tail->next = extend_with->head;
+    }
+    list->tail = extend_with->tail;
+
+    list->length += extend_with->length;
+    list->total_size += extend_with->total_size;
+}
+
+static String strlist_pop(StringList *list) {
+    if (!list->head) return (String){0};
+
+    String popped = list->head->string;
+    queue_pop(list->head, list->tail);
+    list->length -= 1;
+    list->total_size -= popped.length;
+    return popped;
 }
 
 static String strlist_join(Arena *a, StringList *list, String join_with) {

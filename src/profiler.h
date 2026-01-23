@@ -16,7 +16,7 @@ static void end_profiling_and_print_stats();
 #define TIMING_H_IMPLEMENTATION
 #include "timing.h"
 
-#include "migi.h"
+#include "migi_core.h"
 
 typedef uint64_t u64;
 

@@ -1,12 +1,4 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-
-#include "arena.h"
 #include "migi.h"
-#include "migi_string.h"
-#include "migi_list.h"
 
 typedef enum {
     RackNode_None = 0,

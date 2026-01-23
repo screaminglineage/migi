@@ -1,14 +1,7 @@
-#include "timing.h"
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #define PROFILER_H_IMPLEMENTATION
 #define ENABLE_PROFILING
 #include "profiler.h"
 
-#include "arena.h"
 
 // #define HASHMAP_INIT_CAP 4
 // #define HASHMAP_LOAD_FACTOR 0.25
@@ -16,7 +9,6 @@
 #include "hashmap.h"
 #include "migi.h"
 #include "migi_random.h"
-#include "migi_string.h"
 
 
 void test_basic() {
@@ -148,7 +140,7 @@ int hash_entry_cmp(const void *a, const void *b) {
 void frequency_analysis() {
     Arena *a = arena_init();
 
-    String contents = read_file(a, SV("shakespeare.txt")).string;
+    String contents = string_from_file(a, SV("shakespeare.txt"));
     // read_file(&sb, SV("gatsby.txt"));
     // read_file(&sb, SV("hashmap_test.txt"));
 

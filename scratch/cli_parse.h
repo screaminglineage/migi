@@ -1,14 +1,9 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "arena.h"
-#include "migi.h"
-#include "migi_string.h"
 #include "migi_list.h"
+#include <stddef.h>
+#include <string.h>
+#ifndef CLI_PARSE_H
+#include "migi.h"
 
 typedef struct {
     String key;
@@ -17,7 +12,8 @@ typedef struct {
 
 typedef struct {
     FlagSlot *slots;
-    StringList args; // positional arguments
+    StringList args;         // positional arguments
+    StringList meta_args;    // arguments following a `--`, usually passed to the program being called by this program
     String executable;
 
     size_t length;
@@ -62,7 +58,7 @@ static String *flag_lookup(FlagTable *flags, String flag) {
 
 // TODO: add support for --flag=a,b,c and --flag a,b,c
 // TODO: cleanup this function a little bit, maybe convert to a state machine
-static FlagTable cli_parse_args(Arena *arena, int argc, char *argv[]) {
+static FlagTable cli_parse_args_ex(Arena *arena, int argc, char *argv[], StringSlice free_keys) {
     FlagTable flags = {0};
     flags.exp = 3;
     for (; (1 << flags.exp) - (1 << (flags.exp - 3)) < argc; flags.exp++) {}
@@ -82,6 +78,29 @@ static FlagTable cli_parse_args(Arena *arena, int argc, char *argv[]) {
             } else {
                 // -flag
                 flag_key = string_skip(string_from_cstr(arg), 1);
+            }
+
+            // parse everything after `--` as one single argument
+            if (flag_key.length == 0) {
+                while (*ptr) {
+                    strlist_push_cstr(arena, &flags.meta_args, *ptr);
+                    ptr++;
+                }
+                break;
+            }
+
+            // dont try to parse values if the key is a freestanding key
+            // for example, `-h`, `--verbose`, etc.
+            bool free_key = false;
+            for (size_t i = 0; i < free_keys.length; i++) {
+                if (string_eq(flag_key, free_keys.data[i])) {
+                    free_key = true;
+                    break;
+                }
+            }
+            if (free_key && flag_key.length != 0) {
+                flag_insert(&flags, flag_key, (String){0});
+                continue;
             }
 
             String flag_value = {0};
@@ -110,14 +129,16 @@ static FlagTable cli_parse_args(Arena *arena, int argc, char *argv[]) {
                 flag_insert(&flags, flag_key, flag_value);
             }
         } else {
-            StringNode *node = arena_new(arena, StringNode);
-            node->string = string_from_cstr(arg);
-            queue_push(flags.args.head, flags.args.tail, node);
+            strlist_push(arena, &flags.args, string_from_cstr(arg));
         }
     }
 
     return flags;
 }
+
+#define cli_parse_args(arena, argc, argv, ...) \
+    cli_parse_args_ex((arena), (argc), (argv), slice_from(String, StringSlice, __VA_ARGS__))
+
 
 // Use for flags like (-v, -h)
 static bool flag_exists(FlagTable *flags, String name) {
@@ -198,35 +219,5 @@ static double flag_as_f64(FlagTable *flags, String name, double fallback) {
 // Iterate over each positional argument
 #define flag_args_foreach(flags, arg) list_foreach((flags).args.head, StringNode, (arg))
 
-
-int main(int argc, char *argv[]) {
-    Arena *arena = arena_init();
-    FlagTable flags = cli_parse_args(arena, argc, argv);
-
-    printf("Executable: %.*s\n", SV_FMT(flags.executable));
-
-    printf("\nFlag Arguments:\n");
-    flag_foreach(flags, flag) {
-        printf("%.*s: %.*s\n", SV_FMT(flag->key), SV_FMT(flag->value));
-    }
-
-    printf("\nPositional Arguments:\n");
-    flag_args_foreach(flags, arg) {
-        printf("%.*s\n", SV_FMT(arg->string));
-    }
-
-    printf("\n-----------------------\n");
-    printf("foo: %ld\n", flag_as_i64(&flags, SV("foo"), 0));
-    printf("bar: %ld\n", flag_as_i64(&flags, SV("bar"), 10));
-
-    printf("baz: %f\n", flag_as_f64(&flags, SV("baz"), 0));
-
-    printf("help: %d\n", flag_exists(&flags, SV("help")));
-    printf("v: %d\n", flag_exists(&flags, SV("v")));
-
-    printf("color: %d\n", flag_as_bool(&flags, SV("color")));
-    printf("t: %d\n", flag_as_bool(&flags, SV("t")));
-
-    return 0;
-}
+#endif // ifndef CLI_PARSE_H
 

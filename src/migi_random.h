@@ -11,7 +11,7 @@
 #include <math.h>
 
 #include "arena.h"
-#include "migi.h"
+#include "migi_core.h"
 
 // MIGI_DONT_AUTO_SEED_RNG can be defined to allow the user manually seed the
 // RNG before calling it for the first time.
@@ -121,7 +121,7 @@ static double random_double() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     if (!rng.is_seeded) migi_seed(time(NULL));
 #endif
-    return (double)xoshiro256_plus(rng.state) / (float)UINT64_MAX;
+    return (double)xoshiro256_plus(rng.state) / (double)UINT64_MAX;
 }
 
 // Return a random integer in the range [min, max]
@@ -191,6 +191,7 @@ static int compare_weights(const void *a_, const void *b_) {
     }
 }
 
+// TODO: can the sort be avoided?
 static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, float *weights, size_t length) {
     Temp tmp = arena_temp();
     WeightIndex *weight_indices = arena_push_nonzero(tmp.arena, WeightIndex, length);

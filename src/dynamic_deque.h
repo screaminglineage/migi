@@ -16,7 +16,7 @@
 
 #include <stddef.h>
 
-#include "migi.h"
+#include "migi_core.h"
 #include "migi_memory.h"
 
 typedef struct {

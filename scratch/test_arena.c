@@ -1,13 +1,4 @@
-#define _CRT_SECURE_NO_WARNINGS
-
-#include <math.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
-
 #include "migi.h"
-#include "arena.h"
-#include "migi_string.h"
 
 void test_arena_functions() {
     typedef struct {
@@ -47,7 +38,7 @@ void test_arena_functions() {
         for (int i = 0; i < 10000; i++) {
             *arena_new(a, Foo) = (Foo){i, i+1, i % 256, sinf((float)i), i*i};
         }
-        arena_rewind(c);
+        arena_rewind(tmp);
         arena_free(a);
     }
 
@@ -60,7 +51,7 @@ void test_arena_functions() {
         memset(data, 0xa, 8*KB);
         data = arena_push(a, char, 8*KB);
         memset(data, 0xb, 8*KB);
-        arena_rewind(c);
+        arena_rewind(tmp);
     }
 
     // out of memory test
@@ -125,7 +116,7 @@ void test_arena_functions() {
             arena_push(a, char, 1*KB);
         }
         arena_push(a, char, 1*KB);
-        arena_rewind(c);
+        arena_rewind(tmp);
         assert(a->current->position == sizeof(Arena) + 1*KB);
         assert(a->current->committed == 4*KB);
 
@@ -151,7 +142,10 @@ void test_arena_functions() {
         Arena *arena = arena_init();
         String str = string_from_file(arena, SV("scratch/test_arena.c"));
         assert(str.length > 0);
-        assert(string_to_file(str, SV("build/test_arena-dumped.c")));
+
+        String filepath = SV("build/test_arena-dumped.c");
+        assert(string_to_file(str, filepath));
+        assert(string_eq(str, string_from_file(arena, filepath)));
     }
 }
 
@@ -159,26 +153,26 @@ String bar(Arena *a) {
     Temp tmp = arena_temp(a);
     String foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SV_FMT(SV("testing!!!")));
 
-    int *temp = arena_push(c.arena, int, 64);
+    int *temp = arena_push(tmp.arena, int, 64);
     for (size_t i = 0; i < 64; i++) {
         temp[i] = i;
     }
-    arena_temp_release(c);
+    arena_temp_release(tmp);
 
     return foo;
 }
 
 void test_arena_temp() {
     Temp tmp = arena_temp();
-    String foo = bar(c.arena);
+    String foo = bar(tmp.arena);
 
-    int *temp = arena_push(c.arena, int, 64);
+    int *temp = arena_push(tmp.arena, int, 64);
     for (size_t i = 0; i < 64; i++) {
         temp[i] = i;
     }
 
     assertf(string_eq(foo, SV("hello world 123 4.510000, testing!!!\n")), "data is not overwritten");
-    arena_temp_release(c);
+    arena_temp_release(tmp);
 }
 
 void test_arena() {

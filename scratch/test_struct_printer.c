@@ -1,8 +1,5 @@
-#include <stddef.h>
-#include <stdio.h>
 #include "migi.h"
 #include "dynamic_array.h"
-#include "migi_string.h"
 #include "../gen/String_printer.gen.c"
 
 typedef struct {

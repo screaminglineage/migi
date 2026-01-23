@@ -1,5 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
-
 // MSVC needs this macro to define math constants (M_PI, etc.)
 #ifdef _MSC_VER
     #define _USE_MATH_DEFINES
@@ -12,6 +10,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "migi.h"
 #include "migi_memory.h"
 
 #ifdef __GNUC__
@@ -29,14 +28,10 @@
 // #define ENABLE_PROFILING
 #include "profiler.h"
 
-#include "arena.h"
-#include "migi.h"
 
 // #define DYNAMIC_ARRAY_USE_ARENA
 #include "dynamic_array.h"
-#include "migi_list.h"
 #include "migi_random.h"
-#include "migi_string.h"
 #include "dynamic_string.h"
 #include "string_builder.h"
 
@@ -314,10 +309,14 @@ void test_random() {
         assert(random_range_exclusive(0, 1) != 1);
     }
 
-#define COUNT 5
-    int arr[COUNT] = {0, 1, 2, 3, 4};
-    int64_t weights[COUNT] = {25, 50, 75, 50, 25};
-    int frequencies[COUNT] = {0};
+    size_t count = 5;
+    int arr[]         = { 0,  1,  2,  3,  4};
+    int64_t weights[] = {25, 50, 75, 50, 25};
+    int frequencies[] = {0};
+
+    assert(array_len(arr)         == count);
+    assert(array_len(weights)     == count);
+    assert(array_len(frequencies) == count);
 
     int sample_size = 1000000;
     int total = 0;
@@ -327,11 +326,10 @@ void test_random() {
         total += 1;
     }
 
-    for (size_t i = 0; i < COUNT; i++) {
+    for (size_t i = 0; i < count; i++) {
         double percentage = ((double)frequencies[i] / (double)total) * 100.0;
         printf("[%zu] => %.2f%%\n", i, percentage);
     }
-#undef COUNT
 }
 
 void test_dynamic_array() {
@@ -1173,7 +1171,6 @@ void test_dynamic_string() {
 }
 
 int main() {
-    test_string_builder_formatted();
     printf("\nExiting successfully\n");
     return 0;
 }

@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "migi.h"
+#include "migi_core.h"
 #include "arena.h"
 
 // TODO: forward declare all functions
@@ -273,6 +273,7 @@ static String string_reverse(Arena *arena, String str) {
 
 
 static String string_replace(Arena *arena, String str, String find, String replace_with) {
+    // TODO: is this part even needed?
     if (find.length == 0) {
         return (String){
             .data = arena_copy(arena, char, str.data, str.length),
@@ -310,6 +311,7 @@ typedef struct {
     bool valid;
 } StringCut;
 
+// TODO: also add string_cut_rev, or add it as a parameter
 static StringCut string_cut(String str, String cut_at) {
     StringCut cut = {0};
     int64_t cut_index = string_find(str, cut_at);

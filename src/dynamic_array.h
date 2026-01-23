@@ -5,7 +5,7 @@
     #define DYNAMIC_ARRAY_INIT_CAP 4
 #endif
 
-#include "migi.h"
+#include "migi_core.h"
 
 #ifdef DYNAMIC_ARRAY_USE_ARENA
 

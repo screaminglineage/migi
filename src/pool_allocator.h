@@ -13,7 +13,7 @@
 #include <stddef.h>
 
 #include "arena.h"
-#include "migi.h"
+#include "migi_core.h"
 
 
 typedef struct PoolItem PoolItem;

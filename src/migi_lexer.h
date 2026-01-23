@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <ctype.h>
 
-#include "migi.h"
+#include "migi_core.h"
 #include "migi_string.h"
 
 #define PROFILER_H_IMPLEMENTATION
