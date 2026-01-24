@@ -34,6 +34,16 @@
         : ((head) = (tail) = NULL))
 
 
+// Single Linked List
+// Insert node after `after` and returns the inserted `node`
+#define sll_insert_after(tail, after, node) \
+    (((node)->next = (after)->next),        \
+    ((after)->next = (node)),               \
+    ((after) == (tail))                     \
+        ? ((tail) = (node)), (node)         \
+        : (node))
+
+
 // Doubly Linked Deque
 #define dll_push_head(head, tail, node) \
     ((head)                             \
@@ -134,6 +144,9 @@ typedef struct {
 } StringList;
 
 migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...);
+
+// TODO: replace list_foreach where necessary with strlist_foreach
+#define strlist_foreach(strlist, node) list_foreach((strlist)->head, StringNode, (node))
 
 static void strlist_push(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
@@ -245,9 +258,24 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
     return strings;
 }
 
-// Convenience macro with all flags set to 0
+static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter, SplitOpt flags) {
+    StringList strings = {0};
+
+    if (delimiter.length == 0) return strings;
+
+    strlist_foreach(list, node) {
+        StringList splits = string_split_ex(a, node->string, delimiter, flags);
+        strlist_extend(&strings, &splits);
+    }
+    return strings;
+}
+
+// Convenience macros with all flags set to 0
 #define string_split(arena, str, delimiter) \
     (string_split_ex((arena), (str), (delimiter), 0))
+
+#define strlist_split(arena, strlist, delimiter) \
+    (strlist_split_ex((arena), (strlist), (delimiter), 0))
 
 
 #define ARRAYLIST_DEFAULT_CAP 64

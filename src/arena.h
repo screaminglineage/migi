@@ -121,13 +121,17 @@ static void arena_rewind(Temp checkpoint);
 // Thread local global arenas
 // Each is alternated between being the "main" and "temporary" storage
 // 2 arenas are enough for most cases
-threadvar Arena *GLOBAL_SCRATCH_ARENAS[2] = {0};
-static Temp arena_temp_conflicts(Arena **conflicts, size_t conflicts_length);
+threadvar Arena *GLOBAL_TEMP_ARENAS[2] = {0};
+static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length);
 static void arena_temp_release(Temp c);
 
-// Convenience macro
-#define arena_temp(...)                              \
-    arena_temp_conflicts((Arena *[]){ __VA_ARGS__ }, \
+
+// Convenience macros
+// MSVC doesnt support empty compound literals, so these need to be separate
+#define arena_temp() arena_temp_excluding(NULL, 0)
+
+#define arena_temp_excl(...)                         \
+    arena_temp_excluding((Arena *[]){ __VA_ARGS__ }, \
         sizeof((Arena *[]){ __VA_ARGS__ }) / sizeof(Arena *))
 
 
@@ -338,12 +342,12 @@ static void arena_rewind(Temp checkpoint) {
 }
 
 
-static Temp arena_temp_conflicts(Arena **conflicts, size_t conflicts_length) {
+static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length) {
     int index = -1;
-    for (size_t i = 0; i < array_len(GLOBAL_SCRATCH_ARENAS); i++) {
+    for (int i = 0; i < array_len(GLOBAL_TEMP_ARENAS); i++) {
         bool has_conflict = false;
         for (size_t j = 0; j < conflicts_length; j++) {
-            if (GLOBAL_SCRATCH_ARENAS[i] == conflicts[j]) {
+            if (GLOBAL_TEMP_ARENAS[i] == conflicts[j]) {
                 has_conflict = true;
                 break;
             }
@@ -358,7 +362,7 @@ static Temp arena_temp_conflicts(Arena **conflicts, size_t conflicts_length) {
         return (Temp){0};
     }
 
-    Arena **selected = &GLOBAL_SCRATCH_ARENAS[index];
+    Arena **selected = &GLOBAL_TEMP_ARENAS[index];
     if (!*selected) {
         *selected = arena_init();
     }

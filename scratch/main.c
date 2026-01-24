@@ -1,7 +1,4 @@
-// MSVC needs this macro to define math constants (M_PI, etc.)
-#ifdef _MSC_VER
-    #define _USE_MATH_DEFINES
-#endif
+#include "migi.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,8 +7,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "migi.h"
+#include "migi_list.h"
 #include "migi_memory.h"
+#include "migi_string.h"
 
 #ifdef __GNUC__
     #pragma GCC diagnostic push
@@ -312,7 +310,7 @@ void test_random() {
     size_t count = 5;
     int arr[]         = { 0,  1,  2,  3,  4};
     int64_t weights[] = {25, 50, 75, 50, 25};
-    int frequencies[] = {0};
+    int frequencies[] = { 0,  0,  0,  0,  0};
 
     assert(array_len(arr)         == count);
     assert(array_len(weights)     == count);
@@ -321,7 +319,7 @@ void test_random() {
     int sample_size = 1000000;
     int total = 0;
     for (int i = 0; i < sample_size; i++) {
-        int chosen = random_choose_fuzzy(arr, int, weights);
+        int chosen = random_choose_fuzzy(arr, int, weights, array_len(weights));
         frequencies[chosen] += 1;
         total += 1;
     }
@@ -508,7 +506,8 @@ void linear_arena_stress_test() {
 void test_string_list() {
     test_string_split_and_join();
 
-    Arena *a = arena_init();
+    Temp tmp = arena_temp();
+    Arena *a = tmp.arena;
     StringList sl = {0};
 
     strlist_push(a, &sl, SV("This is a "));
@@ -524,6 +523,25 @@ void test_string_list() {
                   __FILE__, __LINE__, __func__, M_PI);
     String final_str = strlist_to_string(a, &sl);
     printf("%.*s", SV_FMT(final_str));
+
+
+
+    String foo = SV("foo bar,baz biz,1 2 3");
+    StringList l = string_split(a, foo, SV(","));
+    l = strlist_split(a, &l, SV(" "));
+
+    String expected[] = {
+        SV("foo"), SV("bar"), SV("baz"), SV("biz"), SV("1"), SV("2"), SV("3"),
+    };
+    size_t i = 0;
+    strlist_foreach(&l, node) {
+        assertf(string_eq(expected[i], node->string), 
+                "expected: %.*s, but got %.*s\n", 
+                SV_FMT(expected[i]), SV_FMT(node->string));
+        i++;
+    }
+
+    arena_temp_release(tmp);
 }
 
 void profile_arenas() {
@@ -1171,6 +1189,8 @@ void test_dynamic_string() {
 }
 
 int main() {
+    test_string_list();
+
     printf("\nExiting successfully\n");
     return 0;
 }

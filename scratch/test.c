@@ -200,7 +200,7 @@ RackNode rack__load_node(Arena *arena, String *rack_str, String filepath) {
 }
 
 bool rack_load(Arena *arena, Rack *rack, String filepath) {
-    Temp tmp = arena_temp(arena);
+    Temp tmp = arena_temp_ex(arena);
     String rack_str = string_from_file(tmp.arena, filepath);
     if (rack_str.length == 0) {
         arena_temp_release(tmp);

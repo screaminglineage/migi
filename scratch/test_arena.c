@@ -150,11 +150,11 @@ void test_arena_functions() {
 }
 
 String bar(Arena *a) {
-    Temp tmp = arena_temp(a);
+    Temp tmp = arena_temp_excl(a);
     String foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SV_FMT(SV("testing!!!")));
 
     int *temp = arena_push(tmp.arena, int, 64);
-    for (size_t i = 0; i < 64; i++) {
+    for (int i = 0; i < 64; i++) {
         temp[i] = i;
     }
     arena_temp_release(tmp);
@@ -167,7 +167,7 @@ void test_arena_temp() {
     String foo = bar(tmp.arena);
 
     int *temp = arena_push(tmp.arena, int, 64);
-    for (size_t i = 0; i < 64; i++) {
+    for (int i = 0; i < 64; i++) {
         temp[i] = i;
     }
 

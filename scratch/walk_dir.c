@@ -1,6 +1,8 @@
-
+#include "migi.h"
+#include "dynamic_string.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -12,8 +14,6 @@
 #include <sys/stat.h>
 #endif
 
-#include "migi.h"
-#include "dynamic_string.h"
 
 #ifdef _WIN32
     typedef HANDLE DirHandle;
@@ -80,10 +80,46 @@ typedef struct {
     DirEntry entry;
 } DirWalker;
 
-static bool walker_os_to_entry(DString *parent_dir, char *filename, DirEntry *entry) {
+
 #ifdef _WIN32
-    todo();
+// Taken from https://stackoverflow.com/a/46024468
+static int64_t win32__system_time_to_unix(FILETIME ft) {
+   int64_t unix_time_start  = 0x019DB1DED53E8000; // January 1, 1970 (start of Unix epoch) in "ticks"
+   int64_t ticks_per_second = 10000000;           // a tick is 100ns
+
+   LARGE_INTEGER li = {
+       .LowPart  = ft.dwLowDateTime,
+       .HighPart = ft.dwHighDateTime
+   };
+   return (li.QuadPart - unix_time_start) / ticks_per_second;
+}
+#endif
+
+
+#ifdef _WIN32
+static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DString *parent_dir, DirEntry *entry) {
+    size_t end = parent_dir->length;
+    dstring_pushf(parent_dir, "\\%s", file_info->cFileName);
+    entry->path = parent_dir->as_string;
+    entry->name = string_skip(parent_dir->as_string, end + 1);
+
+    entry->is_dir = file_info->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
+
+    if (!entry->is_dir) {
+        LARGE_INTEGER filesize = {
+            .LowPart = file_info->nFileSizeLow,
+            .HighPart = file_info->nFileSizeHigh
+        };
+        entry->size = filesize.QuadPart;
+    }
+
+    entry->time_modified = win32__system_time_to_unix(file_info->ftLastWriteTime);
+    entry->time_accessed = win32__system_time_to_unix(file_info->ftLastAccessTime);
+    entry->time_created  = win32__system_time_to_unix(file_info->ftCreationTime);
+    entry->is_hidden     = file_info->dwFileAttributes & FILE_ATTRIBUTE_HIDDEN;
+}
 #else
+static bool posix__os_to_entry(DString *parent_dir, char *filename, DirEntry *entry) {
     entry->name = string_from_cstr(filename);
     dstring_pushf(parent_dir, "/%.*s", SV_FMT(entry->name));
     struct stat statbuf;
@@ -102,8 +138,8 @@ static bool walker_os_to_entry(DString *parent_dir, char *filename, DirEntry *en
     entry->is_hidden = entry->name.length != 0 && entry->name.data[0] == '.';
 
     return true;
-#endif // ifdef _WIN32
 }
+#endif // ifdef _WIN32
 
 
 static bool walker_open_dir(DirWalker *w) {
@@ -112,16 +148,24 @@ static bool walker_open_dir(DirWalker *w) {
     // https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilea
     // TODO: come up with a better name
     // Search with wildcard appended to end of file
-    dstring_pushf(w->temp_str, "%.*s\\*", SV_FMT(directory));
-    *dir = FindFirstFile(dstring_to_temp_cstr(temp_str), file_info);
-    if (*dir == INVALID_HANDLE_VALUE) {
+
+    DString *parent_dir = &w->temp_str;
+    dstring_pushf(parent_dir, "%.*s\\*", SV_FMT(w->current_dir.as_string));
+
+    WIN32_FIND_DATA file_info;
+    w->dir = FindFirstFile(dstring_to_temp_cstr(&w->temp_str), &file_info);
+    if (w->dir == INVALID_HANDLE_VALUE) {
         // DisplayErrorBox(TEXT("FindFirstFile"));
         // TODO: print the error here
         // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessage
-        migi_log(Log_Error, "failed to open directory: `%s`: %d", SV_FMT(directory), GetLastError());
+        migi_log(Log_Error, "failed to open directory: `%.*s`: %ld", SV_FMT(w->current_dir), GetLastError());
         // FindClose(w->find); // TODO: does the handle still need to be closed?
         return false;
     }
+
+    // Remove the `\*` added at the end
+    parent_dir->as_string = string_take(parent_dir->as_string, parent_dir->length - 2);
+    win32__os_to_entry(&file_info, parent_dir, &w->entry);
     return true;
 #else
     DString *parent_dir = &w->temp_str;
@@ -135,7 +179,7 @@ static bool walker_open_dir(DirWalker *w) {
 
     struct dirent *entry = readdir(w->dir);
     assertf(entry, "walker_open_dir: readdir cannot fail since dir was just opened");
-    return walker_os_to_entry(parent_dir, entry->d_name, &w->entry);
+    return posix__os_to_entry(parent_dir, entry->d_name, &w->entry);
 #endif // ifdef _WIN32
 }
 
@@ -147,19 +191,24 @@ typedef enum {
 
 static ReadDirResult walker_read_dir(DirWalker *w) {
 #ifdef _WIN32
-    BOOL ok = FindNextFile(dir, file_info);
-    if (ok) return Read_Ok;
-
-    DWORD error = GetLastError();
-    if (error == ERROR_NO_MORE_FILES) {
-        return Read_Over;
-    } else {
-        // DisplayErrorBox(TEXT("FindNextFile"));
-        // TODO: print the error here
-        // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessage
-        migi_log(Log_Error, "failed to read file in directory: `%s`: %d", SV_FMT(directory), GetLastError());
-        return Read_Error;
+    WIN32_FIND_DATA file_info;
+    if (!FindNextFile(w->dir, &file_info)) {
+        DWORD error = GetLastError();
+        if (error == ERROR_NO_MORE_FILES) {
+            return Read_Over;
+        } else {
+            // DisplayErrorBox(TEXT("FindNextFile"));
+            // TODO: print the error here
+            // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessage
+            migi_log(Log_Error, "failed to read file in directory: `%.*s`: %ld", SV_FMT(w->current_dir), GetLastError());
+            return Read_Error;
+        }
     }
+
+    DString *parent_dir = &w->temp_str;
+    dstring_push(parent_dir, w->current_dir.as_string);
+    win32__os_to_entry(&file_info, parent_dir, &w->entry);
+    return Read_Ok;
 #else
     errno = 0;
     struct dirent *entry = readdir(w->dir);
@@ -170,7 +219,7 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
 
     DString *parent_dir = &w->temp_str;
     dstring_push(parent_dir, w->current_dir.as_string);
-    if (!walker_os_to_entry(parent_dir, entry->d_name, &w->entry)) return Read_Error;
+    if (!posix__os_to_entry(parent_dir, entry->d_name, &w->entry)) return Read_Error;
     return Read_Ok;
 #endif // ifdef _WIN32
 }
@@ -209,65 +258,13 @@ static DirWalker walker__init(String filepath, WalkerInitOpt opt) {
     return walker;
 }
 
+#define WALKER_INFINITE_DEPTH ((uint32_t)-1)
+
 #define walker_init(filepath, ...) walker__init((filepath), (WalkerInitOpt){ .max_depth = 1, __VA_ARGS__ })
 
-#ifdef _WIN32
-// Taken from https://stackoverflow.com/a/46024468
-static int64_t win32__system_time_to_unix(FILETIME ft) {
-   int64_t unix_time_start  = 0x019DB1DED53E8000; // January 1, 1970 (start of Unix epoch) in "ticks"
-   int64_t ticks_per_second = 10000000;           // a tick is 100ns
-
-   LARGE_INTEGER li = {
-       .LowPart  = ft.dwLowDateTime,
-       .HighPart = ft.dwHighDateTime
-   };
-   return (li.QuadPart - unix_time_start) / ticks_per_second;
-}
-#endif
 
 
 static void walker_update(Arena *arena, DirWalker *w) {
-#ifdef _WIN32
-    todof("put these into walker_os_to_entry instead");
-    if (w->file_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-        // skip `.` and `..`
-        if (strcmp(w->file_info.cFileName, ".") == 0 || strcmp(w->file_info.cFileName, "..") == 0) {
-            w->mode = DirWalkerMode_NextFile;
-            return;
-        }
-
-        FindHandles *find_handle = arena_new(arena, FindHandles);
-        find_handle->find = w->find;
-        stack_push(w->find_handles, find_handle);
-        w->depth += 1;
-
-        todof("use current_dir to build the directory path rather than stringf here")
-        w->current_dir = stringf(arena, "%.*s\\%s", SV_FMT(w->current_dir), w->file_info.cFileName);
-        entry->name = string_from_cstr(w->file_info.cFileName);
-        entry->path = w->current_dir;
-        entry->is_dir = true;
-        if (w->depth < max_depth) {
-            w->next_mode = DirWalkerMode_Recurse;
-        } else {
-            w->next_mode = DirWalkerMode_PopStack;
-        }
-    } else {
-        LARGE_INTEGER filesize = {
-            .LowPart = w->file_info.nFileSizeLow,
-            .HighPart = w->file_info.nFileSizeHigh
-        };
-        entry->size = filesize.QuadPart;
-        dstring_pushf(&w->temp_str, "%.*s\\%s", SV_FMT(w->current_dir), w->file_info.cFileName);
-        entry->path = w->temp_str.as_string;
-        entry->name = string_from_cstr(w->file_info.cFileName);
-        w->next_mode = DirWalkerMode_NextFile;
-    }
-    entry->time_modified = win32__system_time_to_unix(w->file_info.ftLastWriteTime);
-    entry->time_accessed = win32__system_time_to_unix(w->file_info.ftLastAccessTime);
-    entry->time_created  = win32__system_time_to_unix(w->file_info.ftCreationTime);
-    entry->is_hidden     = w->file_info.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN;
-
-#else
     if (w->entry.is_dir) {
         // skip `.` and `..`
         if (string_eq(w->entry.name, SV(".")) || string_eq(w->entry.name, SV(".."))) {
@@ -280,7 +277,7 @@ static void walker_update(Arena *arena, DirWalker *w) {
         stack_push(w->dir_handles, dir_handle);
         w->depth += 1;
 
-        dstring_pushf(&w->current_dir, "/%.*s", SV_FMT(w->entry.name));
+        dstring_pushf(&w->current_dir, "%c%.*s", DIRECTORY_SEPARATOR, SV_FMT(w->entry.name));
         if (w->depth < w->max_depth) {
             w->next_mode = DirWalkerMode_Recurse;
         } else {
@@ -289,7 +286,6 @@ static void walker_update(Arena *arena, DirWalker *w) {
     } else {
         w->next_mode = DirWalkerMode_NextFile;
     }
-#endif // ifdef _WIN32
 
     w->mode = DirWalkerMode_Return;
 }
@@ -401,18 +397,39 @@ static void walker_free(DirWalker *w) {
          entry = walker__next((arena), (walker), *(opt)), *(opt) = (WalkerOptions){0})
 
 
-int main(int argc, char **argv) {
-    if (argc <= 1) {
-        migi_log(Log_Error, "expected a path as first argument");
-        return 1;
+typedef struct DirEntryNode DirEntryNode;
+struct DirEntryNode {
+    DirEntry entry;
+    DirEntryNode *next;
+};
+
+
+static DirEntryNode *dir_get_all(Arena *arena, String dir, uint32_t max_depth) {
+    DirWalker walker = walker_init(dir, .max_depth = max_depth, .stop_on_error = false);
+
+    Temp tmp = arena_temp_excl(arena);
+    DirEntryNode *head = NULL;
+    dir_foreach(tmp.arena, &walker, entry) {
+        DirEntryNode *node = arena_new(arena, DirEntryNode);
+        node->entry = entry;
+        node->entry.path = string_copy(arena, node->entry.path);
+        node->entry.name = string_skip(node->entry.path,
+            string_find_char_rev(node->entry.path, DIRECTORY_SEPARATOR) + 1);
+        stack_push(head, node);
     }
-    String path = string_from_cstr(argv[1]);
 
-    Arena *arena = arena_init();
-    DirWalker walker = walker_init(path, .max_depth = -1, .stop_on_error = false);
+    arena_temp_release(tmp);
+    walker_free(&walker);
+    return head;
+}
 
+
+void test_walk_dir(String path) {
+    DirWalker walker = walker_init(path, .max_depth = WALKER_INFINITE_DEPTH, .stop_on_error = false);
+
+    Temp tmp = arena_temp();
 #if 0
-    DirEntry file = walker_next(arena, &walker, false);
+    DirEntry file = walker_next(tmp.arena, &walker, false);
 
     while (!file.over) {
         printf("Path: %.*s\n", SV_FMT(file.path));
@@ -426,14 +443,14 @@ int main(int argc, char **argv) {
         printf("------------------------------------------\n");
 
         if (file.is_dir && string_eq(file.name, SV(".git"))) {
-            file = walker_next(arena, &walker, .dont_recurse = true);
+            file = walker_next(tmp.arena, &walker, .dont_recurse = true);
         } else {
-            file = walker_next(arena, &walker, .dont_recurse = false);
+            file = walker_next(tmp.arena, &walker, .dont_recurse = false);
         }
     }
 #else
     WalkerOptions opt = {0};
-    dir_foreach_opt(arena, &walker, file, &opt) {
+    dir_foreach_opt(tmp.arena, &walker, file, &opt) {
         if (file.error) continue;
 
         printf("Path: %.*s\n", SV_FMT(file.path));
@@ -452,7 +469,27 @@ int main(int argc, char **argv) {
     }
 #endif
     walker_free(&walker);
-    arena_free(arena);
-    return 0;
+    arena_temp_release(tmp);
 }
 
+
+int main(int argc, char **argv) {
+    if (argc <= 1) {
+        migi_log(Log_Error, "expected a path as first argument");
+        return 1;
+    }
+    String path = string_from_cstr(argv[1]);
+    uint32_t max_depth = WALKER_INFINITE_DEPTH;
+    test_walk_dir(path);
+
+    Temp tmp = arena_temp();
+    DirEntryNode *entries = dir_get_all(tmp.arena, path, max_depth);
+
+    list_foreach(entries, DirEntryNode, node) {
+        printf("Path: %.*s\n", SV_FMT(node->entry.path));
+        printf("Name: %.*s\n", SV_FMT(node->entry.name));
+        printf("\n");
+    }
+
+    return 0;
+}

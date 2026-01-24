@@ -245,17 +245,17 @@ static byte *random_choose_bytes_fuzzy(byte *buf, size_t elem_size, int64_t *wei
 #define random_choose(...) \
     ((__VA_ARGS__)[random_range_exclusive(0, sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))])
 
+
 // Convenience macros to choose a random element from an array by weight
 //
-// Weights must be from 0 to 1
-#define random_choose_weighted(array, type, ...)                          \
-    *(type *)(random_choose_bytes_weighted((byte *)(array), sizeof(type), \
-            (__VA_ARGS__), sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__))))
+// `weights` must have values in the range [0, 1]
+// `array` must be the same length as `weights_length`
+#define random_choose_weighted(array, type, weights, weights_length) \
+    *(type *)(random_choose_bytes_weighted((byte *)(array), sizeof(type), weights, weights_length))
 
-// Same as `random_choose_weighted` but weights can be any number
-#define random_choose_fuzzy(array, type, ...)                          \
-    *(type *)(random_choose_bytes_fuzzy((byte *)(array), sizeof(type), \
-            (__VA_ARGS__), sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__))))
+// Same as `random_choose_weighted` but `weights` can be any number
+#define random_choose_fuzzy(array, type, weights, weights_length) \
+    *(type *)(random_choose_bytes_fuzzy((byte *)(array), sizeof(type), weights, weights_length))
 
 
 #endif // MIGI_RANDOM_H
