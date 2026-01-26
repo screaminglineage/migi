@@ -14,10 +14,13 @@
 // IWYU - Include What You Use pragma is needed by clangd to not warn of unused includes
 // https://clangd.llvm.org/guides/include-cleaner#scenarios-and-solutions
 
-#include "migi_core.h"      // IWYU pragma: export
-#include "arena.h"          // IWYU pragma: export
-#include "migi_string.h"    // IWYU pragma: export
-#include "migi_list.h"      // IWYU pragma: export
+// IWYU pragma: begin_exports
+#include "migi_core.h"
+#include "arena.h"
+#include "migi_string.h"
+#include "migi_list.h"
+// IWYU pragma: end_exports
+
 
 
 #endif // ifndef MIGI_H

@@ -5,7 +5,6 @@
 #include <stdio.h>     // needed for prints in asserts
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 typedef uint8_t byte;
 
@@ -261,10 +260,6 @@ do {                                                \
         item++)
 
 
-// Iterate over a linked list
-#define list_foreach(head, type, item) \
-    for (type *(item) = (head); (item); (item) = (item)->next)
-
 
 // Slightly cursed macros that probably shouldn't be used much
 
@@ -316,7 +311,6 @@ static struct {
 };
 static_assert(array_len(MIGI_LOG_LEVELS) == Log_Count, "the number of log levels has changed");
 
-// TODO: maybe make this thread_local?
 #ifdef MIGI_DEBUG_LOGS
     threadvar LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Debug;
 #else

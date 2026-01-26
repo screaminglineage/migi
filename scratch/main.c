@@ -1,4 +1,5 @@
 #include "migi.h"
+
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -6,10 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#include "migi_list.h"
-#include "migi_memory.h"
-#include "migi_string.h"
 
 #ifdef __GNUC__
     #pragma GCC diagnostic push
@@ -413,7 +410,7 @@ static void assert_string_split(StringSplitTest t) {
     size_t count = 0;
     size_t char_count = 0;
     if (t.actual.total_size != 0) {
-        list_foreach(t.actual.head, StringNode, node) {
+        strlist_foreach(&t.actual, node) {
             String expected = t.expected.data[count];
             String actual = node->string;
 
@@ -490,7 +487,6 @@ void test_string_split_and_join() {
     expected = strlist_join(a, &list, SV(""));
     assert(string_eq(expected, SV("foobarbaz")));
 }
-
 
 
 void linear_arena_stress_test() {
@@ -572,7 +568,33 @@ bool skip_nums(char ch, void *data) {
 }
 
 void test_string() {
-    Arena *a = arena_init();
+    Temp tmp = arena_temp();
+    Arena *a = tmp.arena;
+
+
+    // string_eq
+    {
+        assert(string_eq(SV("abcd"), SV("abcd")));
+        assert(string_eq(SV(""), SV("")));
+        assert(string_eq((String){0}, (String){0}));
+
+        assert(string_eq_cstr((String){0}, "", 0));
+        assert(string_eq_cstr((String){0}, "", 0));
+        assert(string_eq_cstr(SV("yes!!"), "yes!!", 0));
+
+        assert(string_eq(string_skip(SV("1234"), 5), (String){0}));
+        assert(string_eq((String){0}, string_skip(SV("4567"), 5)));
+        assert(string_eq(string_skip(SV("1234"), 5), string_skip(SV("4567"), 5)));
+        assert(string_eq(string_take(SV("hello"), 0), string_take(SV("world"), 0)));
+        assert(string_eq(string_slice(SV("hello"), 2, 2), string_slice(SV("world"), 2, 2)));
+
+        assert(string_eq_ex(SV("STRING"), SV("sTRinG"), Eq_IgnoreCase));
+        assert(!string_eq_ex(SV("foo"),   SV("bar"),    Eq_IgnoreCase));
+        assert(string_eq_cstr(SV(""),     "",           Eq_IgnoreCase));
+        assert(string_eq_cstr(SV("abcd"), "ABCD",       Eq_IgnoreCase));
+    }
+
+    // upper/lower
     {
         assert(string_eq(string_to_lower(a, SV("HELLO world!!!")), SV("hello world!!!")));
         assert(string_eq(string_to_upper(a, SV("FOO bar baz!")),   SV("FOO BAR BAZ!")));
@@ -580,14 +602,13 @@ void test_string() {
 
     // string_skip_while
     {
-        assert(string_eq(string_skip_while(    SV("1234abcd"),  skip_nums, NULL), SV("abcd")));
-        assert(string_eq(string_skip_while_rev(SV("1234abcd"),  skip_nums, NULL), SV("1234abcd")));
-        assert(string_eq(string_skip_while_rev(SV("foo90"),     skip_nums, NULL), SV("foo")));
-        assert(string_eq(string_skip_while(    SV("foo90"),     skip_nums, NULL), SV("foo90")));
-        assert(string_eq(string_skip_while(    SV(""),          skip_nums, NULL), SV("")));
-
-        assert(string_eq(string_skip_chars(    SV("abcd"),      SV("abd")),       SV("cd")));
-        assert(string_eq(string_skip_chars_rev(SV("abcd"),      SV("da")),        SV("abc")));
+        assert(string_eq(string_skip_while(SV("1234abcd"),  skip_nums, NULL, 0),                 SV("abcd")));
+        assert(string_eq(string_skip_while(SV("1234abcd"),  skip_nums, NULL, SkipWhile_Reverse), SV("1234abcd")));
+        assert(string_eq(string_skip_while(SV("foo90"),     skip_nums, NULL, SkipWhile_Reverse), SV("foo")));
+        assert(string_eq(string_skip_while(SV("foo90"),     skip_nums, NULL, 0),                 SV("foo90")));
+        assert(string_eq(string_skip_while(SV(""),          skip_nums, NULL, 0),                 SV("")));
+        assert(string_eq(string_skip_chars(SV("abcd"),      SV("abd"), 0),                       SV("cd")));
+        assert(string_eq(string_skip_chars(SV("abcd"),      SV("da"), SkipWhile_Reverse),        SV("abc")));
     }
 
     // string_trim
@@ -608,16 +629,30 @@ void test_string() {
         assert(string_find(SV("hello"),  SV("he"))     == 0);
         assert(string_find(SV("hello"),  SV("llo"))    == 2);
         assert(string_find(SV("hello"),  SV("o"))      == 4);
-        assert(string_find(SV("banana"), SV("ana"))    == 1);
         assert(string_find(SV("abcabc"), SV("cab"))    == 2);
-        assert(string_find(SV("hello"),  SV("world"))  == -1);
-        assert(string_find(SV("short"),  SV("longer")) == -1);
-        assert(string_find(SV("abc"),    SV("abcd"))   == -1);
-        assert(string_find(SV("abc"),    SV("z"))      == -1);
+        assert(string_find(SV("hello"),  SV("world"))  == 5);
+        assert(string_find(SV("short"),  SV("longer")) == 5);
+        assert(string_find(SV("abc"),    SV("abcd"))   == 3);
+        assert(string_find(SV("abc"),    SV("z"))      == 3);
         assert(string_find(SV(""),       SV(""))       == 0);
         assert(string_find(SV("abc"),    SV(""))       == 0);
-        assert(string_find(SV(""),       SV("a"))      == -1);
+        assert(string_find(SV(""),       SV("a"))      == 0);
         assert(string_find(SV("aaaaa"),  SV("aa"))     == 0);
+    }
+
+    // string_find (reverse)
+    {
+        assert(string_find_ex(SV("hello"),  SV("he"),  Find_Reverse) == 0);
+        assert(string_find_ex(SV("hello"),  SV("llo"), Find_Reverse) == 2);
+        assert(string_find_ex(SV("hello"),  SV("o"),   Find_Reverse) == 4);
+        assert(string_find_ex(SV("hello"),  SV("world"),  Find_Reverse) == -1);
+        assert(string_find_ex(SV("short"),  SV("longer"), Find_Reverse) == -1);
+        assert(string_find_ex(SV("abc"),    SV("abcd"),   Find_Reverse) == -1);
+        assert(string_find_ex(SV("abc"),    SV("z"),      Find_Reverse) == -1);
+        assert(string_find_ex(SV(""),       SV(""),  Find_Reverse) == 0);
+        assert(string_find_ex(SV("abc"),    SV(""),  Find_Reverse) == 3);
+        assert(string_find_ex(SV(""),       SV("a"), Find_Reverse) == -1);
+        assert(string_find_ex(SV("aaaaa"),  SV("aa"), Find_Reverse) == 3);
     }
 
     // string_starts_with
@@ -683,19 +718,19 @@ void test_string() {
 
     // string_find_rev
     {
-        assert(string_find_rev(SV("hello"),  SV("he"))     == 0);
-        assert(string_find_rev(SV("hello"),  SV("llo"))    == 2);
-        assert(string_find_rev(SV("hello"),  SV("o"))      == 4);
-        assert(string_find_rev(SV("banana"), SV("ana"))    == 3);
-        assert(string_find_rev(SV("abcabc"), SV("cab"))    == 2);
-        assert(string_find_rev(SV("hello"),  SV("world"))  == -1);
-        assert(string_find_rev(SV("short"),  SV("longer")) == -1);
-        assert(string_find_rev(SV("abc"),    SV("abcd"))   == -1);
-        assert(string_find_rev(SV("abc"),    SV("z"))      == -1);
-        assert(string_find_rev(SV(""),       SV(""))       == 0);
-        assert(string_find_rev(SV("abc"),    SV(""))       == 3);
-        assert(string_find_rev(SV(""),       SV("a"))      == -1);
-        assert(string_find_rev(SV("aaaaa"),  SV("aa"))     == 3);
+        assert(string_find_ex(SV("hello"),  SV("he"),     Find_Reverse) == 0);
+        assert(string_find_ex(SV("hello"),  SV("llo"),    Find_Reverse) == 2);
+        assert(string_find_ex(SV("hello"),  SV("o"),      Find_Reverse) == 4);
+        assert(string_find_ex(SV("banana"), SV("ana"),    Find_Reverse) == 3);
+        assert(string_find_ex(SV("abcabc"), SV("cab"),    Find_Reverse) == 2);
+        assert(string_find_ex(SV("hello"),  SV("world"),  Find_Reverse) == -1);
+        assert(string_find_ex(SV("short"),  SV("longer"), Find_Reverse) == -1);
+        assert(string_find_ex(SV("abc"),    SV("abcd"),   Find_Reverse) == -1);
+        assert(string_find_ex(SV("abc"),    SV("z"),      Find_Reverse) == -1);
+        assert(string_find_ex(SV(""),       SV(""),       Find_Reverse) == 0);
+        assert(string_find_ex(SV("abc"),    SV(""),       Find_Reverse) == 3);
+        assert(string_find_ex(SV(""),       SV("a"),      Find_Reverse) == -1);
+        assert(string_find_ex(SV("aaaaa"),  SV("aa"),     Find_Reverse) == 3);
     }
 
     // string_reverse
@@ -707,7 +742,7 @@ void test_string() {
     // string_replace
     {
         assert(string_eq(string_replace(a, SV(""),              SV(""),      SV("")),     SV("")));
-        assert(string_eq(string_replace(a, SV("foo"),           SV(""),      SV("bar")),  SV("foo")));
+        assert(string_eq(string_replace(a, SV("foo"),           SV(""),      SV("bar")),  SV("barfbarobarobar")));
         assert(string_eq(string_replace(a, SV("foo"),           SV("bar"),   SV("")),     SV("foo")));
         assert(string_eq(string_replace(a, SV("foo"),           SV("foo"),   SV("")),     SV("")));
         assert(string_eq(string_replace(a, SV("hello world!!"), SV("ll"),    SV("yy")),   SV("heyyo world!!")));
@@ -720,42 +755,79 @@ void test_string() {
 
     // string_cut
     {
-        StringCut cut = {0};
+        // Default
+        {
+            StringCut cut = {0};
 
-        cut = string_cut(SV("hello world"), SV(" "));
-        assert(cut.valid == true
-           && string_eq(cut.head, SV("hello"))
-           && string_eq(cut.tail, SV("world")));
+            cut = string_cut(SV("hello world"), SV(" "));
+            assert(cut.found == true
+                    && string_eq(cut.head, SV("hello"))
+                    && string_eq(cut.tail, SV("world")));
 
-        cut = string_cut(SV("hello==++==world"), SV("==++=="));
-        assert(cut.valid == true
-           && string_eq(cut.head, SV("hello"))
-           && string_eq(cut.tail, SV("world")));
+            cut = string_cut(SV("hello==++==world"), SV("==++=="));
+            assert(cut.found == true
+                    && string_eq(cut.head, SV("hello"))
+                    && string_eq(cut.tail, SV("world")));
 
-        cut = string_cut(SV("world"), SV("world"));
-        assert(cut.valid == true
-           && string_eq(cut.head, SV(""))
-           && string_eq(cut.tail, SV("")));
+            cut = string_cut(SV("world"), SV("world"));
+            assert(cut.found == true
+                    && string_eq(cut.head, SV(""))
+                    && string_eq(cut.tail, SV("")));
 
-        cut = string_cut(SV("world"), SV(""));
-        assert(cut.valid == true
-           && string_eq(cut.head, SV(""))
-           && string_eq(cut.tail, SV("world")));
+            cut = string_cut(SV("world"), SV(""));
+            assert(cut.found == true
+                    && string_eq(cut.head, SV(""))
+                    && string_eq(cut.tail, SV("world")));
 
-        cut = string_cut(SV(""), SV(""));
-        assert(cut.valid == true
-           && string_eq(cut.head, SV(""))
-           && string_eq(cut.tail, SV("")));
+            cut = string_cut(SV(""), SV(""));
+            assert(cut.found == true
+                    && string_eq(cut.head, SV(""))
+                    && string_eq(cut.tail, SV("")));
 
-        cut = string_cut(SV("hello"), SV("llo"));
-        assert(cut.valid == true
-           && string_eq(cut.head, SV("he"))
-           && string_eq(cut.tail, SV("")));
+            cut = string_cut(SV("hello"), SV("llo"));
+            assert(cut.found == true
+                    && string_eq(cut.head, SV("he"))
+                    && string_eq(cut.tail, SV("")));
 
-        cut = string_cut(SV("abcd"), SV("e"));
-        assert(cut.valid == false);
+            cut = string_cut(SV("abcd"), SV("e"));
+            assert(cut.found == false);
+
+        }
+
+        // Cut_AsChars
+        {
+
+            String str1 = SV("2020-11--03 23:59@");
+            strcut_foreach(str1, SV("- :@"), Cut_AsChars, it) {
+                printf("=> `%.*s`\n", SV_FMT(it.split));
+            }
+            assertf(string_eq(str1, SV("2020-11--03 23:59@")), "original string remains intact");
+
+            String str2 = SV("a,b,c,");
+            strcut_foreach(str2, SV(","), 0, it) {
+                printf("=> `%.*s`\n", SV_FMT(it.split));
+            }
+            assertf(string_eq(str2, SV("a,b,c,")), "original string remains intact");
+
+            {
+                String c = SV("a+-b");
+                String delims = SV("-+");
+                StringCut cut = string_cut_ex(c, delims, Cut_AsChars);
+                assert(cut.found);
+                assert(string_eq(cut.head, SV("a")));
+
+                cut = string_cut_ex(cut.tail, delims, Cut_AsChars);
+                assert(cut.found);
+                assert(string_eq(cut.head, SV("")));
+
+                cut = string_cut_ex(cut.tail, delims, Cut_AsChars);
+                assert(!cut.found);
+                assert(string_eq(cut.head, SV("b")));
+            }
+        }
     }
 
+    arena_temp_release(tmp);
     todof("Add tests for other string functions");
 }
 
@@ -791,36 +863,6 @@ void test_return_slice() {
     IntSlice slice = return_slice(a);
     int arr[] = {1,2,3,4,5};
     assert(slice.length == array_len(arr) && mem_eq_array(slice.data, arr, slice.length));
-}
-
-void test_string_split_first() {
-    String a = SV("2020-11--03 23:59");
-    string_split_chars_foreach(a, SV("- :"), it) {
-        printf("=> `%.*s`\n", SV_FMT(it.split));
-    }
-    assertf(string_eq(a, SV("2020-11--03 23:59")), "original string remains intact");
-
-    String b = SV("a,b,c,");
-    string_split_foreach(b, SV(","), it) {
-        printf("=> `%.*s`\n", SV_FMT(it.split));
-    }
-    assertf(string_eq(b, SV("a,b,c,")), "original string remains intact");
-
-    {
-        String c = SV("a+-b");
-        String delims = SV("-+");
-        SplitIterator iter = string_split_chars_next(&c, delims);
-        assert(!iter.is_over);
-        assert(string_eq(iter.string, SV("a")));
-
-        iter = string_split_chars_next(&c, delims);
-        assert(!iter.is_over);
-        assert(string_eq(iter.string, SV("")));
-
-        iter = string_split_chars_next(&c, delims);
-        assert(iter.is_over);
-        assert(string_eq(iter.string, SV("b")));
-    }
 }
 
 
@@ -1188,9 +1230,16 @@ void test_dynamic_string() {
     assertf(mem_eq(&a, &((DString){0})), "dynamic string should be zeroed out");
 }
 
-int main() {
-    test_string_list();
 
+int main() {
+
+    Temp tmp = arena_temp();
+    Arena *a = tmp.arena;
+    unused(a);
+
+    test_string();
+    arena_temp_release(tmp);
     printf("\nExiting successfully\n");
+
     return 0;
 }

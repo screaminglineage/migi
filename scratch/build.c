@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #include "migi.h"
-#include "../scratch/cli_parse.h"
+#include "cli_parse.h"
 #include "migi_core.h"
 #include "migi_string.h"
 

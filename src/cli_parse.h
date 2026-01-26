@@ -19,18 +19,47 @@ typedef struct {
     int exp;
 } CmdLn;
 
-static int32_t hash_table_lookup(uint64_t hash, int exp, int32_t index) {
+
+static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]);
+static FlagSlot *flag_lookup(CmdLn *flags, String flag);
+
+
+// Looking up flags by value and fallback
+//
+// NOTE: Use flag_exists for flags like `-v`, `-h`, 
+// and flag_as_bool for flags like `--color=true`, `-f=1`
+//
+static bool flag_exists(CmdLn *flags, String name);
+static bool flag_as_bool(CmdLn *flags, String name);
+static String flag_as_string(CmdLn *flags, String name, String fallback);
+static int64_t flag_as_i64(CmdLn *flags, String name, int64_t fallback);
+static double flag_as_f64(CmdLn *flags, String name, double fallback);
+static StringList flag_as_strlist(CmdLn *flags, String name);
+
+// Iterate over each flag as key-value pairs
+#define flag_foreach(flags, slot)                   \
+    for (FlagSlot *slot = (flags).slots;            \
+         slot < (flags).slots + (1LL << (flags).exp); \
+         slot++)                                    \
+        if (slot->key.length != 0)
+
+// Iterate over each positional/meta argument
+#define flag_args_foreach(flags, arg) strlist_foreach(&(flags).args, (arg))
+#define flag_meta_args_foreach(flags, arg) strlist_foreach(&(flags).meta_args, (arg))
+
+
+static int32_t flag__table_step(uint64_t hash, int exp, int32_t index) {
     uint32_t mask = ((uint32_t)1 << exp) - 1;
     uint32_t step = (uint32_t)(hash >> (64 - exp)) | 1;
     return (index + step) & mask;
 }
 
-static void flag_insert(CmdLn *flags, String key, String value, StringList values) {
+static void flag__insert(CmdLn *flags, String key, String value, StringList values) {
     assertf(flags->length + 1 < (size_t)(1 << flags->exp), "flag_insert: flag table capacity exceeded!");
 
     uint64_t hash = string_hash(key);
     for (uint32_t i = (uint32_t)hash;;) {
-        i = hash_table_lookup(hash, flags->exp, i);
+        i = flag__table_step(hash, flags->exp, i);
         if (flags->slots[i].key.length == 0) {
             flags->slots[i] = (FlagSlot){
                 .key    = key,
@@ -46,7 +75,7 @@ static void flag_insert(CmdLn *flags, String key, String value, StringList value
 static FlagSlot *flag_lookup(CmdLn *flags, String flag) {
     uint64_t hash = string_hash(flag);
     for (uint32_t i = (uint32_t)hash;;) {
-        i = hash_table_lookup(hash, flags->exp, i);
+        i = flag__table_step(hash, flags->exp, i);
         if (flags->slots[i].key.length == 0) {
             return NULL;
         }
@@ -56,7 +85,6 @@ static FlagSlot *flag_lookup(CmdLn *flags, String flag) {
     }
 }
 
-// TODO: add support for --flag=a,b,c and --flag a,b,c
 static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
     CmdLn cli = {0};
 
@@ -99,9 +127,9 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
         }
 
         StringCut cut = string_cut(flag_key, SV("="));
-        if (!cut.valid) {
+        if (!cut.found) {
             // insert as key with no value (eg: `-h`/`--help`)
-            flag_insert(&cli, flag_key, SV(""), (StringList){0});
+            flag__insert(&cli, flag_key, SV(""), (StringList){0});
             continue;
         };
 
@@ -112,7 +140,7 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
         StringList values = {0};
         StringCut values_cut = string_cut(flag_value, SV(","));
         String prev_tail = {0};
-        while (values_cut.valid) {
+        while (values_cut.found) {
             strlist_push(arena, &values, values_cut.head);
             prev_tail = values_cut.tail;
             values_cut = string_cut(values_cut.tail, SV(","));
@@ -121,14 +149,13 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
             strlist_push(arena, &values, prev_tail);
         }
 
-        flag_insert(&cli, flag_key, flag_value, values);
+        flag__insert(&cli, flag_key, flag_value, values);
     }
 
     return cli;
 }
 
 
-// Use for flags like (-v, -h)
 static bool flag_exists(CmdLn *flags, String name) {
     return flag_lookup(flags, name) != NULL;
 }
@@ -204,16 +231,6 @@ static StringList flag_as_strlist(CmdLn *flags, String name) {
     return flag_lookup(flags, name)->values;
 }
 
-
-// Iterate over each flag as key-value pairs
-#define flag_foreach(flags, slot)                   \
-    for (FlagSlot *slot = (flags).slots;            \
-         slot < (flags).slots + (1LL << (flags).exp); \
-         slot++)                                    \
-        if (slot->key.length != 0)
-
-// Iterate over each positional argument
-#define flag_args_foreach(flags, arg) list_foreach((flags).args.head, StringNode, (arg))
 
 #endif // ifndef CLI_PARSE_H
 

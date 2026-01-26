@@ -1,5 +1,4 @@
 @echo off
-REM TODO: the `-kill` option is a bit buggy, fix that
 REM Simple single file C/C++ compilation script.
 REM Pass in the file to compile as the argument 
 REM or pass no arguments to compile the default: `test.c`
@@ -50,8 +49,10 @@ if errorlevel 1 (
 
 REM kill if something was running in the debugger
 for %%a in (%*) do (
-    if "%%a" == "-kill" raddbg --ipc kill
-    echo "Killed"
+    if "%%a" == "-kill" (
+        raddbg --ipc kill
+        echo "Killed"
+    )
 )
 
 REM resolving absolute path of the input file

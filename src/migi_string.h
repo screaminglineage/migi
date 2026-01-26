@@ -13,8 +13,6 @@
 #include "migi_core.h"
 #include "arena.h"
 
-// TODO: forward declare all functions
-// TODO: look into adding case-insensitive find and replace
 // TODO: add string styling (camelcase/snakecase/etc. conversions)
 
 typedef struct {
@@ -29,6 +27,143 @@ typedef struct {
 
 #define SV_FMT(sv) (int)(sv).length, (sv).data
 #define SV(cstr) (String){(cstr), (sizeof(cstr) - 1)}
+
+
+// TODO: forward declare all functions
+static String string_from_cstr(const char *cstr);
+static char *string_to_cstr(Arena *arena, String str);
+
+static String string_copy(Arena *arena, String str);
+
+typedef enum {
+    Eq_IgnoreCase = (1 << 0),
+} StringEqOpt;
+
+static bool string_eq_ex(String a, String b, StringEqOpt flags);
+#define string_eq(a, b) string_eq_ex((a), (b), 0)
+static bool string_eq_cstr(String a, const char *b, StringEqOpt flags);
+
+// Check if string matches any element of an array
+// NOTE: __VA_ARGS__ cannot be empty in string_eq_any for msvc compatibility
+bool string_eq_any_slice(String to_match, StringSlice matches);
+#define string_eq_any(to_match, ...) \
+    string_eq_any_slice((to_match), slice_from(String, StringSlice, __VA_ARGS__))
+
+
+// Slice string into [start, end) (exclusive range)
+// Out of bounds accesses are clamped to the length of the string itself
+static String string_slice(String str, size_t start, size_t end);
+
+// Skip `amount` characters from beginning of string
+// If `amount` == `str.length`, then returns an empty string
+static String string_skip(String str, size_t amount);
+
+// Take `amount` characters from beginning of string
+// If `amount` == `str.length`, then returns the string itself
+static String string_take(String str, size_t amount);
+
+
+typedef enum {
+    Find_Reverse         = (1 << 0),
+    Find_CaseInsensitive = (1 << 1), // TODO: implement this
+
+    // Treat needle as a sequence of chars, and 
+    // return index of the first match of any of them
+    Find_AsChars         = (1 << 2),
+} FindOpt;
+
+// Find `needle` within `haystack`
+// NOTE: Failure to find returns 1 past the last index searched
+// For forwards it is `haystack.length`
+// For reverse it is `-1`
+static int64_t string_find_ex(String haystack, String needle, FindOpt flags);
+#define string_find(haystack, needle) string_find_ex((haystack), (needle), 0)
+
+// Returns index of `suffix` in `str`, -1 if not found
+static int64_t string_find_suffix(String str, String suffix);
+
+static bool string_starts_with(String str, String prefix);
+static bool string_ends_with(String str, String suffix);
+
+// Slice off the prefix from the string if it exists
+static String string_cut_prefix(String str, String prefix);
+
+// Slice off the suffix from the string if it exists
+static String string_cut_suffix(String str, String suffix);
+
+
+// Function type for string_skip_while_ functions
+// Gets passed in a character of the string and an optional `void *data`
+typedef bool (string_skip_while_func) (char ch, void *data);
+
+
+typedef enum {
+    SkipWhile_Reverse = (1 << 0),
+} SkipWhileOpt;
+
+// Skips characters from start (or end) of string as long as the passed in function returns true
+// The `data` argument is passed into the `skip_char` function to emulate a closure
+static String string_skip_while(String str, string_skip_while_func *func, void *data, SkipWhileOpt flags);
+
+// Skips from start of string as long as one of the elements of `chars` are present
+static String string_skip_chars(String str, String chars, SkipWhileOpt flags);
+
+static String string_trim(String str);
+static String string_trim_left(String str);
+static String string_trim_right(String str);
+
+char char_to_upper(char ch);
+char char_to_lower(char ch);
+
+static String string_to_lower(Arena *arena, String str);
+static String string_to_upper(Arena *arena, String str);
+static String string_reverse(Arena *arena, String str);
+static String string_replace(Arena *arena, String str, String find, String replace_with);
+
+
+typedef struct {
+    String head;
+    String tail;
+    bool found;
+} StringCut;
+
+typedef enum {
+    // Start search from the end instead
+    Cut_Reverse   = (1 << 0),
+
+    // Splits up to the first occurrence of any of the characters of delimiter
+    // Always returns the nearest match if multiple characters are found
+    // Eg: string_split_chars_next("a+-b", "-+") will return "a", then "", and finally "b"
+    Cut_AsChars   = (1 << 1)
+} StringCutOpt;
+
+// Cuts string into `head` and `tail` by splitting at the first occurence of `cut_at`
+// If both `str` and `cut_at` are empty, then cut is still considered as `found`
+// `head` contains `str` when no split is `found`
+static StringCut string_cut_ex(String str, String cut_at, StringCutOpt flags);
+#define string_cut(str, delim) string_cut_ex((str), (delim), 0)
+
+
+// Loop through each split, (accessed by `cut.split`) of repeated `string_cut`s
+// until there are no more matches
+#define strcut_foreach(str, delim, flags, cut)                         \
+    for (struct { StringCut _cut; int _count; String split; }          \
+        cut = {string_cut_ex((str), (delim), (flags)), 0};             \
+        cut.split = cut._cut.head, cut._count < 1;                     \
+        cut._cut.found                                                 \
+            ? cut._cut = string_cut_ex(cut._cut.tail, delim, flags), 0 \
+            : cut._count++)
+
+
+static inline uint64_t string_hash_fnv(String string, uint64_t seed);
+static inline uint64_t string_hash(String string);
+
+// Create formatted string on an arena
+migi_printf_format(2, 3) static String stringf(Arena *arena, const char *fmt, ...);
+
+static String string_from_file(Arena *arena, String filepath);
+static bool string_to_file(String string, String filepath);
+
 
 static String string_from_cstr(const char *cstr) {
     return (String){
@@ -46,6 +181,7 @@ static char *string_to_cstr(Arena *arena, String str) {
     return cstr;
 }
 
+
 static String string_copy(Arena *arena, String str) {
     return (String){
         .data = arena_copy(arena, char, str.data, str.length),
@@ -53,71 +189,82 @@ static String string_copy(Arena *arena, String str) {
     };
 }
 
-static bool string_eq(String a, String b) {
+char char_to_upper(char ch) {
+    if ('a' <= ch && ch <= 'z') {
+        ch -= ('a' - 'A');
+    }
+    return ch;
+}
+
+char char_to_lower(char ch) {
+    if ('A' <= ch && ch <= 'Z') {
+        ch += ('a' - 'A');
+    }
+    return ch;
+}
+
+static bool string_eq_ex(String a, String b, StringEqOpt flags) {
     if (a.length != b.length) return false;
-    return !a.length || mem_eq_array(a.data, b.data, a.length);
+
+    // Prevents using memcmp with potentially NULL pointers
+    if (a.length == 0) return true;
+
+    if (!(flags & Eq_IgnoreCase)) return mem_eq_array(a.data, b.data, a.length);
+
+    for (size_t i = 0; i < a.length; i++) {
+        if (char_to_lower(a.data[i]) != char_to_lower(b.data[i])) return false;
+    }
+    return true;
 }
 
-static bool string_eq_cstr(String a, const char *b) {
-    if (b == NULL) return a.length == 0;
-    if (a.length != strlen(b)) return false;
-    return memcmp(a.data, b, a.length) == 0;
+static bool string_eq_cstr(String a, const char *b, StringEqOpt flags) {
+    return string_eq_ex(a, string_from_cstr(b), flags);
 }
 
-bool string_eq_any_slice(String to_match, String *matches, size_t matches_len) {
-    for (size_t i = 0; i < matches_len; i++) {
-        if (string_eq(to_match, matches[i])) {
+bool string_eq_any_slice(String to_match, StringSlice matches) {
+    for (size_t i = 0; i < matches.length; i++) {
+        if (string_eq(to_match, matches.data[i])) {
             return true;
         }
     }
     return false;
 }
 
-// Check if string matches any element of an array
-#define string_eq_any(to_match, ...) \
-    (string_eq_any_slice((to_match), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
-static int64_t string_find_char(String haystack, char needle) {
-    for (size_t i = 0; i < haystack.length; i++) {
-        if (haystack.data[i] == needle) return i;
-    }
-    return -1;
-}
-
-static int64_t string_find_char_rev(String haystack, char needle) {
-    for (int64_t i = haystack.length - 1; i >= 0; i--) {
-        if (haystack.data[i] == needle) return i;
-    }
-    return -1;
-}
-
-// Find `needle` within `haystack`
-static int64_t string_find(String haystack, String needle) {
-    if (needle.length > haystack.length) return -1;
+static int64_t string_find_ex(String haystack, String needle, FindOpt flags) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
-    for (size_t i = 0; i <= haystack.length - needle.length; i++) {
-        if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
-            return i;
+    if (flags & Find_AsChars) {
+        int64_t first_match = INT64_MAX;
+        int64_t last_match = INT64_MIN;
+        for (size_t i = 0; i < needle.length; i++) {
+            String ch = (String){.data = &needle.data[i], .length = 1};
+            int64_t index = string_find_ex(haystack, ch, flags & ~Find_AsChars);
+            last_match = migi_max(last_match, index);
+            first_match = migi_min(first_match, index);
         }
+        return (flags & Find_Reverse)? last_match: first_match;
+    } 
+
+    if (flags & Find_Reverse) {
+        int64_t i = haystack.length - needle.length;
+        for (; i >= 0; i--) {
+            if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
+                return i;
+            }
+        }
+        return i;
+    } else {
+        for (int64_t i = 0; i <= (int64_t)haystack.length - (int64_t)needle.length; i++) {
+            if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
+                return i;
+            }
+        }
+        return haystack.length;
     }
-    return -1;
 }
 
-// Find `needle` within `haystack`, starting from the end of `haystack`
-static int64_t string_find_rev(String haystack, String needle) {
-    if (needle.length > haystack.length) return -1;
-    if (needle.length == 0 && haystack.length == 0) return 0;
 
-    for (int64_t i = haystack.length - needle.length; i >= 0; i--) {
-        if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-// Slice string into [start, end) (exclusive range)
 static String string_slice(String str, size_t start, size_t end) {
     start = clamp_top(start, str.length);
     end = clamp_top(end, str.length);
@@ -127,18 +274,14 @@ static String string_slice(String str, size_t start, size_t end) {
     };
 }
 
-// Skip `amount` characters from beginning of string
-// If `amount` == `str.length`, then returns an empty string
 static String string_skip(String str, size_t amount) {
     return string_slice(str, amount, str.length);
 }
 
-// Take `amount` characters from beginning of string
 static String string_take(String str, size_t amount) {
     return string_slice(str, 0, amount);
 }
 
-// Get index of suffix or -1 if not found
 static int64_t string_find_suffix(String str, String suffix) {
     if (suffix.length > str.length) return -1;
 
@@ -160,8 +303,6 @@ static bool string_ends_with(String str, String suffix) {
     return string_find_suffix(str, suffix) != -1;
 }
 
-// Slice off the prefix from the string
-// Returns the original string if the prefix was not found
 static String string_cut_prefix(String str, String prefix) {
     if (!string_starts_with(str, prefix)) {
         return str;
@@ -169,37 +310,17 @@ static String string_cut_prefix(String str, String prefix) {
     return string_skip(str, prefix.length);
 }
 
-// Slice off the suffix from the string
-// Returns the original string if the suffix was not found
 static String string_cut_suffix(String str, String suffix) {
-    int64_t suffix_start = string_find_suffix(str, suffix);
-    if (suffix_start == -1) {
-        return str;
-    }
-    return string_slice(str, 0, suffix_start);
+    return string_take(str, string_find_suffix(str, suffix));
 }
 
-// Function type for string_skip_while_ functions
-// Gets passed in a character of the string and an optional `void *data`
-typedef bool (string_skip_while_func) (char ch, void *data);
-
-// Skips from start of string as long as the passed in function returns true
-// The `data` argument is passed into the `skip_char` function to emulate a closure
-static String string_skip_while(String str, string_skip_while_func *skip_char, void *data) {
+static String string_skip_while(String str, string_skip_while_func *skip_char, void *data, SkipWhileOpt flags) {
     while (str.length > 0) {
-        if (!skip_char(str.data[0], data)) break;
+        size_t skip_index = (flags & SkipWhile_Reverse)? str.length - 1: 0;
+        if (!skip_char(str.data[skip_index], data)) break;
 
-        str.data++;
-        str.length--;
-    }
-    return str;
-}
-
-// Skips from end of string as long as the passed in function returns true
-// The `data` argument is passed into the `skip_char` function to emulate a closure
-static String string_skip_while_rev(String str, string_skip_while_func *skip_char, void *data) {
-    while (str.length > 0) {
-        if (!skip_char(str.data[str.length - 1], data)) break;
+        // Only skip forward if not in reverse mode
+        str.data += !(flags & SkipWhile_Reverse);
         str.length--;
     }
     return str;
@@ -215,24 +336,18 @@ static bool string__is_equal_chars(char ch, void *data) {
     return false;
 }
 
-// Skips from start of string as long as one of the elements of `chars` are present
-static String string_skip_chars(String str, String chars) {
-    return string_skip_while(str, string__is_equal_chars, &chars);
-}
-
-// Skips from end of string as long as one of the elements of `chars` are present
-static String string_skip_chars_rev(String str, String chars) {
-    return string_skip_while_rev(str, string__is_equal_chars, &chars);
+static String string_skip_chars(String str, String chars, SkipWhileOpt flags) {
+    return string_skip_while(str, string__is_equal_chars, &chars, flags);
 }
 
 // TODO: check for other whitespace characters
 // https://stackoverflow.com/a/46637343
 static String string_trim_left(String str) {
-    return string_skip_chars(str, SV(" \n\r\t"));
+    return string_skip_chars(str, SV(" \n\r\t"), 0);
 }
 
 static String string_trim_right(String str) {
-    return string_skip_chars_rev(str, SV(" \n\r\t"));
+    return string_skip_chars(str, SV(" \n\r\t"), SkipWhile_Reverse);
 }
 
 static String string_trim(String str) {
@@ -273,140 +388,70 @@ static String string_reverse(Arena *arena, String str) {
 
 
 static String string_replace(Arena *arena, String str, String find, String replace_with) {
-    // TODO: is this part even needed?
-    if (find.length == 0) {
-        return (String){
-            .data = arena_copy(arena, char, str.data, str.length),
-            .length = str.length
-        };
-    }
-
-    size_t max_length = replace_with.length * str.length;
+    size_t max_length = replace_with.length * (str.length + 2);
     char *replaced = arena_push_nonzero(arena, char, max_length);
-
     char *replaced_at = replaced;
-    while (true) {
-        int64_t index = string_find(str, find);
-        if (index == -1) {
-            memcpy(replaced_at, str.data, str.length);
-            replaced_at += str.length;
-            break;
-        }
 
-        memcpy(replaced_at, str.data, index);
-        replaced_at += index;
+    if (find.length == 0) {
+        array_foreach(&str, const char, ch) {
+            memcpy(replaced_at, replace_with.data, replace_with.length);
+            replaced_at += replace_with.length;
+            memcpy(replaced_at, ch, 1);
+            replaced_at += 1;
+        }
         memcpy(replaced_at, replace_with.data, replace_with.length);
         replaced_at += replace_with.length;
-        str = string_skip(str, index + find.length);
+    } else {
+        while (true) {
+            size_t index = string_find(str, find);
+            if (index == str.length) {
+                memcpy(replaced_at, str.data, str.length);
+                replaced_at += str.length;
+                break;
+            }
+
+            memcpy(replaced_at, str.data, index);
+            replaced_at += index;
+            memcpy(replaced_at, replace_with.data, replace_with.length);
+            replaced_at += replace_with.length;
+            str = string_skip(str, index + find.length);
+        }
     }
+
 
     size_t actual_length = replaced_at - replaced;
     arena_pop(arena, char, max_length - actual_length);
     return (String){.data = replaced, .length = actual_length};
 }
 
-typedef struct {
-    String head;
-    String tail;
-    bool valid;
-} StringCut;
 
-// TODO: also add string_cut_rev, or add it as a parameter
-static StringCut string_cut(String str, String cut_at) {
+static StringCut string_cut_ex(String str, String cut_at, StringCutOpt flags) {
     StringCut cut = {0};
-    int64_t cut_index = string_find(str, cut_at);
-    if (cut_index == -1) {
-        return cut;
+    FindOpt find_flags = (flags & Cut_Reverse)? Find_Reverse: 0;
+
+    int64_t cut_index = 0;
+    int64_t cut_length = 0;
+
+    if (flags & Cut_AsChars) {
+        cut_index = string_find_ex(str, cut_at, find_flags|Find_AsChars);
+        cut_length = 1;
+    } else {
+        cut_index = string_find_ex(str, cut_at, find_flags);
+        cut_length = cut_at.length;
     }
-    cut.head = string_slice(str, 0, cut_index);
-    cut.tail = string_slice(str, cut_index + cut_at.length, str.length);
-    cut.valid = true;
+
+    if (flags & Cut_Reverse) {
+        cut.head = string_skip(str, cut_index + cut_length);
+        cut.tail = string_take(str, cut_index);
+        cut.found = (str.length == 0 && cut_length == 0) || cut_index > -1;
+    } else {
+        cut.head = string_take(str, cut_index);
+        cut.tail = string_skip(str, cut_index + cut_length);
+        cut.found = (str.length == 0 && cut_length == 0) || (size_t)cut_index < str.length;
+    }
+
     return cut;
 }
-
-typedef struct {
-    bool is_over;
-    String string;
-} SplitIterator;
-
-static SplitIterator string_split_next(String *str, String split_at) {
-    SplitIterator it = {0};
-
-    if (str->length == 0 || split_at.length == 0) {
-        it.is_over = true;
-        it.string = *str;
-        return it;
-    }
-
-    int64_t index = string_find(*str, split_at);
-    if (index == -1) {
-        it.is_over = true;
-        it.string = *str;
-        return it;
-    }
-
-    it.string = string_slice(*str, 0, index);
-    *str = string_skip(*str, index + split_at.length);
-    return it;
-}
-
-
-// Splits up to the first occurrence of any of the characters of delimiter
-// Always returns the nearest match if multiple characters are found
-// Eg: string_split_chars_next("a+-b", "-+") will return "a", then "", and finally "b"
-static SplitIterator string_split_chars_next(String *str, String delims) {
-    SplitIterator it = {0};
-
-    if (str->length == 0 || delims.length == 0) {
-        it.is_over = true;
-        it.string = *str;
-        return it;
-    }
-
-    int64_t first_match = INT64_MAX;
-    int64_t last_match = INT64_MIN;
-    for (size_t i = 0; i < delims.length; i++) {
-        int64_t new_index = string_find_char(*str, delims.data[i]);
-        if (new_index != -1) {
-            first_match = migi_min(first_match, new_index);
-            last_match = migi_max(last_match, new_index);
-        }
-    }
-    if ((first_match == -1 || first_match == INT64_MAX) && (last_match < 0)) {
-        it.is_over = true;
-        it.string = *str;
-        return it;
-    }
-
-    it.string = string_slice(*str, 0, first_match);
-    *str = string_skip(*str, first_match + 1);
-    return it;
-}
-
-// Iterator-like macros to loop over each string split
-// Use `it.split` to get the splits each time
-#define string_split_foreach(str, split_at, it)            \
-    for (struct { String _copy;                            \
-                  String split;                            \
-                  SplitIterator _it;                       \
-                  bool over; }                             \
-        it = { ._copy = (str), };                          \
-        it._it = string_split_next(&it._copy, (split_at)), \
-            it.split = it._it.string,                      \
-            !it.over;                                      \
-        it._it.is_over? it.over = true: it.over)
-
-
-#define string_split_chars_foreach(str, delims, it)            \
-    for (struct { String _copy;                                \
-                  String split;                                \
-                  SplitIterator _it;                           \
-                  bool over; }                                 \
-        it = { ._copy = (str), };                              \
-        it._it = string_split_chars_next(&it._copy, (delims)), \
-            it.split = it._it.string,                          \
-            !it.over;                                          \
-        it._it.is_over? it.over = true: it.over)
 
 
 static inline uint64_t string_hash_fnv(String string, uint64_t seed) {
@@ -459,12 +504,13 @@ migi_printf_format(2, 3) static String stringf(Arena *arena, const char *fmt, ..
 
 
 // TODO: passing in a directory as filepath causes ftell to return LONG_MAX which overflows the arena
-// TODO: use linux syscalls instead of C stdlib
+// TODO: use linux/windows syscalls instead of C stdlib
+// BUG: on windows the mode need to be rb since for r, it converts \r\n to \n, which makes `n` != `file_pos`
 static String string_from_file(Arena *arena, String filepath) {
     String result = {0};
 
     Temp tmp = arena_save(arena);
-    FILE *file = fopen(string_to_cstr(tmp.arena, filepath), "r");
+    FILE *file = fopen(string_to_cstr(tmp.arena, filepath), "rb");
     arena_rewind(tmp);
 
     if (!file) {

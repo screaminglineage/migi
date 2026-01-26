@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
     flag_foreach(cli, flag) {
         if (flag->values.length > 0) {
             printf("%.*s: ", SV_FMT(flag->key));
-            list_foreach(flag->values.head, StringNode, value) {
+            strlist_foreach(&flag->values, value) {
                 printf("%.*s, ", SV_FMT(value->string));
             }
             printf("\n");
@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
 
     printf("foo: ");
     StringList foo = flag_as_strlist(&cli, SV("foo"));
-    list_foreach(foo.head, StringNode, value) {
+    strlist_foreach(&foo, value) {
         printf("%.*s, ", SV_FMT(value->string));
     }
     printf("\n");

@@ -317,21 +317,21 @@ static inline Temp arena_save(Arena *arena) {
     };
 }
 
-static void arena_rewind(Temp checkpoint) {
-    // TODO: assert that the current position is after the checkpoint
-    assert(checkpoint.arena);
-    assert(checkpoint.current);
+static void arena_rewind(Temp tmp) {
+    // TODO: assert that the current position is after the temp's
+    assert(tmp.arena);
+    assert(tmp.current);
 
-    Arena *current = checkpoint.arena->current;
+    Arena *current = tmp.arena->current;
     // newer blocks may need to be freed for chained arenas
-    while (current && current != checkpoint.current) {
+    while (current && current != tmp.current) {
         Arena *temp = current;
         current = current->prev;
         arena__release(temp, temp->reserved);
     }
-    checkpoint.arena->current = current;
+    tmp.arena->current = current;
 
-    size_t new_position = checkpoint.position;
+    size_t new_position = tmp.position;
     // decommit excess region
     if (current->type != Arena_Static) {
         size_t new_committed = align_up(new_position, current->commit_size);
@@ -371,8 +371,8 @@ static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length) {
 }
 
 
-static void arena_temp_release(Temp c) {
-    arena_rewind(c);
+static void arena_temp_release(Temp t) {
+    arena_rewind(t);
 }
 
 #endif // MIGI_ARENA_H

@@ -7,8 +7,6 @@
 #include <stddef.h>
 #include <string.h>
 
-// TODO: forward declare all functions
-
 // Singly Linked Stack
 #define stack_push(head, node)     \
     ((head)                        \
@@ -131,6 +129,12 @@
         : (void)0)
 
 
+// Iterate over a linked list
+#define list_foreach(head, type, item) \
+    for (type *(item) = (head); (item); (item) = (item)->next)
+
+
+// StringList (Linked List of Strings)
 typedef struct StringNode StringNode;
 struct StringNode {
     String string;
@@ -143,10 +147,73 @@ typedef struct {
     size_t total_size;
 } StringList;
 
+static void strlist_push(Arena *a, StringList *list, String str);
+static void strlist_push_char(Arena *a, StringList *list, char ch);
+static void strlist_push_cstr(Arena *a, StringList *list, const char *cstr);
+static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t length);
 migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...);
+static void strlist_extend(StringList *list, StringList *extend_with);
+static String strlist_pop(StringList *list);
 
-// TODO: replace list_foreach where necessary with strlist_foreach
 #define strlist_foreach(strlist, node) list_foreach((strlist)->head, StringNode, (node))
+
+static String strlist_to_string(Arena *a, StringList *list);
+static String strlist_join(Arena *a, StringList *list, String join_with);
+
+typedef enum {
+    // Skip empty strings
+    Split_SkipEmpty = (1 << 0),
+
+    // Treat delimiter as a list of characters, where
+    // splitting is done any time one of them appear
+    Split_AsChars   = (1 << 1),
+} SplitOpt;
+
+static StringList string_split_ex(Arena *a, String str, String delimiter, SplitOpt flags);
+static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter, SplitOpt flags);
+
+// Convenience macros with all flags set to 0
+#define string_split(arena, str, delimiter)      string_split_ex((arena), (str), (delimiter), 0)
+#define strlist_split(arena, strlist, delimiter) strlist_split_ex((arena), (strlist), (delimiter), 0)
+
+
+// ArrayList (Chunked Linked List)
+
+#define ARRAYLIST_DEFAULT_CAP 64
+#define ARRAYLIST_ALIGN 8
+
+#define ArrayList(type)  \
+struct {                 \
+    type *head;          \
+    type *tail;          \
+    size_t total_length; \
+}
+
+#define arrlist_init_capacity(arena, list, node_type, cap)              \
+do {                                                                    \
+    node_type *next = arena_new((arena), node_type);                    \
+    next->data = arena_push_bytes((arena), sizeof(next->data[0])*(cap), \
+                                 ARRAYLIST_ALIGN, true);                \
+    next->capacity = (cap);                                             \
+    queue_push((list)->head, (list)->tail, next);                       \
+} while(0)
+
+
+#define arrlist_add(arena, list, node_type, n)                       \
+do {                                                                 \
+    node_type *tail = (list)->tail;                                  \
+                                                                     \
+    if (!tail || tail->length >= tail->capacity) {                   \
+        size_t capacity = ARRAYLIST_DEFAULT_CAP;                     \
+        if (tail && tail->capacity != 0) capacity = tail->capacity;  \
+                                                                     \
+        arrlist_init_capacity((arena), (list), node_type, capacity); \
+        tail = (list)->tail;                                         \
+    }                                                                \
+    tail->data[tail->length++] = n;                                  \
+    (list)->total_length++;                                          \
+} while (0)
+
 
 static void strlist_push(Arena *a, StringList *list, String str) {
     StringNode *node = arena_new(a, StringNode);
@@ -231,28 +298,16 @@ static String strlist_join(Arena *a, StringList *list, String join_with) {
     return (String){mem, total_size};
 }
 
-typedef enum {
-    // Skip empty strings
-    Split_SkipEmpty = 1 << 0,
-
-    // Treat delimiter as a list of characters, where
-    // splitting is done any time one of them appear
-    Split_AsChars   = 1 << 1,
-} SplitOpt;
 
 // Splits a string by delimiter, pushing each chunk onto a StringList
 static StringList string_split_ex(Arena *a, String str, String delimiter, SplitOpt flags) {
     StringList strings = {0};
     if (delimiter.length == 0) return strings;
 
-    SplitIterator next = {0};
-    while (!next.is_over) {
-        next = (flags & Split_AsChars)
-            ? string_split_chars_next(&str, delimiter)
-            : string_split_next(&str, delimiter);
-
-        if (next.string.length != 0 || !(flags & Split_SkipEmpty)) {
-            strlist_push(a, &strings, next.string);
+    StringCutOpt cut_flags = (flags & Split_AsChars)? Cut_AsChars: 0;
+    strcut_foreach(str, delimiter, cut_flags, cut) {
+        if (cut.split.length != 0 || !(flags & Split_SkipEmpty)) {
+            strlist_push(a, &strings, cut.split);
         }
     }
     return strings;
@@ -260,7 +315,6 @@ static StringList string_split_ex(Arena *a, String str, String delimiter, SplitO
 
 static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter, SplitOpt flags) {
     StringList strings = {0};
-
     if (delimiter.length == 0) return strings;
 
     strlist_foreach(list, node) {
@@ -269,49 +323,6 @@ static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter,
     }
     return strings;
 }
-
-// Convenience macros with all flags set to 0
-#define string_split(arena, str, delimiter) \
-    (string_split_ex((arena), (str), (delimiter), 0))
-
-#define strlist_split(arena, strlist, delimiter) \
-    (strlist_split_ex((arena), (strlist), (delimiter), 0))
-
-
-#define ARRAYLIST_DEFAULT_CAP 64
-#define ARRAYLIST_ALIGN 8
-
-#define ArrayList(type)  \
-struct {                 \
-    type *head;          \
-    type *tail;          \
-    size_t total_length; \
-}
-
-#define arrlist_init_capacity(arena, list, node_type, cap)              \
-do {                                                                    \
-    node_type *next = arena_new((arena), node_type);                    \
-    next->data = arena_push_bytes((arena), sizeof(next->data[0])*(cap), \
-                                 ARRAYLIST_ALIGN, true);                \
-    next->capacity = (cap);                                             \
-    queue_push((list)->head, (list)->tail, next);                       \
-} while(0)
-
-
-#define arrlist_add(arena, list, node_type, n)                       \
-do {                                                                 \
-    node_type *tail = (list)->tail;                                  \
-                                                                     \
-    if (!tail || tail->length >= tail->capacity) {                   \
-        size_t capacity = ARRAYLIST_DEFAULT_CAP;                     \
-        if (tail && tail->capacity != 0) capacity = tail->capacity;  \
-                                                                     \
-        arrlist_init_capacity((arena), (list), node_type, capacity); \
-        tail = (list)->tail;                                         \
-    }                                                                \
-    tail->data[tail->length++] = n;                                  \
-    (list)->total_length++;                                          \
-} while (0)
 
 
 #endif // MIGI_LISTS_H
