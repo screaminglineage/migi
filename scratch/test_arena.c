@@ -25,10 +25,10 @@ void test_arena_functions() {
         static byte buffer[1*KB];
         Arena *a = arena_init_static(buffer, sizeof(buffer));
 
-        String string = SV("hello world!");
+        String string = S("hello world!");
         char *str = arena_copy(a, char, string.data, string.length);
-        String uppercased = string_to_upper(a, (String){.data = str, string.length});
-        assert(string_eq(uppercased, SV("HELLO WORLD!")));
+        String uppercased = str_to_upper(a, (String){.data = str, string.length});
+        assert(str_eq(uppercased, S("HELLO WORLD!")));
         arena_free(a);
     }
 
@@ -140,18 +140,18 @@ void test_arena_functions() {
     // reading/writing files
     {
         Arena *arena = arena_init();
-        String str = string_from_file(arena, SV("scratch/test_arena.c"));
+        String str = str_from_file(arena, S("scratch/test_arena.c"));
         assert(str.length > 0);
 
-        String filepath = SV("build/test_arena-dumped.c");
-        assert(string_to_file(str, filepath));
-        assert(string_eq(str, string_from_file(arena, filepath)));
+        String filepath = S("build/test_arena-dumped.c");
+        assert(str_to_file(str, filepath));
+        assert(str_eq(str, str_from_file(arena, filepath)));
     }
 }
 
 String bar(Arena *a) {
     Temp tmp = arena_temp_excl(a);
-    String foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SV_FMT(SV("testing!!!")));
+    String foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SV_FMT(S("testing!!!")));
 
     int *temp = arena_push(tmp.arena, int, 64);
     for (int i = 0; i < 64; i++) {
@@ -171,7 +171,7 @@ void test_arena_temp() {
         temp[i] = i;
     }
 
-    assertf(string_eq(foo, SV("hello world 123 4.510000, testing!!!\n")), "data is not overwritten");
+    assertf(str_eq(foo, S("hello world 123 4.510000, testing!!!\n")), "data is not overwritten");
     arena_temp_release(tmp);
 }
 

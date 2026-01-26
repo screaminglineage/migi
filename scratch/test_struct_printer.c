@@ -46,7 +46,7 @@ int main() {
         array_push(&arr, i);
     }
 
-    Strings strings = slice_from(String, Strings, SV("hello"), SV("world"), SV("Generated!"));
+    Strings strings = slice_from(String, Strings, S("hello"), S("world"), S("Generated!"));
     strings.more = (void *)0x8000f;
 
     Foo f = {
@@ -59,7 +59,7 @@ int main() {
     };
 
     Bar b = {
-        .string = SV("abcd"),
+        .string = S("abcd"),
         .c_string = "efgh",
         .char_ptr = (char *)0xad171a,
         .foo = f,

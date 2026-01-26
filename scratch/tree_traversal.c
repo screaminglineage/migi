@@ -49,7 +49,7 @@ Node *push_child(Arena *a, Node *root, String data) {
 int main() {
     Arena *a = arena_init();
     Node *root = arena_new(a, Node);
-    root->name = SV("root");
+    root->name = S("root");
 
     for (size_t i = 0; i < 5; i++) {
         push_child(a, root, stringf(a, "root-child-%zu", i));

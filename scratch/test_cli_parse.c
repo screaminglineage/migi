@@ -29,21 +29,21 @@ int main(int argc, char *argv[]) {
     printf("\n-----------------------\n");
 
     printf("foo: ");
-    StringList foo = flag_as_strlist(&cli, SV("foo"));
+    StringList foo = flag_as_strlist(&cli, S("foo"));
     strlist_foreach(&foo, value) {
         printf("%.*s, ", SV_FMT(value->string));
     }
     printf("\n");
 
-    printf("bar: %lld\n", flag_as_i64(&cli, SV("bar"), 10));
+    printf("bar: %lld\n", flag_as_i64(&cli, S("bar"), 10));
 
-    printf("baz: %f\n", flag_as_f64(&cli, SV("baz"), 0));
+    printf("baz: %f\n", flag_as_f64(&cli, S("baz"), 0));
 
-    printf("help: %d\n", flag_exists(&cli, SV("help")));
-    printf("v: %d\n", flag_exists(&cli, SV("v")));
+    printf("help: %d\n", flag_exists(&cli, S("help")));
+    printf("v: %d\n", flag_exists(&cli, S("v")));
 
-    printf("color: %d\n", flag_as_bool(&cli, SV("color")));
-    printf("t: %d\n", flag_as_bool(&cli, SV("t")));
+    printf("color: %d\n", flag_as_bool(&cli, S("color")));
+    printf("t: %d\n", flag_as_bool(&cli, S("t")));
 
     return 0;
 }

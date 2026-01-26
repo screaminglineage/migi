@@ -37,7 +37,7 @@ bool dump_tokens(Lexer *lexer) {
 
 int main() {
     StringBuilder sb = sb_init();
-    sb_push_file(&sb, SV("scratch/test_lexer.c"));
+    sb_push_file(&sb, S("scratch/test_lexer.c"));
 
     Lexer l = {.string = sb_to_string(&sb)};
 
@@ -49,12 +49,12 @@ int main() {
     mem_clear(&l);
     l.string = sb_to_string(&sb);
 
-    // return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("int")), 1);
-    // return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("main")), 1);
+    // return_val_if_false(expect_token_str(&l, Tok_Identifier, S("int")), 1);
+    // return_val_if_false(expect_token_str(&l, Tok_Identifier, S("main")), 1);
     // return_val_if_false(expect_token(&l, Tok_OpenParen), 1);
     // return_val_if_false(expect_token(&l, Tok_CloseParen), 1);
     // return_val_if_false(expect_token(&l, Tok_OpenBrace), 1);
-    // return_val_if_false(expect_token_str(&l, Tok_Identifier, SV("return")), 1);
+    // return_val_if_false(expect_token_str(&l, Tok_Identifier, S("return")), 1);
     // return_val_if_false(expect_token(&l, Tok_Minus), 1);
     // return_val_if_false(expect_token(&l, Tok_Floating), 1);
     // return_val_if_false(expect_token(&l, Tok_Semicolon), 1);

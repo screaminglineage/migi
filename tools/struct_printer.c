@@ -45,22 +45,22 @@ typedef struct {
 
 
 bool format_for_type(String type, const char **format, bool *is_char) {
-    if (string_eq_any(type, (String[]){SV("int"), SV("byte"), SV("bool"), SV("short"), SV("signed") })) {
+    if (str_eq_any(type, S("int"), S("byte"), S("bool"), S("short"), S("signed"))) {
         *format = "%d";
-    } else if (string_eq(type, SV("char"))) {
+    } else if (str_eq(type, S("char"))) {
         is_char? *is_char = true: (void)0;
         *format = "\'%c\'";
-    } else if (string_eq(type, SV("size_t"))) {
+    } else if (str_eq(type, S("size_t"))) {
         *format = "%zu";
-    } else if (string_eq_any(type, (String[]){SV("float"), SV("double")})) {
+    } else if (str_eq_any(type, S("float"), S("double"))) {
         *format = "%.3f";
-    } else if (string_eq(type, SV("ptrdiff_t"))) {
+    } else if (str_eq(type, S("ptrdiff_t"))) {
         *format = "%td";
-    } else if (string_eq(type, SV("void"))) {
+    } else if (str_eq(type, S("void"))) {
         *format = "%p";
-    } else if (string_eq(type, SV("long"))) {
+    } else if (str_eq(type, S("long"))) {
         *format = "%ld";
-    } else if (string_eq(type, SV("unsigned"))) {
+    } else if (str_eq(type, S("unsigned"))) {
         *format = "%u";
     } else {
         return false;
@@ -75,7 +75,7 @@ bool parse_member(Lexer *lexer, Member *member) {
     Token token = next_token(lexer);
 
     bool is_const = false;
-    if (string_eq(token.string, SV("const"))) {
+    if (str_eq(token.string, S("const"))) {
         is_const = true;
         if (!match_token(lexer, Tok_Identifier)) return false;
         if (!consume_token(lexer, &token)) return false;
@@ -92,7 +92,7 @@ bool parse_member(Lexer *lexer, Member *member) {
         if (is_const && is_char) {
             member->format = "\\\"%s\\\"";
         } else {
-            if (!match_token_str(lexer, Tok_Identifier, SV("data"))) {
+            if (!match_token_str(lexer, Tok_Identifier, S("data"))) {
                 member->is_non_primitive = false;
                 member->format = "%p";
             }
@@ -115,9 +115,9 @@ bool parse_struct_members(Lexer *lexer, StructDef *struct_def) {
 
         Member member = {0};
         if (!parse_member(lexer, &member)) return false;
-        if (string_eq(member.name, SV("data"))) {
+        if (str_eq(member.name, S("data"))) {
             has_field_data = true;
-        } else if (string_eq(member.name, SV("length"))) {
+        } else if (str_eq(member.name, S("length"))) {
             has_field_length = true;
         } 
         array_push(&struct_def->members, member);
@@ -205,7 +205,7 @@ void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent
     size_t member_data_i = 0;
     if (struct_def.has_data_and_length) {
         for (size_t i = 0; i < members_length; i++) {
-            if (string_eq(struct_def.members.data[i].name, SV("data"))) {
+            if (str_eq(struct_def.members.data[i].name, S("data"))) {
                 member_data_i = i;
             }
         }
@@ -240,7 +240,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "error: no filename provided\n");
         return 1;
     }
-    String input_file = string_from_cstr(shift_args(argc, argv));
+    String input_file = str_from_cstr(shift_args(argc, argv));
 
     // TODO: check if the folder exists, and if not create it
     const char *output_dir = DEFAULT_OUTPUT_DIR;
@@ -257,11 +257,11 @@ int main(int argc, char *argv[]) {
     StructDefs structs = {0};
     while (peek_token(&lexer, &tok)) {
         bool skip = true;
-        if (match_token_str(&lexer, Tok_Identifier, SV("typedef"))) {
+        if (match_token_str(&lexer, Tok_Identifier, S("typedef"))) {
             next_token(&lexer);
-            if (!expect_token_str(&lexer, Tok_Identifier, SV("struct"))) continue;
+            if (!expect_token_str(&lexer, Tok_Identifier, S("struct"))) continue;
             skip = false;
-        } else if (match_token_str(&lexer, Tok_Identifier, SV("struct"))) {
+        } else if (match_token_str(&lexer, Tok_Identifier, S("struct"))) {
             next_token(&lexer);
             skip = false;
         } else {

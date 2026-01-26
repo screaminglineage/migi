@@ -54,12 +54,12 @@ static void sb_push_buffer(StringBuilder *sb, char *buf, size_t length) {
 static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    string__format(sb->arena, fmt, args);
+    str__format(sb->arena, fmt, args);
     va_end(args);
 }
 
 static void sb_push_file(StringBuilder *sb, String filename) {
-    string_from_file(sb->arena, filename);
+    str_from_file(sb->arena, filename);
 }
 
 void sb_reset(StringBuilder *sb) {
@@ -93,7 +93,7 @@ static const char *sb_to_cstr(StringBuilder *sb) {
 }
 
 static bool sb_to_file(StringBuilder *sb, String filename) {
-    return string_to_file(sb_to_string(sb), filename);
+    return str_to_file(sb_to_string(sb), filename);
 }
 
 #endif // MIGI_STRING_BUILDER_H

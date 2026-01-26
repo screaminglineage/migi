@@ -25,26 +25,26 @@ void test_basic() {
     Arena *a = arena_init();
     MapStrPoint hm = {0};
 
-    hashmap_put(a, &hm, SV("foo"), ((Point){1, 2}));
-    hashmap_put(a, &hm, SV("bar"), ((Point){3, 4}));
-    hashmap_put(a, &hm, SV("baz"), ((Point){5, 6}));
+    hashmap_put(a, &hm, S("foo"), ((Point){1, 2}));
+    hashmap_put(a, &hm, S("bar"), ((Point){3, 4}));
+    hashmap_put(a, &hm, S("baz"), ((Point){5, 6}));
 
-    Point *p = hashmap_get_ptr(&hm, SV("foo"));
+    Point *p = hashmap_get_ptr(&hm, S("foo"));
     assert(p->x == 1 && p->y == 2);
 
-    p = hashmap_get_ptr(&hm, SV("abcd"));
+    p = hashmap_get_ptr(&hm, S("abcd"));
     assert(!p);
 
-    ptrdiff_t i = hashmap_get_index(&hm, SV("bar"));
+    ptrdiff_t i = hashmap_get_index(&hm, S("bar"));
     assert(i != 0);
     Point p0 = hm.values[i];
     assert(p0.x == 3 && p0.y == 4);
 
-    *hashmap_entry(a, &hm, SV("bla")) = (Point){7, 8};
-    Point p1 = hashmap_get(&hm, SV("bla"));
+    *hashmap_entry(a, &hm, S("bla")) = (Point){7, 8};
+    Point p1 = hashmap_get(&hm, S("bla"));
     assert(p1.x == 7 && p1.y == 8);
 
-    Point p2 = hashmap_get(&hm, SV("blah"));
+    Point p2 = hashmap_get(&hm, S("blah"));
     assert(p2.x == 0 && p2.y == 0);
 
     printf("\niteration:\n");
@@ -55,34 +55,34 @@ void test_basic() {
     printf("\n");
 
     assert(mem_eq(&hm.keys[0], &(String){0}));  assert(mem_eq(&hm.values[0], &((Point){0})));
-    assert(mem_eq(&hm.keys[1], &(SV("foo"))));  assert(mem_eq(&hm.values[1], &((Point){1, 2})));
-    assert(mem_eq(&hm.keys[2], &(SV("bar"))));  assert(mem_eq(&hm.values[2], &((Point){3, 4})));
-    assert(mem_eq(&hm.keys[3], &(SV("baz"))));  assert(mem_eq(&hm.values[3], &((Point){5, 6})));
-    assert(mem_eq(&hm.keys[4], &(SV("bla"))));  assert(mem_eq(&hm.values[4], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[1], &(S("foo"))));  assert(mem_eq(&hm.values[1], &((Point){1, 2})));
+    assert(mem_eq(&hm.keys[2], &(S("bar"))));  assert(mem_eq(&hm.values[2], &((Point){3, 4})));
+    assert(mem_eq(&hm.keys[3], &(S("baz"))));  assert(mem_eq(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[4], &(S("bla"))));  assert(mem_eq(&hm.values[4], &((Point){7, 8})));
 
-    Point deleted = hashmap_pop(&hm, SV("bar"));
+    Point deleted = hashmap_pop(&hm, S("bar"));
     assert(deleted.x == 3 && deleted.y == 4);
 
-    Point t = hashmap_get(&hm, SV("bar"));
+    Point t = hashmap_get(&hm, S("bar"));
     assertf(mem_eq(&t, &(Point){0}), "empty returned for deleted keys");
 
-    Point bla = hashmap_get(&hm, SV("bla"));
+    Point bla = hashmap_get(&hm, S("bla"));
     assert(bla.x == 7 && bla.y == 8);
 
-    Point x = hashmap_pop(&hm, SV("aaaaa"));
+    Point x = hashmap_pop(&hm, S("aaaaa"));
     assertf(mem_eq(&x, &(Point){0}), "empty returned for non-existent keys");
 
     // replacing old value of `foo`
-    hashmap_put(a, &hm, SV("foo"), ((Point){10, 20}));
+    hashmap_put(a, &hm, S("foo"), ((Point){10, 20}));
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
         printf("%.*s: (Point){%d %d}\n", SV_FMT(*pair.key), pair.value->x, pair.value->y);
     }
     assert(mem_eq(&hm.keys[0], &((String){0})));  assert(mem_eq(&hm.values[0], &((Point){0})));
-    assert(mem_eq(&hm.keys[1], &(SV("foo"))));    assert(mem_eq(&hm.values[1], &((Point){10, 20})));
-    assert(mem_eq(&hm.keys[2], &(SV("bla"))));    assert(mem_eq(&hm.values[2], &((Point){7, 8})));
-    assert(mem_eq(&hm.keys[3], &(SV("baz"))));    assert(mem_eq(&hm.values[3], &((Point){5, 6})));
+    assert(mem_eq(&hm.keys[1], &(S("foo"))));    assert(mem_eq(&hm.values[1], &((Point){10, 20})));
+    assert(mem_eq(&hm.keys[2], &(S("bla"))));    assert(mem_eq(&hm.values[2], &((Point){7, 8})));
+    assert(mem_eq(&hm.keys[3], &(S("baz"))));    assert(mem_eq(&hm.values[3], &((Point){5, 6})));
 }
 
 void test_default_values() {
@@ -100,21 +100,21 @@ void test_default_values() {
     MapStrPoint hm = {0};
 
     // Setting default key and value
-    hashmap_set_default(a, &hm, SV("default"), ((Point){100, 100}));
+    hashmap_set_default(a, &hm, S("default"), ((Point){100, 100}));
 
-    hashmap_put(a, &hm, SV("foo"), ((Point){1, 2}));
-    hashmap_put(a, &hm, SV("bar"), ((Point){3, 4}));
+    hashmap_put(a, &hm, S("foo"), ((Point){1, 2}));
+    hashmap_put(a, &hm, S("bar"), ((Point){3, 4}));
 
-    Point p1 = hashmap_get(&hm, SV("foo"));
+    Point p1 = hashmap_get(&hm, S("foo"));
     assert(p1.x == 1 && p1.y == 2);
 
-    p1 = hashmap_get(&hm, SV("bar"));
+    p1 = hashmap_get(&hm, S("bar"));
     assert(p1.x == 3 && p1.y == 4);
 
-    Point p2 = hashmap_get(&hm, SV("oof!"));
+    Point p2 = hashmap_get(&hm, S("oof!"));
     assert(p2.x == 100 && p2.y == 100);
 
-    Point p3 = hashmap_get(&hm, SV("aaaaa"));
+    Point p3 = hashmap_get(&hm, S("aaaaa"));
     assert(p3.x == 100 && p3.y == 100);
 }
 
@@ -140,15 +140,15 @@ int hash_entry_cmp(const void *a, const void *b) {
 void frequency_analysis() {
     Arena *a = arena_init();
 
-    String contents = string_from_file(a, SV("shakespeare.txt"));
-    // read_file(&sb, SV("gatsby.txt"));
-    // read_file(&sb, SV("hashmap_test.txt"));
+    String contents = str_from_file(a, S("shakespeare.txt"));
+    // read_file(&sb, S("gatsby.txt"));
+    // read_file(&sb, S("hashmap_test.txt"));
 
     MapStrInt map = {0};
     printf("Inserting items:\n");
     begin_profiling();
-    string_split_chars_foreach(contents, SV(" \n"), it) {
-        String key = string_to_lower(a, string_trim(it.split));
+    strcut_foreach(contents, S(" \n"), Cut_AsChars, it) {
+        String key = str_to_lower(a, str_trim(it.split));
         *hashmap_entry(a, &map, key) += 1;
     }
 
@@ -185,30 +185,30 @@ void frequency_analysis() {
 void test_small_hashmap_collision() {
     MapStrInt hm = {0};
     Arena *a = arena_init();
-    *hashmap_entry(a, &hm, SV("abcd")) = 12;
-    *hashmap_entry(a, &hm, SV("efgh")) = 13;
+    *hashmap_entry(a, &hm, S("abcd")) = 12;
+    *hashmap_entry(a, &hm, S("efgh")) = 13;
 
-    assert(hashmap_pop(&hm, SV("abcd")) == 12);
-    assert(hashmap_get(&hm, SV("efgh")) == 13);
-    assert(hashmap_get(&hm, SV("efg")) == 0);
-    assert(hashmap_get(&hm, SV("abcd")) == 0);
+    assert(hashmap_pop(&hm, S("abcd")) == 12);
+    assert(hashmap_get(&hm, S("efgh")) == 13);
+    assert(hashmap_get(&hm, S("efg")) == 0);
+    assert(hashmap_get(&hm, S("abcd")) == 0);
 
     // Deleting last value in table
-    *hashmap_entry(a, &hm, SV("abcd")) = 10;
-    assert(hashmap_pop(&hm, SV("abcd")) == 10);
-    hashmap_pop(&hm, SV("abcd"));
-    assert(hashmap_get(&hm, SV("efgh")) == 13);
+    *hashmap_entry(a, &hm, S("abcd")) = 10;
+    assert(hashmap_pop(&hm, S("abcd")) == 10);
+    hashmap_pop(&hm, S("abcd"));
+    assert(hashmap_get(&hm, S("efgh")) == 13);
 
     // Popping (with swap-remove) with hashmap at max capacity
     // [3/4 elements] (with load factor >= 0.75, and init capacity 4)
     MapStrInt map = {0};
-    hashmap_put(a, &map, SV("a"), 1);
-    hashmap_put(a, &map, SV("b"), 2);
-    hashmap_put(a, &map, SV("c"), 3);
+    hashmap_put(a, &map, S("a"), 1);
+    hashmap_put(a, &map, S("b"), 2);
+    hashmap_put(a, &map, S("c"), 3);
 
-    assert(hashmap_pop(&map, SV("a")) == 1);
-    assert(hashmap_pop(&map, SV("b")) == 2);
-    assert(hashmap_pop(&map, SV("c")) == 3);
+    assert(hashmap_pop(&map, S("a")) == 1);
+    assert(hashmap_pop(&map, S("b")) == 2);
+    assert(hashmap_pop(&map, S("c")) == 3);
 }
 
 
@@ -225,45 +225,45 @@ void test_type_safety() {
 
     Arena *a = arena_init();
     MapStrInt map = {0};
-    *hashmap_entry(a, &map, SV("abcd")) = 12;
+    *hashmap_entry(a, &map, S("abcd")) = 12;
 
-    hashmap_put(a, &map, SV("ijkl"), 100);
-    // hashmap_put(&a, &map, SV("ijkl"), ((Point){1, 1}));
+    hashmap_put(a, &map, S("ijkl"), 100);
+    // hashmap_put(&a, &map, S("ijkl"), ((Point){1, 1}));
 
     MapStrPoint map2 = {0};
-    *hashmap_entry(a, &map2, SV("abcd")) = (Point){1, 2};
-    // *hashmap_entry(&a, &map2, SV("abcd")) = 100;
+    *hashmap_entry(a, &map2, S("abcd")) = (Point){1, 2};
+    // *hashmap_entry(&a, &map2, S("abcd")) = 100;
 
-    hashmap_put(a, &map2, SV("efgh"), ((Point){3, 4}));
-    // hashmap_put(&a, &map2, SV("efgh"), SV("aaaaaaa"));
+    hashmap_put(a, &map2, S("efgh"), ((Point){3, 4}));
+    // hashmap_put(&a, &map2, S("efgh"), S("aaaaaaa"));
 
-    Point *p = hashmap_get_ptr(&map2, SV("abcd"));
+    Point *p = hashmap_get_ptr(&map2, S("abcd"));
     unused(p);
-    // int *p1 = hashmap_get_ptr(&map2, SV("abcd"));
+    // int *p1 = hashmap_get_ptr(&map2, S("abcd"));
 
-    Point i = hashmap_get(&map2, SV("efgh"));
+    Point i = hashmap_get(&map2, S("efgh"));
     unused(i);
-    // Point ab = hashmap_get(&map, SV("a"));
-    // int i1 = hashmap_get(&map2, SV("efgh"));
+    // Point ab = hashmap_get(&map, S("a"));
+    // int i1 = hashmap_get(&map2, S("efgh"));
 
-    int64_t pair = hashmap_get(&map, SV("abcd"));
+    int64_t pair = hashmap_get(&map, S("abcd"));
     unused(pair);
-    // Point pair1 = hashmap_get(&map, SV("abcd"));
+    // Point pair1 = hashmap_get(&map, S("abcd"));
 
-    int64_t *kv = hashmap_get_ptr(&map, SV("abcd"));
+    int64_t *kv = hashmap_get_ptr(&map, S("abcd"));
     unused(kv);
-    // Point *kv1 = hashmap_get_ptr(&map, SV("abcd"));
+    // Point *kv1 = hashmap_get_ptr(&map, S("abcd"));
 
-    int64_t del_int = hashmap_pop(&map, SV("abcd"));
+    int64_t del_int = hashmap_pop(&map, S("abcd"));
     unused(del_int);
-    // Point del_int = hashmap_pop(&map, SV("abcd"));
+    // Point del_int = hashmap_pop(&map, S("abcd"));
 
     assert(mem_eq(&map.keys[0], &(String){0}));    assert(mem_eq(&map.values[0], &(int64_t){0}));
-    assert(mem_eq(&map.keys[1], &(SV("ijkl"))));   assert(mem_eq(&map.values[1], &(int64_t){100}));
+    assert(mem_eq(&map.keys[1], &(S("ijkl"))));   assert(mem_eq(&map.values[1], &(int64_t){100}));
 
     assert(mem_eq(&map2.keys[0], &(String){0}));    assert(mem_eq(&map2.values[0], &(int64_t){0}));
-    assert(mem_eq(&map2.keys[1], &(SV("abcd"))));   assert(mem_eq(&map2.values[1], &((Point){1, 2})));
-    assert(mem_eq(&map2.keys[2], &(SV("efgh"))));   assert(mem_eq(&map2.values[2], &((Point){3, 4})));
+    assert(mem_eq(&map2.keys[1], &(S("abcd"))));   assert(mem_eq(&map2.values[1], &((Point){1, 2})));
+    assert(mem_eq(&map2.keys[2], &(S("efgh"))));   assert(mem_eq(&map2.values[2], &((Point){3, 4})));
 
     hashmap_foreach(&map, pair) {
         printf("%.*s: %ld", SV_FMT(*pair.key), *pair.value);
@@ -622,7 +622,7 @@ void test_reserve() {
 
     size_t capacity = map.h.capacity;
     for (size_t i = 0; i < 500; i++) {
-        hashmap_put(a, &map, SV("a"), i);
+        hashmap_put(a, &map, S("a"), i);
         assertf(map.h.capacity == capacity, "expected `%zu` but got `%zu`", capacity, map.h.capacity);
     }
 }
@@ -631,11 +631,11 @@ void test_init() {
     Arena *a = arena_init();
     MapStrInt hm = {0};
     hashmap_init(a, &hm);
-    int64_t i = hashmap_get(&hm, SV("foo"));
+    int64_t i = hashmap_get(&hm, S("foo"));
     assert(i == 0);
-    int64_t j = hashmap_get_index(&hm, SV("bar"));
+    int64_t j = hashmap_get_index(&hm, S("bar"));
     assert(j == 0);
-    int64_t *k = hashmap_get_ptr(&hm, SV("bar"));
+    int64_t *k = hashmap_get_ptr(&hm, S("bar"));
     assert(k == NULL);
 }
 

@@ -293,7 +293,7 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
         if (key_type == HashmapKey_String) {
             String map_key_str = *(String *)map_key;
             String search_key_str = *(String*)search_key;
-            if (string_eq(search_key_str, map_key_str)) {
+            if (str_eq(search_key_str, map_key_str)) {
                 result.is_present = true;
                 result.entry_index = i;
                 break;

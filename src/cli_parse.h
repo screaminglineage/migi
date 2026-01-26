@@ -57,7 +57,7 @@ static int32_t flag__table_step(uint64_t hash, int exp, int32_t index) {
 static void flag__insert(CmdLn *flags, String key, String value, StringList values) {
     assertf(flags->length + 1 < (size_t)(1 << flags->exp), "flag_insert: flag table capacity exceeded!");
 
-    uint64_t hash = string_hash(key);
+    uint64_t hash = str_hash(key);
     for (uint32_t i = (uint32_t)hash;;) {
         i = flag__table_step(hash, flags->exp, i);
         if (flags->slots[i].key.length == 0) {
@@ -73,13 +73,13 @@ static void flag__insert(CmdLn *flags, String key, String value, StringList valu
 }
 
 static FlagSlot *flag_lookup(CmdLn *flags, String flag) {
-    uint64_t hash = string_hash(flag);
+    uint64_t hash = str_hash(flag);
     for (uint32_t i = (uint32_t)hash;;) {
         i = flag__table_step(hash, flags->exp, i);
         if (flags->slots[i].key.length == 0) {
             return NULL;
         }
-        if (string_eq(flag, flags->slots[i].key)) {
+        if (str_eq(flag, flags->slots[i].key)) {
             return &flags->slots[i];
         }
     }
@@ -93,12 +93,12 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
     for (; (1 << cli.exp) - (1 << (cli.exp - 3)) < argc; cli.exp++) {}
     cli.slots = arena_push(arena, FlagSlot, 1LL << cli.exp);
 
-    cli.executable = string_from_cstr(argv[0]);
+    cli.executable = str_from_cstr(argv[0]);
 
     String flag_key = {0};
 
     for (size_t i = 1; i < argc; i++) {
-        String arg = string_from_cstr(argv[i]);
+        String arg = str_from_cstr(argv[i]);
         if (arg.length == 0) continue;
 
         // parse as a positional argument
@@ -112,10 +112,10 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
 
         if (arg.data[1] != '-') {
             // -flag
-            flag_key = string_skip(arg, 1);
+            flag_key = str_skip(arg, 1);
         } else {
             // --flag
-            flag_key = string_skip(arg, 2);
+            flag_key = str_skip(arg, 2);
 
             // if arg is only a `--` parse everything after it as meta arguments
             if (flag_key.length == 0) {
@@ -126,10 +126,10 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
             }
         }
 
-        StringCut cut = string_cut(flag_key, SV("="));
+        StrCut cut = str_cut(flag_key, S("="));
         if (!cut.found) {
             // insert as key with no value (eg: `-h`/`--help`)
-            flag__insert(&cli, flag_key, SV(""), (StringList){0});
+            flag__insert(&cli, flag_key, S(""), (StringList){0});
             continue;
         };
 
@@ -138,12 +138,12 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
 
         // --flag=foo,bar,baz
         StringList values = {0};
-        StringCut values_cut = string_cut(flag_value, SV(","));
+        StrCut values_cut = str_cut(flag_value, S(","));
         String prev_tail = {0};
         while (values_cut.found) {
             strlist_push(arena, &values, values_cut.head);
             prev_tail = values_cut.tail;
-            values_cut = string_cut(values_cut.tail, SV(","));
+            values_cut = str_cut(values_cut.tail, S(","));
         }
         if (prev_tail.length != 0) {
             strlist_push(arena, &values, prev_tail);
@@ -163,7 +163,7 @@ static bool flag_exists(CmdLn *flags, String name) {
 // Use for flags like (--color=true)
 static bool flag_as_bool(CmdLn *flags, String name) {
     FlagSlot *slot = flag_lookup(flags, name);
-    return slot && (string_eq(slot->value, SV("true")) || string_eq(slot->value, SV("1")));
+    return slot && (str_eq(slot->value, S("true")) || str_eq(slot->value, S("1")));
 }
 
 static String flag_as_string(CmdLn *flags, String name, String fallback) {

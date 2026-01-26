@@ -169,12 +169,11 @@ typedef enum {
     Split_AsChars   = (1 << 1),
 } SplitOpt;
 
-static StringList string_split_ex(Arena *a, String str, String delimiter, SplitOpt flags);
-static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter, SplitOpt flags);
+static StringList str_split_ex(Arena *a, String str, String delimiter, SplitOpt flags);
+#define str_split(arena, str, delim) str_split_ex((arena), (str), (delim), 0)
 
-// Convenience macros with all flags set to 0
-#define string_split(arena, str, delimiter)      string_split_ex((arena), (str), (delimiter), 0)
-#define strlist_split(arena, strlist, delimiter) strlist_split_ex((arena), (strlist), (delimiter), 0)
+static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter, SplitOpt flags);
+#define strlist_split(arena, strlist, delim) strlist_split_ex((arena), (strlist), (delim), 0)
 
 
 // ArrayList (Chunked Linked List)
@@ -230,7 +229,7 @@ static void strlist_push_char(Arena *a, StringList *list, char ch) {
 }
 
 static void strlist_push_cstr(Arena *a, StringList *list, const char *cstr) {
-    strlist_push(a, list, string_from_cstr(cstr));
+    strlist_push(a, list, str_from_cstr(cstr));
 }
 
 static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t length) {
@@ -243,7 +242,7 @@ static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t le
 static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    String string = string__format(a, fmt, args);
+    String string = str__format(a, fmt, args);
     va_end(args);
     strlist_push(a, list, string);
 }
@@ -300,11 +299,11 @@ static String strlist_join(Arena *a, StringList *list, String join_with) {
 
 
 // Splits a string by delimiter, pushing each chunk onto a StringList
-static StringList string_split_ex(Arena *a, String str, String delimiter, SplitOpt flags) {
+static StringList str_split_ex(Arena *a, String str, String delimiter, SplitOpt flags) {
     StringList strings = {0};
     if (delimiter.length == 0) return strings;
 
-    StringCutOpt cut_flags = (flags & Split_AsChars)? Cut_AsChars: 0;
+    StrCutOpt cut_flags = (flags & Split_AsChars)? Cut_AsChars: 0;
     strcut_foreach(str, delimiter, cut_flags, cut) {
         if (cut.split.length != 0 || !(flags & Split_SkipEmpty)) {
             strlist_push(a, &strings, cut.split);
@@ -318,7 +317,7 @@ static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter,
     if (delimiter.length == 0) return strings;
 
     strlist_foreach(list, node) {
-        StringList splits = string_split_ex(a, node->string, delimiter, flags);
+        StringList splits = str_split_ex(a, node->string, delimiter, flags);
         strlist_extend(&strings, &splits);
     }
     return strings;

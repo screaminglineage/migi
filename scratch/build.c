@@ -13,13 +13,13 @@
 #include "migi_string.h"
 
 
-#define COMPILER SV("gcc")
-#define BUILD_FOLDER SV("./build")
+#define COMPILER S("gcc")
+#define BUILD_FOLDER S("./build")
 
 void command_to_args(Arena *arena, char **command_args, StringList *command) {
     StringNode *arg = command->head;
     for (size_t i = 0; i < command->length; i++, arg = arg->next) {
-        command_args[i] = string_to_cstr(arena, arg->string);
+        command_args[i] = str_to_cstr(arena, arg->string);
     }
 }
 
@@ -28,7 +28,7 @@ static int run_command(StringList *command) {
     Temp tmp = arena_temp();
 
     Temp mark = arena_save(tmp.arena);
-    migi_log(Log_Info, "Running: %.*s", SV_FMT(strlist_join(tmp.arena, command, SV(" "))));
+    migi_log(Log_Info, "Running: %.*s", SV_FMT(strlist_join(tmp.arena, command, S(" "))));
 
     arena_rewind(mark);
 
@@ -77,23 +77,23 @@ static bool run_compiler(String compiler, bool debug, String filename, String ou
     strlist_push(tmp.arena, &command, compiler);
 
     strlist_push(tmp.arena, &command, filename);
-    strlist_push(tmp.arena, &command, SV("-o"));
+    strlist_push(tmp.arena, &command, S("-o"));
     strlist_push(tmp.arena, &command, output_path);
 
-    strlist_push(tmp.arena, &command, SV("-I./src"));
-    strlist_push(tmp.arena, &command, SV("-Wall"));
-    strlist_push(tmp.arena, &command, SV("-Wextra"));
-    strlist_push(tmp.arena, &command, SV("-Wno-unused-function"));
-    strlist_push(tmp.arena, &command, SV("-Wno-override-init"));
-    strlist_push(tmp.arena, &command, SV("-lm"));
+    strlist_push(tmp.arena, &command, S("-I./src"));
+    strlist_push(tmp.arena, &command, S("-Wall"));
+    strlist_push(tmp.arena, &command, S("-Wextra"));
+    strlist_push(tmp.arena, &command, S("-Wno-unused-function"));
+    strlist_push(tmp.arena, &command, S("-Wno-override-init"));
+    strlist_push(tmp.arena, &command, S("-lm"));
 
     if (debug) {
-        strlist_push(tmp.arena, &command, SV("-ggdb"));
-        strlist_push(tmp.arena, &command, SV("-DMIGI_DEBUG_LOGS"));
-        strlist_push(tmp.arena, &command, SV("-fsanitize=undefined,address"));
+        strlist_push(tmp.arena, &command, S("-ggdb"));
+        strlist_push(tmp.arena, &command, S("-DMIGI_DEBUG_LOGS"));
+        strlist_push(tmp.arena, &command, S("-fsanitize=undefined,address"));
     } else {
-        strlist_push(tmp.arena, &command, SV("-O3"));
-        strlist_push(tmp.arena, &command, SV("-DMIGI_DISABLE_ASSERTS"));
+        strlist_push(tmp.arena, &command, S("-O3"));
+        strlist_push(tmp.arena, &command, S("-DMIGI_DISABLE_ASSERTS"));
     }
 
     bool ok = run_command(&command) == 0;
@@ -104,37 +104,31 @@ static bool run_compiler(String compiler, bool debug, String filename, String ou
 String filename_to_output_path(Arena *arena, String filename, String build_folder) {
     // scratch/main.c => build/main
     String output_name = filename;
-    String extension = SV(".c");
-    if (!string_ends_with(output_name, extension)) {
+    String extension = S(".c");
+    if (!str_ends_with(output_name, extension)) {
         migi_log(Log_Error, "Unknown file type: `%.*s`. Only .c files are supported for compilation", SV_FMT(output_name));
-        return SV("");
+        return S("");
     }
-    output_name = string_take(output_name, output_name.length - extension.length);
+    output_name = str_take(output_name, output_name.length - extension.length);
 
-    int64_t basename_start = string_find_char_rev(output_name, '/');
-    output_name = string_skip(output_name, basename_start + 1);
+    int64_t basename_start = str_find_ex(output_name, S("/"), Find_Reverse);
+    output_name = str_skip(output_name, basename_start + 1);
 
     return stringf(arena,"%.*s/%.*s", SV_FMT(build_folder), SV_FMT(output_name));
 }
 
 int main(int argc, char **argv) {
-    // options which are freestanding
-    StringSlice free_keys = slice_from(String, StringSlice, 
-        SV("run"), SV("r"),
-        SV("optimize"), SV("O"),
-        SV("help"), SV("h"));
-
     Arena *arena = arena_init();
-    FlagTable cli = cli_parse_args_ex(arena, argc, argv, free_keys);
+    CmdLn cli = cli_parse_args(arena, argc, argv);
 
-    if (flag_exists(&cli, SV("h")) || flag_exists(&cli, SV("help"))) {
+    if (flag_exists(&cli, S("h")) || flag_exists(&cli, S("help"))) {
         todof("print help");
         return 0;
     }
 
 
-    bool run = flag_exists(&cli, SV("r")) || flag_exists(&cli, SV("run"));
-    bool debug = !(flag_exists(&cli, SV("O")) || flag_exists(&cli, SV("optimize")));
+    bool run = flag_exists(&cli, S("r")) || flag_exists(&cli, S("run"));
+    bool debug = !(flag_exists(&cli, S("O")) || flag_exists(&cli, S("optimize")));
 
     if (cli.args.length == 0) {
         migi_log(Log_Error, "no file to compile");

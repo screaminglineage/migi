@@ -24,9 +24,9 @@
 #endif // ifdef _WIN32
 
 #ifdef _WIN32
-    #define DIRECTORY_SEPARATOR '\\'
+    #define DIRECTORY_SEPARATOR S("\\")
 #else
-    #define DIRECTORY_SEPARATOR '/'
+    #define DIRECTORY_SEPARATOR S("/")
 #endif // ifdef _WIN32
 
 typedef enum {
@@ -101,7 +101,7 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DString *parent_dir, 
     size_t end = parent_dir->length;
     dstring_pushf(parent_dir, "\\%s", file_info->cFileName);
     entry->path = parent_dir->as_string;
-    entry->name = string_skip(parent_dir->as_string, end + 1);
+    entry->name = str_skip(parent_dir->as_string, end + 1);
 
     entry->is_dir = file_info->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
 
@@ -120,7 +120,7 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DString *parent_dir, 
 }
 #else
 static bool posix__os_to_entry(DString *parent_dir, char *filename, DirEntry *entry) {
-    entry->name = string_from_cstr(filename);
+    entry->name = str_from_cstr(filename);
     dstring_pushf(parent_dir, "/%.*s", SV_FMT(entry->name));
     struct stat statbuf;
     int res = stat(dstring_to_temp_cstr(parent_dir), &statbuf);
@@ -164,7 +164,7 @@ static bool walker_open_dir(DirWalker *w) {
     }
 
     // Remove the `\*` added at the end
-    parent_dir->as_string = string_take(parent_dir->as_string, parent_dir->length - 2);
+    parent_dir->as_string = str_take(parent_dir->as_string, parent_dir->length - 2);
     win32__os_to_entry(&file_info, parent_dir, &w->entry);
     return true;
 #else
@@ -267,7 +267,7 @@ static DirWalker walker__init(String filepath, WalkerInitOpt opt) {
 static void walker_update(Arena *arena, DirWalker *w) {
     if (w->entry.is_dir) {
         // skip `.` and `..`
-        if (string_eq(w->entry.name, SV(".")) || string_eq(w->entry.name, SV(".."))) {
+        if (str_eq(w->entry.name, S(".")) || str_eq(w->entry.name, S(".."))) {
             w->mode = DirWalkerMode_NextFile;
             return;
         }
@@ -277,7 +277,7 @@ static void walker_update(Arena *arena, DirWalker *w) {
         stack_push(w->dir_handles, dir_handle);
         w->depth += 1;
 
-        dstring_pushf(&w->current_dir, "%c%.*s", DIRECTORY_SEPARATOR, SV_FMT(w->entry.name));
+        dstring_pushf(&w->current_dir, "%.*s%.*s", SV_FMT(DIRECTORY_SEPARATOR), SV_FMT(w->entry.name));
         if (w->depth < w->max_depth) {
             w->next_mode = DirWalkerMode_Recurse;
         } else {
@@ -330,9 +330,9 @@ static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
                     w->depth -= 1;
 
                     // Remove the last directory from current_dir
-                    int64_t parent_end = string_find_char_rev(w->current_dir.as_string, DIRECTORY_SEPARATOR);
+                    int64_t parent_end = str_find_ex(w->current_dir.as_string, DIRECTORY_SEPARATOR, Find_Reverse);
                     assertf(parent_end != -1, "there must be atleast one directory separator");
-                    w->current_dir.as_string = string_take(w->current_dir.as_string, parent_end);
+                    w->current_dir.as_string = str_take(w->current_dir.as_string, parent_end);
 
                     w->mode = DirWalkerMode_NextFile;
                 }
@@ -412,9 +412,9 @@ static DirEntryNode *dir_get_all(Arena *arena, String dir, uint32_t max_depth) {
     dir_foreach(tmp.arena, &walker, entry) {
         DirEntryNode *node = arena_new(arena, DirEntryNode);
         node->entry = entry;
-        node->entry.path = string_copy(arena, node->entry.path);
-        node->entry.name = string_skip(node->entry.path,
-            string_find_char_rev(node->entry.path, DIRECTORY_SEPARATOR) + 1);
+        node->entry.path = str_copy(arena, node->entry.path);
+        node->entry.name = str_skip(node->entry.path,
+            str_find_ex(node->entry.path, DIRECTORY_SEPARATOR, Find_Reverse) + 1);
         stack_push(head, node);
     }
 
@@ -442,7 +442,7 @@ void test_walk_dir(String path) {
         printf("Hidden: %s\n", file.is_hidden? "yes": "no");
         printf("------------------------------------------\n");
 
-        if (file.is_dir && string_eq(file.name, SV(".git"))) {
+        if (file.is_dir && str_eq(file.name, S(".git"))) {
             file = walker_next(tmp.arena, &walker, .dont_recurse = true);
         } else {
             file = walker_next(tmp.arena, &walker, .dont_recurse = false);
@@ -463,7 +463,7 @@ void test_walk_dir(String path) {
         printf("Hidden: %s\n", file.is_hidden? "yes": "no");
         printf("------------------------------------------\n");
 
-        if (file.is_dir && string_eq(file.name, SV(".git"))) {
+        if (file.is_dir && str_eq(file.name, S(".git"))) {
             opt.dont_recurse = true;
         }
     }
@@ -478,7 +478,7 @@ int main(int argc, char **argv) {
         migi_log(Log_Error, "expected a path as first argument");
         return 1;
     }
-    String path = string_from_cstr(argv[1]);
+    String path = str_from_cstr(argv[1]);
     uint32_t max_depth = WALKER_INFINITE_DEPTH;
     test_walk_dir(path);
 

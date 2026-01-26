@@ -33,7 +33,7 @@ static String temp_format(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     Temp tmp = temp_save();
-    String res = string__format(temp_allocator_global_arena, fmt, args);
+    String res = str__format(temp_allocator_global_arena, fmt, args);
     temp_rewind(tmp);
     va_end(args);
     return res;
