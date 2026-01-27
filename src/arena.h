@@ -267,7 +267,8 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
 
     Arena *current = arena->current;
     // extend previous allocation if it was the same as `old`
-    // TODO: maybe see if there are other ways to do this
+    // TODO: maybe see if there are other ways to do this, since comparing the pointers 
+    // after adding new_size may potentially overflow the LHS and lead to UB
     if (old_size <= current->position) {
         size_t old_offset = current->position - old_size;
         if ((byte *)current + old_offset == old && old_offset + new_size <= current->reserved) {

@@ -37,6 +37,7 @@
 #include "dynamic_deque.h"
 
 #include "smol_map.h"
+#include "filepath.h"
 
 #ifdef __GNUC__
     #pragma GCC diagnostic pop
@@ -306,7 +307,7 @@ void test_random() {
 
     size_t count = 5;
     int arr[]         = { 0,  1,  2,  3,  4};
-    int64_t weights[] = {25, 50, 75, 50, 25};
+    double weights[] =  {25, 50, 75, 50, 25};
     int frequencies[] = { 0,  0,  0,  0,  0};
 
     assert(array_len(arr)         == count);
@@ -316,7 +317,7 @@ void test_random() {
     int sample_size = 1000000;
     int total = 0;
     for (int i = 0; i < sample_size; i++) {
-        int chosen = random_choose_fuzzy(arr, int, weights, array_len(weights));
+        int chosen = random_choose_weighted(arr, int, weights, array_len(weights));
         frequencies[chosen] += 1;
         total += 1;
     }
@@ -1259,10 +1260,30 @@ void test_dynamic_string() {
 
 
 int main() {
+    test_random();
+    exit(0);
 
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
     unused(a);
+
+    String s = str_from_file(a, S("scratch/main.c"));
+    str_to_file(s, S("build/main.c"));
+
+    String path, c;
+    path = S("/home/aditya//Programming//../../../.././root");
+    c = path_cannonicalize(a, path, S("/"));
+    printf("%.*s\n", SV_FMT(c));
+
+    path = S("C:\\home\\aditya\\\\Programming\\\\..\\..\\..\\..\\.\\Windows");
+    c = path_cannonicalize(a, path, S("\\"));
+    printf("%.*s\n", SV_FMT(c));
+
+
+    // TODO: wtf
+    path = S("/home/aditya/D:\\foo/abcd/bar");
+    c = path_cannonicalize(a, path, S("/"));
+    printf("%.*s\n", SV_FMT(c));
 
     arena_temp_release(tmp);
     printf("\nExiting successfully\n");
