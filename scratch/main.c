@@ -753,6 +753,33 @@ void test_string() {
                                                                                            S("part starry starred repart parted")));
     }
 
+    // str_cat
+    {
+
+        String s = S("foo");
+        s = str_cat(a, s, S(" bar"));
+        s = str_cat(a, s, S(" baz"));
+        s = str_cat(a, s, S(" bing"));
+        s = str_cat(a, s, S(" buzz"));
+        assert(str_eq(s, S("foo bar baz bing buzz")));
+
+        String s0 = S("abcd");
+        String s1 = str_cat(a, s0, S("-efgh"));
+        String s2 = str_cat(a, s1, S("-ijkl"));
+        String s3 = str_cat(a, s2, S("-mnop"));
+        String s4 = str_cat(a, s3, S("-qrst"));
+        assert(str_eq(s4, S("abcd-efgh-ijkl-mnop-qrst")));
+        assertf(s1.data == s4.data, "allocation was done in place");
+
+        String s5 = str_cat(a, S("hello"), S(" world"));
+        assert(str_eq(s5, S("hello world")));
+        String s6 = str_copy(a, S("different string"));
+        unused(s6);
+        String s7 = str_cat(a, s5, S("!!!"));
+        assert(str_eq(s7, S("hello world!!!")));
+        assertf(s5.data != s7.data, "allocation was not done in place due to an extra allocation in between");
+    }
+
     // str_cut
     {
         // Default
@@ -1237,9 +1264,10 @@ int main() {
     Arena *a = tmp.arena;
     unused(a);
 
-    test_string();
     arena_temp_release(tmp);
     printf("\nExiting successfully\n");
 
     return 0;
 }
+
+

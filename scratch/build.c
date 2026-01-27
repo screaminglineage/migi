@@ -61,7 +61,7 @@ static int run_command(StringList *command) {
                 if (WIFEXITED(wstatus)) {
                     child_exit_code = WEXITSTATUS(wstatus);
                 } else if (WIFSIGNALED(wstatus)) {
-                    migi_log(Log_Error, "Child process killed by signal: %d\n", WTERMSIG(wstatus));
+                    migi_log(Log_Error, "Child process killed by: %s\n", strsignal(WTERMSIG(wstatus)));
                 }
             }
         } break;

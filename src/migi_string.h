@@ -35,6 +35,11 @@ static char *str_to_cstr(Arena *arena, String str);
 
 static String str_copy(Arena *arena, String str);
 
+// Concatenates `tail` to the end of `head` if that was the
+// last allocation, otherwise copies both `head` and `tail`
+// Returns the concatenated string, so it can be chained
+static String str_cat(Arena *arena, String head, String tail);
+
 typedef enum {
     Eq_IgnoreCase = (1 << 0),
 } StrEqOpt;
@@ -146,11 +151,11 @@ static StrCut str_cut_ex(String str, String cut_at, StrCutOpt flags);
 
 // Loop through each split, (accessed by `cut.split`) of repeated `str_cut`s
 // until there are no more matches
-#define strcut_foreach(str, delim, flags, cut)                         \
+#define strcut_foreach(str, delim, flags, cut)                      \
     for (struct { StrCut _cut; int _count; String split; }          \
-        cut = {str_cut_ex((str), (delim), (flags)), 0};             \
-        cut.split = cut._cut.head, cut._count < 1;                     \
-        cut._cut.found                                                 \
+        cut = {str_cut_ex((str), (delim), (flags)), 0, {0}};        \
+        cut.split = cut._cut.head, cut._count < 1;                  \
+        cut._cut.found                                              \
             ? cut._cut = str_cut_ex(cut._cut.tail, delim, flags), 0 \
             : cut._count++)
 
@@ -187,6 +192,15 @@ static String str_copy(Arena *arena, String str) {
         .data = arena_copy(arena, char, str.data, str.length),
         .length = str.length
     };
+}
+
+static String str_cat(Arena *arena, String head, String tail) {
+    Arena *current = arena->current;
+    if ((byte *)current + current->position != (byte *)head.data + head.length) {
+        head = str_copy(arena, head);
+    }
+    head.length += str_copy(arena, tail).length;
+    return head;
 }
 
 char char_to_upper(char ch) {

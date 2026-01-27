@@ -97,7 +97,7 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
 
     String flag_key = {0};
 
-    for (size_t i = 1; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         String arg = str_from_cstr(argv[i]);
         if (arg.length == 0) continue;
 
@@ -120,6 +120,7 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
             // if arg is only a `--` parse everything after it as meta arguments
             if (flag_key.length == 0) {
                 while (i < argc) {
+                    i++;
                     strlist_push_cstr(arena, &cli.meta_args, argv[i++]);
                 }
                 break;

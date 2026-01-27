@@ -343,8 +343,8 @@ static void arena_rewind(Temp tmp) {
 
 
 static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length) {
-    int index = -1;
-    for (int i = 0; i < array_len(GLOBAL_TEMP_ARENAS); i++) {
+    int64_t index = -1;
+    for (int64_t i = 0; i < (int64_t)array_len(GLOBAL_TEMP_ARENAS); i++) {
         bool has_conflict = false;
         for (size_t j = 0; j < conflicts_length; j++) {
             if (GLOBAL_TEMP_ARENAS[i] == conflicts[j]) {
