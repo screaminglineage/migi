@@ -13,6 +13,16 @@
 #include "migi_core.h"
 #include "arena.h"
 
+#ifdef _WIN32
+#error "implement file open and close on windows"
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif // ifdef _WIN32
+
+
+
+
 // TODO: add string styling (camelcase/snakecase/etc. conversions)
 
 typedef struct {
@@ -34,6 +44,11 @@ static String str_from_cstr(const char *cstr);
 static char *str_to_cstr(Arena *arena, String str);
 
 static String str_copy(Arena *arena, String str);
+
+// Concatenates `tail` to the end of `head` if that was the
+// last allocation, otherwise copies both `head` and `tail`
+// Returns the concatenated string, so it can be chained
+static String str_cat(Arena *arena, String head, String tail);
 
 typedef enum {
     Eq_IgnoreCase = (1 << 0),
@@ -158,11 +173,11 @@ static StrCut str_cut_ex(String str, String cut_at, StrCutOpt flags);
 
 // Loop through each split, (accessed by `cut.split`) of repeated `str_cut`s
 // until there are no more matches
-#define strcut_foreach(str, delim, flags, cut)                         \
+#define strcut_foreach(str, delim, flags, cut)                      \
     for (struct { StrCut _cut; int _count; String split; }          \
-        cut = {str_cut_ex((str), (delim), (flags)), 0};             \
-        cut.split = cut._cut.head, cut._count < 1;                     \
-        cut._cut.found                                                 \
+        cut = {str_cut_ex((str), (delim), (flags)), 0, {0}};        \
+        cut.split = cut._cut.head, cut._count < 1;                  \
+        cut._cut.found                                              \
             ? cut._cut = str_cut_ex(cut._cut.tail, delim, flags), 0 \
             : cut._count++)
 
@@ -199,6 +214,15 @@ static String str_copy(Arena *arena, String str) {
         .data = arena_copy(arena, char, str.data, str.length),
         .length = str.length
     };
+}
+
+static String str_cat(Arena *arena, String head, String tail) {
+    Arena *current = arena->current;
+    if ((byte *)current + current->position != (byte *)head.data + head.length) {
+        head = str_copy(arena, head);
+    }
+    head.length += str_copy(arena, tail).length;
+    return head;
 }
 
 char char_to_upper(char ch) {
@@ -522,70 +546,101 @@ migi_printf_format(2, 3) static String stringf(Arena *arena, const char *fmt, ..
     return result;
 }
 
-
-// TODO: passing in a directory as filepath causes ftell to return LONG_MAX which overflows the arena
-// TODO: use linux/windows syscalls instead of C stdlib
-// BUG: on windows the mode need to be rb since for r, it converts \r\n to \n, which makes `n` != `file_pos`
-static String str_from_file(Arena *arena, String filepath) {
-    String result = {0};
-
-    Temp tmp = arena_save(arena);
-    FILE *file = fopen(str_to_cstr(tmp.arena, filepath), "rb");
-    arena_rewind(tmp);
-
-    if (!file) {
-        migi_log(Log_Error, "failed to open file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
-        return result;
+#ifndef _WIN32
+static String read_entire_fd(Arena *arena, int fd) {
+    off_t length = lseek(fd, 0, SEEK_END);
+    if (length == -1) {
+        return (String){0};
     }
-
-    fseek(file, 0, SEEK_END);
-    long file_pos = ftell(file);
-    if (file_pos == -1) {
-        migi_log(Log_Error, "couldnt read file position in `%.*s`: %s", SV_FMT(filepath), strerror(errno));
-        fclose(file);
-        return result;
-    }
+    lseek(fd, 0, SEEK_SET);
 
     // file position cannot be negative at this point
-    size_t length = file_pos;
-    rewind(file);
-
     char *buf = arena_push(arena, char, length);
-    int64_t n = fread(buf, sizeof(char), length, file);
-    if (n != file_pos || ferror(file)) {
-        migi_log(Log_Error, "failed to read from file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
-        fclose(file);
-        return result;
+
+    ssize_t n = 0;
+    char *buf_at = buf;
+    while (n < length) {
+        ssize_t m = read(fd, buf_at, length);
+        if (m == -1) {
+            arena_pop(arena, char, length);
+            return (String){0};
+        }
+        n += m;
+        buf_at += n;
     }
 
-    fclose(file);
-    result = (String){
+    return (String){
         .data = buf,
         .length = length,
     };
+}
+#endif // #ifndef _WIN32
+
+#ifndef _WIN32
+static bool write_entire_fd(int fd, String str) {
+    while (str.length > 0) {
+        ssize_t n = write(fd, str.data, str.length);
+        if (n == -1) {
+            return false;
+        }
+        str = str_skip(str, n);
+    }
+    return true;
+}
+#endif // #ifndef _WIN32
+
+
+// TODO: passing in a directory as filepath causes ftell to return LONG_MAX which overflows the arena
+// BUG: on windows the mode needs to be rb since for r, it converts \r\n to \n, which makes `n` != `file_pos`
+static String str_from_file(Arena *arena, String filepath) {
+#ifdef _WIN32
+    todo();
+#else
+    String result = {0};
+
+    Temp tmp = arena_save(arena);
+    int fd = open(str_to_cstr(tmp.arena, filepath), O_RDONLY);
+    arena_rewind(tmp);
+
+    if (fd == -1) {
+        migi_log(Log_Error, "failed to open file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
+        return result;
+    }
+
+    result = read_entire_fd(arena, fd);
+    if (!result.data) {
+        migi_log(Log_Error, "failed to read from file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
+    }
+
+    close(fd);
     return result;
+#endif // #ifdef _WIN32
 }
 
 
-// TODO: use linux syscalls instead of C stdlib
 static bool str_to_file(String string, String filepath) {
+#ifdef _WIN32
+    todo();
+#else
     Temp tmp = arena_temp();
-    FILE *file = fopen(str_to_cstr(tmp.arena, filepath), "w");
+    int fd = open(str_to_cstr(tmp.arena, filepath),
+                  O_WRONLY|O_CREAT|O_TRUNC,
+                  S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
     arena_temp_release(tmp);
 
-    if (!file) {
+    if (fd == -1) {
         migi_log(Log_Error, "failed to open file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
         return false;
     }
-    size_t n = fwrite(string.data, sizeof(char), string.length, file);
-    if (n != string.length) {
+
+    bool ok = write_entire_fd(fd, string);
+    if (!ok) {
         migi_log(Log_Error, "failed to write to file `%.*s`: %s", SV_FMT(filepath), strerror(errno));
-        fclose(file);
-        return false;
     }
 
-    fclose(file);
-    return true;
+    close(fd);
+    return ok;
+#endif // _WIN32
 }
 
 #endif // MIGI_STRING_H

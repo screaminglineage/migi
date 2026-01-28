@@ -37,6 +37,7 @@
 #include "dynamic_deque.h"
 
 #include "smol_map.h"
+#include "filepath.h"
 
 #ifdef __GNUC__
     #pragma GCC diagnostic pop
@@ -306,7 +307,7 @@ void test_random() {
 
     size_t count = 5;
     int arr[]         = { 0,  1,  2,  3,  4};
-    int64_t weights[] = {25, 50, 75, 50, 25};
+    double weights[] =  {25, 50, 75, 50, 25};
     int frequencies[] = { 0,  0,  0,  0,  0};
 
     assert(array_len(arr)         == count);
@@ -316,7 +317,7 @@ void test_random() {
     int sample_size = 1000000;
     int total = 0;
     for (int i = 0; i < sample_size; i++) {
-        int chosen = random_choose_fuzzy(arr, int, weights, array_len(weights));
+        int chosen = random_choose_weighted(arr, int, weights, array_len(weights));
         frequencies[chosen] += 1;
         total += 1;
     }
@@ -751,6 +752,33 @@ void test_string() {
         assert(str_eq(str_replace(a, S("start starry starred restart started"),
                                                                  S("start"), S("part")),
                                                                                            S("part starry starred repart parted")));
+    }
+
+    // str_cat
+    {
+
+        String s = S("foo");
+        s = str_cat(a, s, S(" bar"));
+        s = str_cat(a, s, S(" baz"));
+        s = str_cat(a, s, S(" bing"));
+        s = str_cat(a, s, S(" buzz"));
+        assert(str_eq(s, S("foo bar baz bing buzz")));
+
+        String s0 = S("abcd");
+        String s1 = str_cat(a, s0, S("-efgh"));
+        String s2 = str_cat(a, s1, S("-ijkl"));
+        String s3 = str_cat(a, s2, S("-mnop"));
+        String s4 = str_cat(a, s3, S("-qrst"));
+        assert(str_eq(s4, S("abcd-efgh-ijkl-mnop-qrst")));
+        assertf(s1.data == s4.data, "allocation was done in place");
+
+        String s5 = str_cat(a, S("hello"), S(" world"));
+        assert(str_eq(s5, S("hello world")));
+        String s6 = str_copy(a, S("different string"));
+        unused(s6);
+        String s7 = str_cat(a, s5, S("!!!"));
+        assert(str_eq(s7, S("hello world!!!")));
+        assertf(s5.data != s7.data, "allocation was not done in place due to an extra allocation in between");
     }
 
     // str_cut
@@ -1232,14 +1260,35 @@ void test_dynamic_string() {
 
 
 int main() {
+    test_random();
+    exit(0);
 
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
     unused(a);
 
-    test_string();
+    String s = str_from_file(a, S("scratch/main.c"));
+    str_to_file(s, S("build/main.c"));
+
+    String path, c;
+    path = S("/home/aditya//Programming//../../../.././root");
+    c = path_cannonicalize(a, path, S("/"));
+    printf("%.*s\n", SV_FMT(c));
+
+    path = S("C:\\home\\aditya\\\\Programming\\\\..\\..\\..\\..\\.\\Windows");
+    c = path_cannonicalize(a, path, S("\\"));
+    printf("%.*s\n", SV_FMT(c));
+
+
+    // TODO: wtf
+    path = S("/home/aditya/D:\\foo/abcd/bar");
+    c = path_cannonicalize(a, path, S("/"));
+    printf("%.*s\n", SV_FMT(c));
+
     arena_temp_release(tmp);
     printf("\nExiting successfully\n");
 
     return 0;
 }
+
+

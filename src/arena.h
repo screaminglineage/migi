@@ -267,7 +267,8 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
 
     Arena *current = arena->current;
     // extend previous allocation if it was the same as `old`
-    // TODO: maybe see if there are other ways to do this
+    // TODO: maybe see if there are other ways to do this, since comparing the pointers 
+    // after adding new_size may potentially overflow the LHS and lead to UB
     if (old_size <= current->position) {
         size_t old_offset = current->position - old_size;
         if ((byte *)current + old_offset == old && old_offset + new_size <= current->reserved) {
@@ -343,8 +344,8 @@ static void arena_rewind(Temp tmp) {
 
 
 static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length) {
-    int index = -1;
-    for (int i = 0; i < array_len(GLOBAL_TEMP_ARENAS); i++) {
+    int64_t index = -1;
+    for (int64_t i = 0; i < (int64_t)array_len(GLOBAL_TEMP_ARENAS); i++) {
         bool has_conflict = false;
         for (size_t j = 0; j < conflicts_length; j++) {
             if (GLOBAL_TEMP_ARENAS[i] == conflicts[j]) {

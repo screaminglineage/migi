@@ -191,47 +191,21 @@ static int compare_weights(const void *a_, const void *b_) {
     }
 }
 
-// TODO: can the sort be avoided?
-static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, float *weights, size_t length) {
-    Temp tmp = arena_temp();
-    WeightIndex *weight_indices = arena_push_nonzero(tmp.arena, WeightIndex, length);
-
+static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, double *weights, size_t length) {
+    double total_weight = 0;
     for (size_t i = 0; i < length; i++) {
-        weight_indices[i] = (WeightIndex){.weight = weights[i], .index = i};
+        total_weight += weights[i];
     }
-    qsort(weight_indices, length, sizeof(*weight_indices), compare_weights);
-
-    float choice = random_float();
-    float accumulator = 0;
+    double choice = random_float() * total_weight;
     size_t i = 0;
     for (; i < length; i++) {
-        accumulator += weight_indices[i].weight;
-        if (choice <= accumulator) {
+        if (choice <= weights[i]) {
             break;
         }
+        choice -= weights[i];
     }
-    arena_temp_release(tmp);
-    return buf + elem_size*weight_indices[i].index;
+    return buf + elem_size*i;
 }
-
-static byte *random_choose_bytes_fuzzy(byte *buf, size_t elem_size, int64_t *weights, size_t length) {
-    int64_t sum = 0;
-    for (size_t i = 0; i < length; i++) {
-        sum += weights[i];
-    }
-    avow(sum != 0, "sum of weights must not be 0");
-
-    Temp tmp = arena_temp();
-    float *normalised_weights = arena_push_nonzero(tmp.arena, float, length);
-    for (size_t i = 0; i < length; i++) {
-        normalised_weights[i] = (float)weights[i] / (float)sum;
-    }
-
-    byte *result = random_choose_bytes_weighted(buf, elem_size, normalised_weights, length);
-    arena_temp_release(tmp);
-    return result;
-}
-
 
 // Convenience macro to get a random array of any type
 #define random_array(array, type, size) \
@@ -247,15 +221,8 @@ static byte *random_choose_bytes_fuzzy(byte *buf, size_t elem_size, int64_t *wei
 
 
 // Convenience macros to choose a random element from an array by weight
-//
-// `weights` must have values in the range [0, 1]
-// `array` must be the same length as `weights_length`
 #define random_choose_weighted(array, type, weights, weights_length) \
     *(type *)(random_choose_bytes_weighted((byte *)(array), sizeof(type), weights, weights_length))
-
-// Same as `random_choose_weighted` but `weights` can be any number
-#define random_choose_fuzzy(array, type, weights, weights_length) \
-    *(type *)(random_choose_bytes_fuzzy((byte *)(array), sizeof(type), weights, weights_length))
 
 
 #endif // MIGI_RANDOM_H
