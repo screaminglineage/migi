@@ -268,7 +268,7 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
     TIME_FUNCTION;
     HashmapItem result = {0};
     if (key_type == HashmapKey_String) {
-        String *search_key_str = (String *)search_key;
+        Str *search_key_str = (Str *)search_key;
         result.hash = hash_fnv((byte *)search_key_str->data, search_key_str->length);
     } else if (key_type == HashmapKey_Other) {
         result.hash = hash_fnv((byte *)search_key, key_size);
@@ -291,8 +291,8 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
         // return if key was found
         byte *map_key = (byte *)keys + (header->entries[i].index * key_size);
         if (key_type == HashmapKey_String) {
-            String map_key_str = *(String *)map_key;
-            String search_key_str = *(String*)search_key;
+            Str map_key_str = *(Str *)map_key;
+            Str search_key_str = *(Str*)search_key;
             if (str_eq(search_key_str, map_key_str)) {
                 result.is_present = true;
                 result.entry_index = i;
@@ -387,7 +387,7 @@ static void hms_get_impl(HashmapHeader *header, void *keys, size_t key_size, voi
 // actual data to be hashed, rather than hashing the raw bytes themselves
 #define _hashmap_key_type(k)        \
     _Generic((k),                   \
-        String:  HashmapKey_String, \
+        Str:  HashmapKey_String, \
         default: HashmapKey_Other)
 
 

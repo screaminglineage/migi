@@ -19,7 +19,7 @@ void test_basic() {
     typedef struct {
         HASHMAP_HEADER;
         Point *values;
-        String *keys;
+        Str *keys;
     } MapStrPoint;
 
     Arena *a = arena_init();
@@ -49,12 +49,12 @@ void test_basic() {
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
-        printf("%.*s: (Point){%d %d}\n", SV_FMT(*pair.key), pair.value->x,
+        printf("%.*s: (Point){%d %d}\n", SArg(*pair.key), pair.value->x,
                pair.value->y);
     }
     printf("\n");
 
-    assert(mem_eq(&hm.keys[0], &(String){0}));  assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[0], &(Str){0}));  assert(mem_eq(&hm.values[0], &((Point){0})));
     assert(mem_eq(&hm.keys[1], &(S("foo"))));  assert(mem_eq(&hm.values[1], &((Point){1, 2})));
     assert(mem_eq(&hm.keys[2], &(S("bar"))));  assert(mem_eq(&hm.values[2], &((Point){3, 4})));
     assert(mem_eq(&hm.keys[3], &(S("baz"))));  assert(mem_eq(&hm.values[3], &((Point){5, 6})));
@@ -77,9 +77,9 @@ void test_basic() {
 
     printf("\niteration:\n");
     hashmap_foreach(&hm, pair) {
-        printf("%.*s: (Point){%d %d}\n", SV_FMT(*pair.key), pair.value->x, pair.value->y);
+        printf("%.*s: (Point){%d %d}\n", SArg(*pair.key), pair.value->x, pair.value->y);
     }
-    assert(mem_eq(&hm.keys[0], &((String){0})));  assert(mem_eq(&hm.values[0], &((Point){0})));
+    assert(mem_eq(&hm.keys[0], &((Str){0})));  assert(mem_eq(&hm.values[0], &((Point){0})));
     assert(mem_eq(&hm.keys[1], &(S("foo"))));    assert(mem_eq(&hm.values[1], &((Point){10, 20})));
     assert(mem_eq(&hm.keys[2], &(S("bla"))));    assert(mem_eq(&hm.values[2], &((Point){7, 8})));
     assert(mem_eq(&hm.keys[3], &(S("baz"))));    assert(mem_eq(&hm.values[3], &((Point){5, 6})));
@@ -92,7 +92,7 @@ void test_default_values() {
 
     typedef struct {
         HASHMAP_HEADER;
-        String *keys;
+        Str *keys;
         Point *values;
     } MapStrPoint;
 
@@ -119,13 +119,13 @@ void test_default_values() {
 }
 
 typedef struct {
-    String key;
+    Str key;
     int64_t value;
 } KVStrInt;
 
 typedef struct {
     HASHMAP_HEADER;
-    String *keys;
+    Str *keys;
     int64_t *values;
 } MapStrInt;
 
@@ -140,7 +140,7 @@ int hash_entry_cmp(const void *a, const void *b) {
 void frequency_analysis() {
     Arena *a = arena_init();
 
-    String contents = str_from_file(a, S("shakespeare.txt"));
+    Str contents = str_from_file(a, S("shakespeare.txt"));
     // read_file(&sb, S("gatsby.txt"));
     // read_file(&sb, S("hashmap_test.txt"));
 
@@ -148,7 +148,7 @@ void frequency_analysis() {
     printf("Inserting items:\n");
     begin_profiling();
     strcut_foreach(contents, S(" \n"), Cut_AsChars, it) {
-        String key = str_to_lower(a, str_trim(it.split));
+        Str key = str_to_lower(a, str_trim(it.split));
         *hashmap_entry(a, &map, key) += 1;
     }
 
@@ -173,7 +173,7 @@ void frequency_analysis() {
     printf("Words sorted in descending order:\n");
     for (size_t i = 0; i < map.h.size; i++) {
         KVStrInt *pair = entries + i;
-        printf("%.*s => %ld\n", SV_FMT(pair->key), pair->value);
+        printf("%.*s => %ld\n", SArg(pair->key), pair->value);
     }
 #endif
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
@@ -219,7 +219,7 @@ void test_type_safety() {
 
     typedef struct {
         HASHMAP_HEADER;
-        String *keys;
+        Str *keys;
         Point *values;
     } MapStrPoint;
 
@@ -258,30 +258,30 @@ void test_type_safety() {
     unused(del_int);
     // Point del_int = hashmap_pop(&map, S("abcd"));
 
-    assert(mem_eq(&map.keys[0], &(String){0}));    assert(mem_eq(&map.values[0], &(int64_t){0}));
+    assert(mem_eq(&map.keys[0], &(Str){0}));    assert(mem_eq(&map.values[0], &(int64_t){0}));
     assert(mem_eq(&map.keys[1], &(S("ijkl"))));   assert(mem_eq(&map.values[1], &(int64_t){100}));
 
-    assert(mem_eq(&map2.keys[0], &(String){0}));    assert(mem_eq(&map2.values[0], &(int64_t){0}));
+    assert(mem_eq(&map2.keys[0], &(Str){0}));    assert(mem_eq(&map2.values[0], &(int64_t){0}));
     assert(mem_eq(&map2.keys[1], &(S("abcd"))));   assert(mem_eq(&map2.values[1], &((Point){1, 2})));
     assert(mem_eq(&map2.keys[2], &(S("efgh"))));   assert(mem_eq(&map2.values[2], &((Point){3, 4})));
 
     hashmap_foreach(&map, pair) {
-        printf("%.*s: %ld", SV_FMT(*pair.key), *pair.value);
+        printf("%.*s: %ld", SArg(*pair.key), *pair.value);
     }
     printf("\n");
     hashmap_foreach(&map2, pair) {
-        printf("%.*s: (Point){%d, %d}\n", SV_FMT(*pair.key), pair.value->x, pair.value->y);
+        printf("%.*s: (Point){%d, %d}\n", SArg(*pair.key), pair.value->x, pair.value->y);
     }
     printf("\n");
 }
 
-String random_string(Arena *a, size_t length) {
+Str random_string(Arena *a, size_t length) {
     char *chars = arena_push(a, char, length);
 
     for (size_t i = 0; i < length; i++) {
         chars[i] = random_range('a', 'z');
     }
-    return (String){.data = chars, .length = length};
+    return (Str){.data = chars, .length = length};
 }
 
 // Inserts random strings into the hashmap and tries to later find them
@@ -296,7 +296,7 @@ void profile_search_fail() {
     begin_profiling();
     size_t length = 5;
     for (size_t i = 0; i < 1024 * 1024; i++) {
-        String str = random_string(a, length);
+        Str str = random_string(a, length);
         *hashmap_entry(a, &map, str) = 1;
     }
     end_profiling_and_print_stats();
@@ -304,7 +304,7 @@ void profile_search_fail() {
     begin_profiling();
     size_t count = 0;
     for (size_t i = 0; i < 1024 * 1024; i++) {
-        String str = random_string(a, length);
+        Str str = random_string(a, length);
         if (hashmap_get_index(&map, str)) {
             count++;
         }
@@ -595,7 +595,7 @@ void profile_hashmap_deletion_times() {
 void profile_huge_strings() {
     typedef struct {
         HASHMAP_HEADER;
-        String *keys;
+        Str *keys;
         int64_t *values;
     } MapStrInt;
 
@@ -603,7 +603,7 @@ void profile_huge_strings() {
     MapStrInt map = {0};
     begin_profiling();
     for (size_t i = 0; i < 1024; i++) {
-        String key = random_string(a, 1024*1024);
+        Str key = random_string(a, 1024*1024);
         hashmap_put(a, &map, key, 100);
     }
     end_profiling_and_print_stats();
@@ -612,7 +612,7 @@ void profile_huge_strings() {
 void test_reserve() {
     typedef struct {
         HASHMAP_HEADER;
-        String *keys;
+        Str *keys;
         int *values;
     } Map;
 

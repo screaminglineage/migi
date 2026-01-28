@@ -191,18 +191,27 @@ static int compare_weights(const void *a_, const void *b_) {
     }
 }
 
-static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, double *weights, size_t length) {
+typedef struct {
+    double *weights;
+} RandomChooseOpt;
+
+static byte *random_choose_bytes(byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt) {
+    if (!opt.weights) {
+        size_t i = random_range_exclusive(0, len);
+        return buf + elem_size*i;
+    }
+
     double total_weight = 0;
-    for (size_t i = 0; i < length; i++) {
-        total_weight += weights[i];
+    for (size_t i = 0; i < len; i++) {
+        total_weight += opt.weights[i];
     }
     double choice = random_float() * total_weight;
     size_t i = 0;
-    for (; i < length; i++) {
-        if (choice <= weights[i]) {
+    for (; i < len; i++) {
+        if (choice <= opt.weights[i]) {
             break;
         }
-        choice -= weights[i];
+        choice -= opt.weights[i];
     }
     return buf + elem_size*i;
 }
@@ -215,14 +224,16 @@ static byte *random_choose_bytes_weighted(byte *buf, size_t elem_size, double *w
 #define array_shuffle(array, type, size) \
     random_shuffle_bytes((byte *)(array), sizeof(type), (size))
 
-// Convenience macro to choose a random element from an designated initializer
+// Convenience macro to choose a random element from an designated initializer or a static array
+//
+// Str s = random_choose((Str []){S("foo"), S("bar"), S("baz"), S("hello"), S("world")});
+// int foo[] = {10, 20, 30, 40, 50, 60, 70, 80, 90};
+// int num = random_choose(foo);
 #define random_choose(...) \
-    ((__VA_ARGS__)[random_range_exclusive(0, sizeof(__VA_ARGS__)/sizeof(*(__VA_ARGS__)))])
-
+    ((__VA_ARGS__)[random_range_exclusive(0, sizeof((__VA_ARGS__))/sizeof((__VA_ARGS__)[0]))])
 
 // Convenience macros to choose a random element from an array by weight
-#define random_choose_weighted(array, type, weights, weights_length) \
-    *(type *)(random_choose_bytes_weighted((byte *)(array), sizeof(type), weights, weights_length))
-
+#define random_choose_ex(array, type, len, ...) \
+    *(type *)(random_choose_bytes((byte *)(array), sizeof(type), len, (RandomChooseOpt){__VA_ARGS__}))
 
 #endif // MIGI_RANDOM_H

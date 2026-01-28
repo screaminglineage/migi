@@ -43,8 +43,8 @@ struct DirHandleNode {
 };
 
 typedef struct {
-    String path;
-    String name;
+    Str path;
+    Str name;
     size_t size;    // 0 for directories
 
     // in unix epoch, 0 if not available (eg: time_created on linux)
@@ -68,8 +68,8 @@ typedef struct {
     // seems like it might be possible to only modify current_dir with the path each time
     // at the start of walker__next, check if a entry exists and if so, subtract the length
     // of entry->name from current_dir to get back the directory again
-    DString current_dir;
-    DString temp_str;
+    DStr current_dir;
+    DStr temp_str;
     uint32_t depth;
     uint32_t max_depth;
     bool stop_on_error;
@@ -97,9 +97,9 @@ static int64_t win32__system_time_to_unix(FILETIME ft) {
 
 
 #ifdef _WIN32
-static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DString *parent_dir, DirEntry *entry) {
+static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, DirEntry *entry) {
     size_t end = parent_dir->length;
-    dstring_pushf(parent_dir, "\\%s", file_info->cFileName);
+    dstr_pushf(parent_dir, "\\%s", file_info->cFileName);
     entry->path = parent_dir->as_string;
     entry->name = str_skip(parent_dir->as_string, end + 1);
 
@@ -121,12 +121,12 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DString *parent_dir, 
 #else
 static bool posix__os_to_entry(DString *parent_dir, char *filename, DirEntry *entry) {
     entry->name = str_from_cstr(filename);
-    dstring_pushf(parent_dir, "/%.*s", SV_FMT(entry->name));
+    dstring_pushf(parent_dir, "/%.*s", SArg(entry->name));
     struct stat statbuf;
     int res = stat(dstring_to_temp_cstr(parent_dir), &statbuf);
     if (res == -1) {
         migi_log(Log_Error, "failed to get file info for: `%.*s`: %s",
-                SV_FMT(parent_dir->as_string), strerror(errno));
+                SArg(parent_dir->as_string), strerror(errno));
         return false;
     }
 
@@ -149,16 +149,16 @@ static bool walker_open_dir(DirWalker *w) {
     // TODO: come up with a better name
     // Search with wildcard appended to end of file
 
-    DString *parent_dir = &w->temp_str;
-    dstring_pushf(parent_dir, "%.*s\\*", SV_FMT(w->current_dir.as_string));
+    DStr *parent_dir = &w->temp_str;
+    dstr_pushf(parent_dir, "%.*s\\*", SArg(w->current_dir.as_string));
 
     WIN32_FIND_DATA file_info;
-    w->dir = FindFirstFile(dstring_to_temp_cstr(&w->temp_str), &file_info);
+    w->dir = FindFirstFile(dstr_to_temp_cstr(&w->temp_str), &file_info);
     if (w->dir == INVALID_HANDLE_VALUE) {
         // DisplayErrorBox(TEXT("FindFirstFile"));
         // TODO: print the error here
         // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessage
-        migi_log(Log_Error, "failed to open directory: `%.*s`: %ld", SV_FMT(w->current_dir), GetLastError());
+        migi_log(Log_Error, "failed to open directory: `%.*s`: %ld", SArg(w->current_dir), GetLastError());
         // FindClose(w->find); // TODO: does the handle still need to be closed?
         return false;
     }
@@ -173,7 +173,7 @@ static bool walker_open_dir(DirWalker *w) {
     w->dir = opendir(dstring_to_temp_cstr(parent_dir));
     if (!w->dir) {
         migi_log(Log_Error, "failed to open directory: `%.*s`: %s",
-                SV_FMT(parent_dir->as_string), strerror(errno));
+                SArg(parent_dir->as_string), strerror(errno));
         return false;
     }
 
@@ -200,13 +200,13 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
             // DisplayErrorBox(TEXT("FindNextFile"));
             // TODO: print the error here
             // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessage
-            migi_log(Log_Error, "failed to read file in directory: `%.*s`: %ld", SV_FMT(w->current_dir), GetLastError());
+            migi_log(Log_Error, "failed to read file in directory: `%.*s`: %ld", SArg(w->current_dir), GetLastError());
             return Read_Error;
         }
     }
 
-    DString *parent_dir = &w->temp_str;
-    dstring_push(parent_dir, w->current_dir.as_string);
+    DStr *parent_dir = &w->temp_str;
+    dstr_push(parent_dir, w->current_dir.as_string);
     win32__os_to_entry(&file_info, parent_dir, &w->entry);
     return Read_Ok;
 #else
@@ -241,7 +241,7 @@ typedef struct {
 } WalkerInitOpt;
 
 // TODO: maybe return a pointer to the struct allocated on the arena
-static DirWalker walker__init(String filepath, WalkerInitOpt opt) {
+static DirWalker walker__init(Str filepath, WalkerInitOpt opt) {
     DirWalker walker = {0};
 
     if (filepath.length == 0) {
@@ -250,7 +250,7 @@ static DirWalker walker__init(String filepath, WalkerInitOpt opt) {
     }
 
     // TODO: convert path to an absolute canonical form
-    walker.current_dir = dstring_from_string(filepath);
+    walker.current_dir = dstr_from_string(filepath);
     walker.mode = DirWalkerMode_Recurse;
     walker.max_depth = opt.max_depth;
     walker.stop_on_error = opt.stop_on_error;
@@ -277,7 +277,7 @@ static void walker_update(Arena *arena, DirWalker *w) {
         stack_push(w->dir_handles, dir_handle);
         w->depth += 1;
 
-        dstring_pushf(&w->current_dir, "%.*s%.*s", SV_FMT(DIRECTORY_SEPARATOR), SV_FMT(w->entry.name));
+        dstr_pushf(&w->current_dir, "%.*s%.*s", SArg(DIRECTORY_SEPARATOR), SArg(w->entry.name));
         if (w->depth < w->max_depth) {
             w->next_mode = DirWalkerMode_Recurse;
         } else {
@@ -367,7 +367,7 @@ static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
 }
 
 static void walker_free(DirWalker *w) {
-    migi_log(Log_Debug, "Temp String Allocated: %zu bytes", w->temp_str.capacity);
+    migi_log(Log_Debug, "Temp Str Allocated: %zu bytes", w->temp_str.capacity);
     migi_log(Log_Debug, "Current Directory Allocated: %zu bytes", w->current_dir.capacity);
     if (w->stop_on_error) {
         list_foreach(w->dir_handles, DirHandleNode, dir_handle) {
@@ -375,8 +375,8 @@ static void walker_free(DirWalker *w) {
         }
         close_directory(w->dir);
     }
-    dstring_free(&w->temp_str);
-    dstring_free(&w->current_dir);
+    dstr_free(&w->temp_str);
+    dstr_free(&w->current_dir);
 }
 
 // NOTE: the entry returned contains temporary data that will be freed on
@@ -404,7 +404,7 @@ struct DirEntryNode {
 };
 
 
-static DirEntryNode *dir_get_all(Arena *arena, String dir, uint32_t max_depth) {
+static DirEntryNode *dir_get_all(Arena *arena, Str dir, uint32_t max_depth) {
     DirWalker walker = walker_init(dir, .max_depth = max_depth, .stop_on_error = false);
 
     Temp tmp = arena_temp_excl(arena);
@@ -424,7 +424,7 @@ static DirEntryNode *dir_get_all(Arena *arena, String dir, uint32_t max_depth) {
 }
 
 
-void test_walk_dir(String path) {
+void test_walk_dir(Str path) {
     DirWalker walker = walker_init(path, .max_depth = WALKER_INFINITE_DEPTH, .stop_on_error = false);
 
     Temp tmp = arena_temp();
@@ -432,8 +432,8 @@ void test_walk_dir(String path) {
     DirEntry file = walker_next(tmp.arena, &walker, false);
 
     while (!file.over) {
-        printf("Path: %.*s\n", SV_FMT(file.path));
-        printf("Name: %.*s\n", SV_FMT(file.name));
+        printf("Path: %.*s\n", SArg(file.path));
+        printf("Name: %.*s\n", SArg(file.name));
         printf("Size: %zu bytes\n", file.size);
         printf("Time Created: %zu\n", file.time_created);
         printf("Time Modified: %zu\n", file.time_modified);
@@ -453,8 +453,8 @@ void test_walk_dir(String path) {
     dir_foreach_opt(tmp.arena, &walker, file, &opt) {
         if (file.error) continue;
 
-        printf("Path: %.*s\n", SV_FMT(file.path));
-        printf("Name: %.*s\n", SV_FMT(file.name));
+        printf("Path: %.*s\n", SArg(file.path));
+        printf("Name: %.*s\n", SArg(file.name));
         printf("Size: %zu bytes\n", file.size);
         printf("Time Created: %zu\n", file.time_created);
         printf("Time Modified: %zu\n", file.time_modified);
@@ -478,7 +478,7 @@ int main(int argc, char **argv) {
         migi_log(Log_Error, "expected a path as first argument");
         return 1;
     }
-    String path = str_from_cstr(argv[1]);
+    Str path = str_from_cstr(argv[1]);
     uint32_t max_depth = WALKER_INFINITE_DEPTH;
     test_walk_dir(path);
 
@@ -486,8 +486,8 @@ int main(int argc, char **argv) {
     DirEntryNode *entries = dir_get_all(tmp.arena, path, max_depth);
 
     list_foreach(entries, DirEntryNode, node) {
-        printf("Path: %.*s\n", SV_FMT(node->entry.path));
-        printf("Name: %.*s\n", SV_FMT(node->entry.name));
+        printf("Path: %.*s\n", SArg(node->entry.path));
+        printf("Name: %.*s\n", SArg(node->entry.name));
         printf("\n");
     }
 

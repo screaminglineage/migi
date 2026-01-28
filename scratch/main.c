@@ -33,11 +33,12 @@
 #define POOL_ALLOC_COUNT_ALLOCATIONS
 #include "pool_allocator.h"
 
-#include "migi_temp.h"
 #include "dynamic_deque.h"
 
 #include "smol_map.h"
 #include "filepath.h"
+
+#include "migi_math.h"
 
 #ifdef __GNUC__
     #pragma GCC diagnostic pop
@@ -241,17 +242,17 @@ void test_string_builder_formatted() {
         sb_push_string(&sb1, S("foo"));
         sb_push_string(&sb1, S("bar"));
         sb_push_string(&sb1, S("baz"));
-        sb_pushf(&sb1, "\nhello world! %d, %.*s, %f\n", 12, SV_FMT(S("more stuff")), 3.14);
+        sb_pushf(&sb1, "\nhello world! %d, %.*s, %f\n", 12, SArg(S("more stuff")), 3.14);
         sb_pushf(&sb1, "abcd efgh 12345678 %x\n", 0xdeadbeef);
 
-        String str = sb_to_string(&sb1);
-        printf("%.*s\n", SV_FMT(str));
+        Str str = sb_to_string(&sb1);
+        printf("%.*s\n", SArg(str));
         sb_free(&sb1);
     }
 
     static char buf[1*MB];
     Arena *a = arena_init_static(buf, sizeof(buf));
-    String str = str_from_file(a, S("./src/str_builder.h"));
+    Str str = str_from_file(a, S("./src/str_builder.h"));
     const char *cstr = str_to_cstr(a, str);
 
     sb_pushf(&sb, "%s\n", cstr);
@@ -262,14 +263,16 @@ void test_string_builder_formatted() {
 
         char buffer[2048] = {0};
         StringBuilder sb_static = sb_init_static(buffer, sizeof(buffer));
-        sb_pushf(&sb_static, "%.*s/%s:%d\n", SV_FMT(S("FILE PATH")), __FILE__, __LINE__);
-        printf("%.*s", SV_FMT(sb_to_string(&sb_static)));
+        sb_pushf(&sb_static, "%.*s/%s:%d\n", SArg(S("FILE PATH")), __FILE__, __LINE__);
+        printf("%.*s", SArg(sb_to_string(&sb_static)));
     }
 }
 
+
 void test_random() {
     size_t size = 1 * MB;
-    Arena *arena = arena_init();
+    Temp tmp = arena_temp();
+    Arena *arena = tmp.arena;
     time_t seed = time(NULL);
     byte *buf1 = arena_push_nonzero(arena, byte, size);
     byte *buf2 = arena_push_nonzero(arena, byte, size);
@@ -305,27 +308,59 @@ void test_random() {
         assert(random_range_exclusive(0, 1) != 1);
     }
 
-    size_t count = 5;
-    int arr[]         = { 0,  1,  2,  3,  4};
-    double weights[] =  {25, 50, 75, 50, 25};
-    int frequencies[] = { 0,  0,  0,  0,  0};
+    {
+        Str s = random_choose((Str []){S("foo"), S("bar"), S("baz"), S("hello"), S("world")});
+        printf("Choosing a random element: `%.*s`\n", SArg(s));
 
-    assert(array_len(arr)         == count);
-    assert(array_len(weights)     == count);
-    assert(array_len(frequencies) == count);
+        int foo[] = {0, 10, 20, 30, 40, 50, 60, 70, 80, 90};
+        int num = random_choose(foo);
+        printf("Choosing a random element: `%d`\n", num);
 
-    int sample_size = 1000000;
-    int total = 0;
-    for (int i = 0; i < sample_size; i++) {
-        int chosen = random_choose_weighted(arr, int, weights, array_len(weights));
-        frequencies[chosen] += 1;
-        total += 1;
+        int frequencies[10] = {0};
+        int sample_size = 1000000;
+        int total = 0;
+        for (int i = 0; i < sample_size; i++) {
+            int chosen = random_choose_ex(foo, int, array_len(foo));
+            frequencies[chosen / 10] += 1;
+            total++;
+        }
+        printf("Equal Weights:\n");
+        for (size_t i = 0; i < array_len(foo); i++) {
+            double percentage = ((double)frequencies[i] / (double)total) * 100.0;
+            printf("[%zu] => %.2f%%\n", i, percentage);
+        }
+        printf("\n");
     }
 
-    for (size_t i = 0; i < count; i++) {
-        double percentage = ((double)frequencies[i] / (double)total) * 100.0;
-        printf("[%zu] => %.2f%%\n", i, percentage);
+    {
+        size_t count = 5;
+        int arr[]         = { 0,  1,  2,  3,  4};
+        double weights[] =  {25, 50, 75, 50, 25};
+        int frequencies[] = { 0,  0,  0,  0,  0};
+
+        assert(array_len(arr)         == count);
+        assert(array_len(weights)     == count);
+        assert(array_len(frequencies) == count);
+
+
+        int sample_size = 1000000;
+        int total = 0;
+        for (int i = 0; i < sample_size; i++) {
+            int chosen = random_choose_ex(arr, int, array_len(arr), .weights=weights);
+            frequencies[chosen] += 1;
+            total += 1;
+        }
+
+        printf("Normal Distribution\n");
+        for (size_t i = 0; i < count; i++) {
+            double percentage = ((double)frequencies[i] / (double)total) * 100.0;
+            printf("[%zu] => %.2f%%\n", i, percentage);
+        }
+        printf("\n");
     }
+
+
+    arena_temp_release(tmp);
 }
 
 void test_dynamic_array() {
@@ -403,8 +438,8 @@ void profile_linear_arena() {
 
 
 typedef struct {
-    StringSlice expected;
-    StringList actual;
+    StrSlice expected;
+    StrList actual;
 } StringSplitTest;
 
 static void assert_str_split(StringSplitTest t) {
@@ -412,12 +447,12 @@ static void assert_str_split(StringSplitTest t) {
     size_t char_count = 0;
     if (t.actual.total_size != 0) {
         strlist_foreach(&t.actual, node) {
-            String expected = t.expected.data[count];
-            String actual = node->string;
+            Str expected = t.expected.data[count];
+            Str actual = node->string;
 
             assert(count < t.expected.length);
             assertf(str_eq(actual, expected), "expected: `%.*s,` got: `%.*s`",
-                    SV_FMT(expected), SV_FMT(actual));
+                    SArg(expected), SArg(actual));
             count++;
             char_count += actual.length;
         }
@@ -431,44 +466,44 @@ void test_str_split_and_join() {
     Arena *a = arena_init();
     StringSplitTest splits[] = {
         {
-            .expected = slice_from(String, StringSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
+            .expected = slice_from(Str, StrSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
             .actual = str_split(a, S("Mary had a little lamb"), S(" "))
         },
         {
-            .expected = slice_from(String, StringSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
+            .expected = slice_from(Str, StrSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
             .actual =  str_split_ex(a, S(" Mary    had   a   little   lamb "), S(" "), Split_SkipEmpty)
         },
         {
-            .expected = slice_from(String, StringSlice, S(""), S("Mary"), S(""), S(""), S(""), S("had"), S(""), S(""), 
+            .expected = slice_from(Str, StrSlice, S(""), S("Mary"), S(""), S(""), S(""), S("had"), S(""), S(""), 
                     S("a"), S(""), S(""), S("little"), S(""), S(""), S("lamb")),
             .actual =  str_split(a, S(" Mary    had   a   little   lamb"), S(" "))
         },
         {
-            .expected = slice_from(String, StringSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb"), S("")),
+            .expected = slice_from(Str, StrSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb"), S("")),
             .actual = str_split(a, S("Mary--had--a--little--lamb--"), S("--"))
         },
         {
-            .expected = (StringSlice){0},
+            .expected = (StrSlice){0},
             .actual = str_split(a, S("Mary had a little lamb"), S(""))
         },
         {
-            .expected = slice_from(String, StringSlice, S(""), S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
+            .expected = slice_from(Str, StrSlice, S(""), S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
             .actual = str_split(a, S(" Mary had a little lamb"), S(" ")),
         },
         {
-            .expected = slice_from(String, StringSlice, S(""), S("1"), S("")),
+            .expected = slice_from(Str, StrSlice, S(""), S("1"), S("")),
             .actual = str_split(a, S("010"), S("0"))
         },
         {
-            .expected = slice_from(String, StringSlice, S("2020"), S("11"), S("03"), S("23"), S("59"), S("")),
+            .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S("03"), S("23"), S("59"), S("")),
             .actual = str_split_ex(a, S("2020-11-03 23:59@"), S("- :@"), Split_AsChars)
         },
         {
-            .expected = slice_from(String, StringSlice, S("2020"), S("11"), S("03"), S("23"), S("59")),
+            .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S("03"), S("23"), S("59")),
             .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_SkipEmpty|Split_AsChars)
         },
         {
-            .expected = slice_from(String, StringSlice, S("2020"), S("11"), S(""), S("03"), S("23"), S("59"), S("")),
+            .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S(""), S("03"), S("23"), S("59"), S("")),
             .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_AsChars)
         },
     };
@@ -477,8 +512,8 @@ void test_str_split_and_join() {
         assert_str_split(splits[i]);
     }
 
-    StringList list = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_AsChars|Split_SkipEmpty);
-    String expected = strlist_join(a, &list, S("-"));
+    StrList list = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_AsChars|Split_SkipEmpty);
+    Str expected = strlist_join(a, &list, S("-"));
     assert(str_eq(expected, S("2020-11-03-23-59")));
 
     list = str_split(a, S("--foo--bar--baz--"), S("--"));
@@ -505,7 +540,7 @@ void test_str_list() {
 
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
-    StringList sl = {0};
+    StrList sl = {0};
 
     strlist_push(a, &sl, S("This is a "));
     strlist_push(a, &sl, S("string being built "));
@@ -518,23 +553,23 @@ void test_str_list() {
     strlist_pushf(a, &sl,
                   "%s:%d:%s: %.15f ... and more stuff... blah blah blah",
                   __FILE__, __LINE__, __func__, M_PI);
-    String final_str = strlist_to_string(a, &sl);
-    printf("%.*s", SV_FMT(final_str));
+    Str final_str = strlist_to_string(a, &sl);
+    printf("%.*s", SArg(final_str));
 
 
 
-    String foo = S("foo bar,baz biz,1 2 3");
-    StringList l = str_split(a, foo, S(","));
+    Str foo = S("foo bar,baz biz,1 2 3");
+    StrList l = str_split(a, foo, S(","));
     l = strlist_split(a, &l, S(" "));
 
-    String expected[] = {
+    Str expected[] = {
         S("foo"), S("bar"), S("baz"), S("biz"), S("1"), S("2"), S("3"),
     };
     size_t i = 0;
     strlist_foreach(&l, node) {
         assertf(str_eq(expected[i], node->string), 
                 "expected: %.*s, but got %.*s\n", 
-                SV_FMT(expected[i]), SV_FMT(node->string));
+                SArg(expected[i]), SArg(node->string));
         i++;
     }
 
@@ -577,14 +612,14 @@ void test_string() {
     {
         assert(str_eq(S("abcd"), S("abcd")));
         assert(str_eq(S(""), S("")));
-        assert(str_eq((String){0}, (String){0}));
+        assert(str_eq((Str){0}, (Str){0}));
 
-        assert(str_eq_cstr((String){0}, "", 0));
-        assert(str_eq_cstr((String){0}, "", 0));
+        assert(str_eq_cstr((Str){0}, "", 0));
+        assert(str_eq_cstr((Str){0}, "", 0));
         assert(str_eq_cstr(S("yes!!"), "yes!!", 0));
 
-        assert(str_eq(str_skip(S("1234"), 5), (String){0}));
-        assert(str_eq((String){0}, str_skip(S("4567"), 5)));
+        assert(str_eq(str_skip(S("1234"), 5), (Str){0}));
+        assert(str_eq((Str){0}, str_skip(S("4567"), 5)));
         assert(str_eq(str_skip(S("1234"), 5), str_skip(S("4567"), 5)));
         assert(str_eq(str_take(S("hello"), 0), str_take(S("world"), 0)));
         assert(str_eq(str_slice(S("hello"), 2, 2), str_slice(S("world"), 2, 2)));
@@ -614,7 +649,7 @@ void test_string() {
 
     // str_trim
     {
-        String str = S("\n    hello       \n");
+        Str str = S("\n    hello       \n");
         assert(str_eq(str_trim_right(str),       S("\n    hello")));
         assert(str_eq(str_trim_left(str),        S("hello       \n")));
         assert(str_eq(str_trim(str),             S("hello")));
@@ -757,26 +792,26 @@ void test_string() {
     // str_cat
     {
 
-        String s = S("foo");
+        Str s = S("foo");
         s = str_cat(a, s, S(" bar"));
         s = str_cat(a, s, S(" baz"));
         s = str_cat(a, s, S(" bing"));
         s = str_cat(a, s, S(" buzz"));
         assert(str_eq(s, S("foo bar baz bing buzz")));
 
-        String s0 = S("abcd");
-        String s1 = str_cat(a, s0, S("-efgh"));
-        String s2 = str_cat(a, s1, S("-ijkl"));
-        String s3 = str_cat(a, s2, S("-mnop"));
-        String s4 = str_cat(a, s3, S("-qrst"));
+        Str s0 = S("abcd");
+        Str s1 = str_cat(a, s0, S("-efgh"));
+        Str s2 = str_cat(a, s1, S("-ijkl"));
+        Str s3 = str_cat(a, s2, S("-mnop"));
+        Str s4 = str_cat(a, s3, S("-qrst"));
         assert(str_eq(s4, S("abcd-efgh-ijkl-mnop-qrst")));
         assertf(s1.data == s4.data, "allocation was done in place");
 
-        String s5 = str_cat(a, S("hello"), S(" world"));
+        Str s5 = str_cat(a, S("hello"), S(" world"));
         assert(str_eq(s5, S("hello world")));
-        String s6 = str_copy(a, S("different string"));
+        Str s6 = str_copy(a, S("different string"));
         unused(s6);
-        String s7 = str_cat(a, s5, S("!!!"));
+        Str s7 = str_cat(a, s5, S("!!!"));
         assert(str_eq(s7, S("hello world!!!")));
         assertf(s5.data != s7.data, "allocation was not done in place due to an extra allocation in between");
     }
@@ -825,21 +860,21 @@ void test_string() {
         // Cut_AsChars
         {
 
-            String str1 = S("2020-11--03 23:59@");
+            Str str1 = S("2020-11--03 23:59@");
             strcut_foreach(str1, S("- :@"), Cut_AsChars, it) {
-                printf("=> `%.*s`\n", SV_FMT(it.split));
+                printf("=> `%.*s`\n", SArg(it.split));
             }
             assertf(str_eq(str1, S("2020-11--03 23:59@")), "original string remains intact");
 
-            String str2 = S("a,b,c,");
+            Str str2 = S("a,b,c,");
             strcut_foreach(str2, S(","), 0, it) {
-                printf("=> `%.*s`\n", SV_FMT(it.split));
+                printf("=> `%.*s`\n", SArg(it.split));
             }
             assertf(str_eq(str2, S("a,b,c,")), "original string remains intact");
 
             {
-                String c = S("a+-b");
-                String delims = S("-+");
+                Str c = S("a+-b");
+                Str delims = S("-+");
                 StrCut cut = str_cut_ex(c, delims, Cut_AsChars);
                 assert(cut.found);
                 assert(str_eq(cut.head, S("a")));
@@ -950,21 +985,6 @@ void test_pool_allocator() {
     assertf(s1 == s2, "s1 reallocated as s2 from free list");
 }
 
-void test_temp_allocator() {
-    temp_init();
-    Temp tmp = temp_save();
-    for (size_t i = 0; i < 1000; i++) {
-        assert(str_eq(S("3-2-1 go!"), temp_format("%d-%d-%d go!", 3, 2, 1)));
-        int *a = temp_alloc(int, 25);
-        for (int j = 0; j < 25; j++) {
-            a[j] = j;
-        }
-    }
-    temp_rewind(tmp);
-
-    assert(temp_allocator_global_arena->current == temp_allocator_global_arena->current);
-    assert(temp_allocator_global_arena->current->position == sizeof(Arena));
-}
 
 void test_dynamic_deque() {
     Deque d = deque_init();
@@ -1019,7 +1039,7 @@ void test_smol_map() {
     Arena *arena = arena_init();
     SmolHashmap shm = {0};
 
-    struct {String a; int b;} data[] = {
+    struct {Str a; int b;} data[] = {
         { S("Foo"),    121 },
         { S("Bar"),    124 },
         { S("Baz"),    127 },
@@ -1243,47 +1263,49 @@ void test_linked_list() {
 }
 
 void test_dynamic_string() {
-    DString a = DS("hello");
-    dstring_push(&a, S(" world"));
-    dstring_push_cstr(&a, " GGWP!!!!");
-    dstring_push(&a, S("\nTEST"));
-    dstring_pushf(&a, " - %d %f %s %.*s", 123, -23423.123, "does this", SV_FMT(S("even work??")));
+    DStr a = DS("hello");
+    dstr_push(&a, S(" world"));
+    dstr_push_cstr(&a, " GGWP!!!!");
+    dstr_push(&a, S("\nTEST"));
+    dstr_pushf(&a, " - %d %f %s %.*s", 123, -23423.123, "does this", SArg(S("even work??")));
 
-    const char *actual = dstring_to_temp_cstr(&a);
+    const char *actual = dstr_to_temp_cstr(&a);
     const char *expected = "hello world GGWP!!!!\nTEST - 123 -23423.123000 does this even work??";
     assertf(strcmp(actual, expected) == 0, "strings should be equal");
     assertf(a.data[a.length] == 0, "null terminator is present but popped off actual string");
 
-    dstring_free(&a);
-    assertf(mem_eq(&a, &((DString){0})), "dynamic string should be zeroed out");
+    dstr_free(&a);
+    assertf(mem_eq(&a, &((DStr){0})), "dynamic string should be zeroed out");
 }
 
+void test_filepath() {
+    Temp tmp = arena_temp();
+
+    Str path, c;
+
+    path = S("/home/aditya//Programming//../../../.././root");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    assert(str_eq(c, S("/root")));
+
+    path = S("C:\\home\\aditya\\\\Programming\\\\..\\..\\..\\..\\.\\Windows");
+    c = path_cannonicalize(tmp.arena, path, S("\\"));
+    assert(str_eq(c, S("C:\\Windows")));
+
+    // TODO: wtf
+    path = S("/home/aditya/D:\\foo/abcd/bar");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    printf("%.*s\n", SArg(c));
+
+    arena_temp_release(tmp);
+}
 
 int main() {
-    test_random();
-    exit(0);
-
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
     unused(a);
 
-    String s = str_from_file(a, S("scratch/main.c"));
-    str_to_file(s, S("build/main.c"));
-
-    String path, c;
-    path = S("/home/aditya//Programming//../../../.././root");
-    c = path_cannonicalize(a, path, S("/"));
-    printf("%.*s\n", SV_FMT(c));
-
-    path = S("C:\\home\\aditya\\\\Programming\\\\..\\..\\..\\..\\.\\Windows");
-    c = path_cannonicalize(a, path, S("\\"));
-    printf("%.*s\n", SV_FMT(c));
-
-
-    // TODO: wtf
-    path = S("/home/aditya/D:\\foo/abcd/bar");
-    c = path_cannonicalize(a, path, S("/"));
-    printf("%.*s\n", SV_FMT(c));
+    Str s = str_from_file(a, S("cratch\\main.c"));
+    str_to_file(s, S("build\\main-generated"));
 
     arena_temp_release(tmp);
     printf("\nExiting successfully\n");

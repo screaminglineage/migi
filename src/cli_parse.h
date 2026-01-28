@@ -4,16 +4,16 @@
 #include "migi.h"
 
 typedef struct {
-    String key;
-    String value;
-    StringList values;
+    Str key;
+    Str value;
+    StrList values;
 } FlagSlot;
 
 typedef struct {
     FlagSlot *slots;
-    StringList args;         // positional arguments
-    StringList meta_args;    // arguments following a `--`, usually passed to the program being called by this program
-    String executable;
+    StrList args;         // positional arguments
+    StrList meta_args;    // arguments following a `--`, usually passed to the program being called by this program
+    Str executable;
 
     size_t length;
     int exp;
@@ -21,7 +21,7 @@ typedef struct {
 
 
 static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]);
-static FlagSlot *flag_lookup(CmdLn *flags, String flag);
+static FlagSlot *flag_lookup(CmdLn *flags, Str flag);
 
 
 // Looking up flags by value and fallback
@@ -29,12 +29,12 @@ static FlagSlot *flag_lookup(CmdLn *flags, String flag);
 // NOTE: Use flag_exists for flags like `-v`, `-h`, 
 // and flag_as_bool for flags like `--color=true`, `-f=1`
 //
-static bool flag_exists(CmdLn *flags, String name);
-static bool flag_as_bool(CmdLn *flags, String name);
-static String flag_as_string(CmdLn *flags, String name, String fallback);
-static int64_t flag_as_i64(CmdLn *flags, String name, int64_t fallback);
-static double flag_as_f64(CmdLn *flags, String name, double fallback);
-static StringList flag_as_strlist(CmdLn *flags, String name);
+static bool flag_exists(CmdLn *flags, Str name);
+static bool flag_as_bool(CmdLn *flags, Str name);
+static Str flag_as_string(CmdLn *flags, Str name, Str fallback);
+static int64_t flag_as_i64(CmdLn *flags, Str name, int64_t fallback);
+static double flag_as_f64(CmdLn *flags, Str name, double fallback);
+static StrList flag_as_strlist(CmdLn *flags, Str name);
 
 // Iterate over each flag as key-value pairs
 #define flag_foreach(flags, slot)                   \
@@ -54,7 +54,7 @@ static int32_t flag__table_step(uint64_t hash, int exp, int32_t index) {
     return (index + step) & mask;
 }
 
-static void flag__insert(CmdLn *flags, String key, String value, StringList values) {
+static void flag__insert(CmdLn *flags, Str key, Str value, StrList values) {
     assertf(flags->length + 1 < (size_t)(1 << flags->exp), "flag_insert: flag table capacity exceeded!");
 
     uint64_t hash = str_hash(key);
@@ -72,7 +72,7 @@ static void flag__insert(CmdLn *flags, String key, String value, StringList valu
     }
 }
 
-static FlagSlot *flag_lookup(CmdLn *flags, String flag) {
+static FlagSlot *flag_lookup(CmdLn *flags, Str flag) {
     uint64_t hash = str_hash(flag);
     for (uint32_t i = (uint32_t)hash;;) {
         i = flag__table_step(hash, flags->exp, i);
@@ -95,10 +95,10 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
 
     cli.executable = str_from_cstr(argv[0]);
 
-    String flag_key = {0};
+    Str flag_key = {0};
 
     for (int i = 1; i < argc; i++) {
-        String arg = str_from_cstr(argv[i]);
+        Str arg = str_from_cstr(argv[i]);
         if (arg.length == 0) continue;
 
         // parse as a positional argument
@@ -130,17 +130,17 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
         StrCut cut = str_cut(flag_key, S("="));
         if (!cut.found) {
             // insert as key with no value (eg: `-h`/`--help`)
-            flag__insert(&cli, flag_key, S(""), (StringList){0});
+            flag__insert(&cli, flag_key, S(""), (StrList){0});
             continue;
         };
 
         flag_key = cut.head;
-        String flag_value = cut.tail;
+        Str flag_value = cut.tail;
 
         // --flag=foo,bar,baz
-        StringList values = {0};
+        StrList values = {0};
         StrCut values_cut = str_cut(flag_value, S(","));
-        String prev_tail = {0};
+        Str prev_tail = {0};
         while (values_cut.found) {
             strlist_push(arena, &values, values_cut.head);
             prev_tail = values_cut.tail;
@@ -157,17 +157,17 @@ static CmdLn cli_parse_args(Arena *arena, int argc, char *argv[]) {
 }
 
 
-static bool flag_exists(CmdLn *flags, String name) {
+static bool flag_exists(CmdLn *flags, Str name) {
     return flag_lookup(flags, name) != NULL;
 }
 
 // Use for flags like (--color=true)
-static bool flag_as_bool(CmdLn *flags, String name) {
+static bool flag_as_bool(CmdLn *flags, Str name) {
     FlagSlot *slot = flag_lookup(flags, name);
     return slot && (str_eq(slot->value, S("true")) || str_eq(slot->value, S("1")));
 }
 
-static String flag_as_string(CmdLn *flags, String name, String fallback) {
+static Str flag_as_string(CmdLn *flags, Str name, Str fallback) {
     FlagSlot *slot = flag_lookup(flags, name);
     if (!slot || slot->value.length == 0) {
         return fallback;
@@ -175,13 +175,13 @@ static String flag_as_string(CmdLn *flags, String name, String fallback) {
     return slot->value;
 }
 
-static int64_t flag_as_i64(CmdLn *flags, String name, int64_t fallback) {
+static int64_t flag_as_i64(CmdLn *flags, Str name, int64_t fallback) {
     FlagSlot *slot = flag_lookup(flags, name);
     if (!slot || slot->value.length == 0) {
         return fallback;
     }
 
-    String value = slot->value;
+    Str value = slot->value;
 
     int64_t num = 0;
     int sign = 1;
@@ -206,13 +206,13 @@ static int64_t flag_as_i64(CmdLn *flags, String name, int64_t fallback) {
     return sign * num;
 }
 
-static double flag_as_f64(CmdLn *flags, String name, double fallback) {
+static double flag_as_f64(CmdLn *flags, Str name, double fallback) {
     FlagSlot *slot = flag_lookup(flags, name);
     if (!slot || slot->value.length == 0) {
         return fallback;
     }
 
-    String value = flag_lookup(flags, name)->value;
+    Str value = flag_lookup(flags, name)->value;
 
     // TODO: implement strtod rather than depending on it
     // Allocating a temporary null terminated string for strtod
@@ -228,7 +228,7 @@ static double flag_as_f64(CmdLn *flags, String name, double fallback) {
     return num;
 }
 
-static StringList flag_as_strlist(CmdLn *flags, String name) {
+static StrList flag_as_strlist(CmdLn *flags, Str name) {
     return flag_lookup(flags, name)->values;
 }
 

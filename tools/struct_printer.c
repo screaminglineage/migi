@@ -18,8 +18,8 @@
 // #include "Foo_printer.gen.c" below every struct
 
 typedef struct {
-    String name;
-    String type_name;
+    Str name;
+    Str type_name;
     bool is_non_primitive;
     const char *format;
 } Member;
@@ -31,7 +31,7 @@ typedef struct {
 } Members;
 
 typedef struct {
-    String name;
+    Str name;
     Members members;
     bool has_data_and_length;
 } StructDef;
@@ -44,7 +44,7 @@ typedef struct {
 } StructDefs;
 
 
-bool format_for_type(String type, const char **format, bool *is_char) {
+bool format_for_type(Str type, const char **format, bool *is_char) {
     if (str_eq_any(type, S("int"), S("byte"), S("bool"), S("short"), S("signed"))) {
         *format = "%d";
     } else if (str_eq(type, S("char"))) {
@@ -139,9 +139,9 @@ bool parse_struct_members(Lexer *lexer, StructDef *struct_def) {
 void generate_string_printer(StringBuilder *sb) {
     // `level` is never used in `print_String,` but still present as a parameter
     // so that it can be called just like the other `_print_*` functions
-    sb_push_cstr(sb, "static void _print_String(String var_name, int level) {\n");
+    sb_push_cstr(sb, "static void _print_String(Str var_name, int level) {\n");
     sb_push_cstr(sb, "    (void)level;\n");
-    sb_push_cstr(sb, "    printf(\"\\\"%.*s\\\"\", SV_FMT(var_name));\n");
+    sb_push_cstr(sb, "    printf(\"\\\"%.*s\\\"\", SArg(var_name));\n");
     sb_push_cstr(sb, "}\n");
 }
 
@@ -156,12 +156,12 @@ void generate_member_printer(StringBuilder *sb, Member member, int indent_count,
 
     // print as slice
     if (is_slice) {
-        sb_pushf     (sb, "    printf(\".%.*s%*s= \");\n", SV_FMT(member.name), padding, " ");
-        sb_pushf     (sb, "    printf(\"(%.*s[]){ \");\n", SV_FMT(member.type_name));
+        sb_pushf     (sb, "    printf(\".%.*s%*s= \");\n", SArg(member.name), padding, " ");
+        sb_pushf     (sb, "    printf(\"(%.*s[]){ \");\n", SArg(member.type_name));
         sb_push_cstr (sb, "    for (size_t i = 0; i < var_name.length; i++) {\n");
 
         if (member.is_non_primitive) {
-            sb_pushf(sb,     "        _print_%.*s(var_name.data[i], level + 1);\n", SV_FMT(member.type_name));
+            sb_pushf(sb,     "        _print_%.*s(var_name.data[i], level + 1);\n", SArg(member.type_name));
             sb_push_cstr(sb, "        printf(\", \");\n");
         } else {
             const char *format_str = NULL;
@@ -174,15 +174,15 @@ void generate_member_printer(StringBuilder *sb, Member member, int indent_count,
 
     // call the respective `_print_*` for non-primitive types
     } else if (member.is_non_primitive) {
-        sb_pushf(sb, "    printf(\".%.*s%*s= \");\n", SV_FMT(member.name), padding, " ");
+        sb_pushf(sb, "    printf(\".%.*s%*s= \");\n", SArg(member.name), padding, " ");
         sb_pushf(sb, "    _print_%.*s(var_name.%.*s, level + 1);\n",
-                SV_FMT(member.type_name), SV_FMT(member.name));
+                SArg(member.type_name), SArg(member.name));
         sb_push_cstr(sb, "        printf(\"\\n\");\n");
 
     // otherwise use the respective format string
     } else {
         sb_pushf(sb, "    printf(\".%.*s%*s= %s,\\n\", var_name.%.*s);\n",
-                SV_FMT(member.name), padding, " ", member.format, SV_FMT(member.name));
+                SArg(member.name), padding, " ", member.format, SArg(member.name));
     }
 }
 
@@ -190,10 +190,10 @@ void generate_member_printer(StringBuilder *sb, Member member, int indent_count,
 void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent_count) {
     // generate print function with indentation level
     sb_pushf(sb, "static void _print_%.*s(%.*s var_name, int level) {\n",
-            SV_FMT(struct_def.name), SV_FMT(struct_def.name));
+            SArg(struct_def.name), SArg(struct_def.name));
 
     // indent member sufficiently according to the level
-    sb_pushf(sb, "    printf(\"(%%s){\\n\", \"%.*s\");\n", SV_FMT(struct_def.name));
+    sb_pushf(sb, "    printf(\"(%%s){\\n\", \"%.*s\");\n", SArg(struct_def.name));
 
     size_t members_length = struct_def.members.length;
     size_t max_name_length = 0;
@@ -223,8 +223,8 @@ void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent
     sb_push_cstr(sb, "}\n");
 
     sb_pushf(sb, "static void print_%.*s(%.*s var_name) {\n",
-            SV_FMT(struct_def.name), SV_FMT(struct_def.name));
-    sb_pushf    (sb, "    _print_%.*s(var_name, 0);\n", SV_FMT(struct_def.name));
+            SArg(struct_def.name), SArg(struct_def.name));
+    sb_pushf    (sb, "    _print_%.*s(var_name, 0);\n", SArg(struct_def.name));
     sb_push_cstr(sb, "    printf(\"\\n\");\n");
     sb_push_cstr(sb, "}\n");
 }
@@ -240,7 +240,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "error: no filename provided\n");
         return 1;
     }
-    String input_file = str_from_cstr(shift_args(argc, argv));
+    Str input_file = str_from_cstr(shift_args(argc, argv));
 
     // TODO: check if the folder exists, and if not create it
     const char *output_dir = DEFAULT_OUTPUT_DIR;
@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
 
     StringBuilder reader = sb_init();
     sb_push_file(&reader, input_file);
-    String file_data = sb_to_string(&reader);
+    Str file_data = sb_to_string(&reader);
 
     Lexer lexer = {.string = file_data};
     Token tok = {0};
@@ -289,17 +289,17 @@ int main(int argc, char *argv[]) {
     StringBuilder writer = sb_init();
 
     generate_string_printer(&writer);
-    String filename_string = temp_format("%s/String_printer.gen.c", output_dir);
+    Str filename_string = temp_format("%s/String_printer.gen.c", output_dir);
     sb_to_file(&writer, filename_string);
-    printf("Generated printer for `String`: `%.*s`\n", SV_FMT(filename_string));
+    printf("Generated printer for `Str`: `%.*s`\n", SArg(filename_string));
     sb_reset(&writer);
 
     array_foreach(&structs, StructDef, struct_def) {
         generate_struct_printer(&writer, *struct_def, DEFAULT_INDENT_LEVEL);
-        String filename_struct = temp_format("%s/%.*s_printer.gen.c", output_dir, SV_FMT(struct_def->name));
+        Str filename_struct = temp_format("%s/%.*s_printer.gen.c", output_dir, SArg(struct_def->name));
         sb_to_file(&writer, filename_struct);
         printf("Generated printer for `%.*s`: `%.*s`\n",
-                SV_FMT(struct_def->name), SV_FMT(filename_struct));
+                SArg(struct_def->name), SArg(filename_struct));
 
         sb_reset(&writer);
     }

@@ -25,9 +25,9 @@ void test_arena_functions() {
         static byte buffer[1*KB];
         Arena *a = arena_init_static(buffer, sizeof(buffer));
 
-        String string = S("hello world!");
+        Str string = S("hello world!");
         char *str = arena_copy(a, char, string.data, string.length);
-        String uppercased = str_to_upper(a, (String){.data = str, string.length});
+        Str uppercased = str_to_upper(a, (Str){.data = str, string.length});
         assert(str_eq(uppercased, S("HELLO WORLD!")));
         arena_free(a);
     }
@@ -140,18 +140,18 @@ void test_arena_functions() {
     // reading/writing files
     {
         Arena *arena = arena_init();
-        String str = str_from_file(arena, S("scratch/test_arena.c"));
+        Str str = str_from_file(arena, S("scratch/test_arena.c"));
         assert(str.length > 0);
 
-        String filepath = S("build/test_arena-dumped.c");
+        Str filepath = S("build/test_arena-dumped.c");
         assert(str_to_file(str, filepath));
         assert(str_eq(str, str_from_file(arena, filepath)));
     }
 }
 
-String bar(Arena *a) {
+Str bar(Arena *a) {
     Temp tmp = arena_temp_excl(a);
-    String foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SV_FMT(S("testing!!!")));
+    Str foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SArg(S("testing!!!")));
 
     int *temp = arena_push(tmp.arena, int, 64);
     for (int i = 0; i < 64; i++) {
@@ -164,7 +164,7 @@ String bar(Arena *a) {
 
 void test_arena_temp() {
     Temp tmp = arena_temp();
-    String foo = bar(tmp.arena);
+    Str foo = bar(tmp.arena);
 
     int *temp = arena_push(tmp.arena, int, 64);
     for (int i = 0; i < 64; i++) {

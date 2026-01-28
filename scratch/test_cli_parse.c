@@ -6,32 +6,32 @@ int main(int argc, char *argv[]) {
     Arena *arena = arena_init();
     CmdLn cli = cli_parse_args(arena, argc, argv);
 
-    printf("Executable: %.*s\n", SV_FMT(cli.executable));
+    printf("Executable: %.*s\n", SArg(cli.executable));
 
     printf("\nFlag Arguments:\n");
     flag_foreach(cli, flag) {
         if (flag->values.length > 0) {
-            printf("%.*s: ", SV_FMT(flag->key));
+            printf("%.*s: ", SArg(flag->key));
             strlist_foreach(&flag->values, value) {
-                printf("%.*s, ", SV_FMT(value->string));
+                printf("%.*s, ", SArg(value->string));
             }
             printf("\n");
         } else {
-            printf("%.*s: %.*s\n", SV_FMT(flag->key), SV_FMT(flag->value));
+            printf("%.*s: %.*s\n", SArg(flag->key), SArg(flag->value));
         }
     }
 
     printf("\nPositional Arguments:\n");
     flag_args_foreach(cli, arg) {
-        printf("%.*s\n", SV_FMT(arg->string));
+        printf("%.*s\n", SArg(arg->string));
     }
 
     printf("\n-----------------------\n");
 
     printf("foo: ");
-    StringList foo = flag_as_strlist(&cli, S("foo"));
+    StrList foo = flag_as_strlist(&cli, S("foo"));
     strlist_foreach(&foo, value) {
-        printf("%.*s, ", SV_FMT(value->string));
+        printf("%.*s, ", SArg(value->string));
     }
     printf("\n");
 

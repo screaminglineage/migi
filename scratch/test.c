@@ -25,7 +25,7 @@ typedef struct {
         int64_t i64;
         uint64_t u64;
         double f64;
-        String string;
+        Str string;
     } as;
 } RackNode;
 
@@ -72,7 +72,7 @@ RackNode *rack__get_node_to_fill(Rack *rack) {
     return node;
 }
 
-void rack_write_string(Arena *arena, Rack *rack, String string) {
+void rack_write_string(Arena *arena, Rack *rack, Str string) {
     RackNode *node = rack__get_node_to_fill(rack);
     node->type = RackNode_String;
     node->as.string = str_copy(arena, string);
@@ -84,12 +84,12 @@ void rack_write_i64(Rack *rack, int64_t num) {
     node->as.i64 = num;
 }
 
-void rack__dump_node(Arena *arena, StringList *list, RackNode node) {
+void rack__dump_node(Arena *arena, StrList *list, RackNode node) {
     strlist_push_cstr(arena, list, RACK_NODE_NAMES[node.type]);
 
     switch (node.type) {
         case RackNode_String: {
-            String string = node.as.string;
+            Str string = node.as.string;
 
             // store size in little endian order
             char string_length[sizeof(uint32_t)];
@@ -123,8 +123,8 @@ void rack__dump_node(Arena *arena, StringList *list, RackNode node) {
     }
 }
 
-bool rack_dump(Rack *rack, String filepath) {
-    StringList list = {0};
+bool rack_dump(Rack *rack, Str filepath) {
+    StrList list = {0};
     Temp tmp = arena_temp();
     list_foreach(rack->pairs, RackPair, pair) {
         rack__dump_node(tmp.arena, &list, pair->key);
@@ -136,14 +136,14 @@ bool rack_dump(Rack *rack, String filepath) {
     return res;
 }
 
-RackNode rack__load_node(Arena *arena, String *rack_str, String filepath) {
+RackNode rack__load_node(Arena *arena, Str *rack_str, Str filepath) {
     RackNode node = {0};
 
     switch (rack_str->data[0]) {
         case 'S': {
             *rack_str = str_skip(*rack_str, 1);
             if (rack_str->length < 4) {
-                fprintf(stderr, "%s: failed to load rack from `%.*s`: %s\n", __func__, SV_FMT(filepath), "unexpected EOF");
+                fprintf(stderr, "%s: failed to load rack from `%.*s`: %s\n", __func__, SArg(filepath), "unexpected EOF");
                 return node;
             }
 
@@ -157,14 +157,14 @@ RackNode rack__load_node(Arena *arena, String *rack_str, String filepath) {
             if (rack_str->length < length) {
                 fprintf(stderr, "%s: failed to load rack from `%.*s`: "
                         "expected string of %u characters, but got string of %zu characters\n",
-                        __func__, SV_FMT(filepath), length, rack_str->length);
+                        __func__, SArg(filepath), length, rack_str->length);
                 return node;
             }
 
             char *data = arena_push_nonzero(arena, char, length);
             memcpy(data, rack_str->data, length);
             node.type = RackNode_String;
-            node.as.string = (String){
+            node.as.string = (Str){
                 .data = data,
                 .length = length
             };
@@ -174,7 +174,7 @@ RackNode rack__load_node(Arena *arena, String *rack_str, String filepath) {
         case 'I': {
             *rack_str = str_skip(*rack_str, 1);
             if (rack_str->length < 4) {
-                fprintf(stderr, "%s: failed to load rack from `%.*s`: %s\n", __func__, SV_FMT(filepath), "unexpected EOF");
+                fprintf(stderr, "%s: failed to load rack from `%.*s`: %s\n", __func__, SArg(filepath), "unexpected EOF");
                 return node;
             }
 
@@ -199,9 +199,9 @@ RackNode rack__load_node(Arena *arena, String *rack_str, String filepath) {
     return node;
 }
 
-bool rack_load(Arena *arena, Rack *rack, String filepath) {
+bool rack_load(Arena *arena, Rack *rack, Str filepath) {
     Temp tmp = arena_temp_excl(arena);
-    String rack_str = str_from_file(tmp.arena, filepath);
+    Str rack_str = str_from_file(tmp.arena, filepath);
     if (rack_str.length == 0) {
         arena_temp_release(tmp);
         return false;
@@ -220,7 +220,7 @@ bool rack_load(Arena *arena, Rack *rack, String filepath) {
 void rack__print_node(RackNode node) {
     switch (node.type) {
         case RackNode_String:
-            printf("%.*s", SV_FMT(node.as.string));
+            printf("%.*s", SArg(node.as.string));
         break;
         case RackNode_I64:
             printf("%ld", node.as.i64);
@@ -239,7 +239,7 @@ void rack__print_node(RackNode node) {
 }
 
 int main() {
-    String filepath = S("data.rack");
+    Str filepath = S("data.rack");
     Temp tmp = arena_temp();
 
     Rack rack = {0};

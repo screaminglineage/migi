@@ -5,27 +5,27 @@
 #include "migi_string.h"
 #include "migi_list.h"
 
-static String path_dirname(String path);
-static String path_basename(String path);
-static String path_cannonicalize(Arena *arena, String path, String dir_sep);
+static Str path_dirname(Str path);
+static Str path_basename(Str path);
+static Str path_cannonicalize(Arena *arena, Str path, Str dir_sep);
 
-static String path_basename(String path) {
+static Str path_basename(Str path) {
     StrCut cut = str_cut_ex(path, S("/\\"), Cut_AsChars|Cut_Reverse);
     return cut.head;
 }
 
-static String path_dirname(String path) {
+static Str path_dirname(Str path) {
     StrCut cut = str_cut_ex(path, S("/\\"), Cut_AsChars|Cut_Reverse);
     return cut.found? cut.tail: S("/");
 }
 
 typedef struct StringNodeDll StringNodeDll;
 struct StringNodeDll {
-    String string;
+    Str string;
     StringNodeDll *next, *prev;
 };
 
-static String path_cannonicalize(Arena *a, String path, String dir_sep) {
+static Str path_cannonicalize(Arena *a, Str path, Str dir_sep) {
     Temp tmp = arena_temp_excl(a);
 
     StringNodeDll *head = NULL, *tail = NULL;
@@ -42,11 +42,11 @@ static String path_cannonicalize(Arena *a, String path, String dir_sep) {
         dll_push_tail(head, tail, node);
     }
 
-    String result = S("/");
+    Str result = S("/");
 
     // Handling Windows drive separator
     // TODO: what will happen if a unix-like path has a ":\" in it (wtf?)
-    String drive_sep = S(":\\");
+    Str drive_sep = S(":\\");
     StrCut cut = str_cut(path, drive_sep);
     if (cut.found) {
         result = cut.head;

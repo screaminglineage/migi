@@ -5,6 +5,7 @@
 #include <stdio.h>     // needed for prints in asserts
 #include <stdbool.h>
 #include <stdint.h>
+#include <math.h>
 
 typedef uint8_t byte;
 
@@ -73,7 +74,6 @@ static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
 static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
     return value - align_down_padding(value, align_to);
 }
-
 
 #if defined(__GNUC__) || defined (__clang__)
     #define migi_crash() __builtin_trap()

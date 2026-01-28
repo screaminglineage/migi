@@ -36,7 +36,7 @@ static void sb_push(StringBuilder *sb, char to_push) {
     *arena_push(sb->arena, char, 1) = to_push;
 }
 
-static void sb_push_string(StringBuilder *sb, String string) {
+static void sb_push_string(StringBuilder *sb, Str string) {
     memcpy(arena_push(sb->arena, char, string.length), string.data, string.length);
 }
 
@@ -58,7 +58,7 @@ static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
     va_end(args);
 }
 
-static void sb_push_file(StringBuilder *sb, String filename) {
+static void sb_push_file(StringBuilder *sb, Str filename) {
     str_from_file(sb->arena, filename);
 }
 
@@ -70,14 +70,14 @@ void sb_free(StringBuilder *sb) {
     arena_free(sb->arena);
 }
 
-static StringBuilder sb_from_string(String string) {
+static StringBuilder sb_from_string(Str string) {
     StringBuilder sb = {0};
     sb_push_string(&sb, string);
     return sb;
 }
 
-static String sb_to_string(StringBuilder *sb) {
-    return (String){
+static Str sb_to_string(StringBuilder *sb) {
+    return (Str){
         .data = (char *)sb->arena->data,
         .length = sb_length(sb)
     };
@@ -92,7 +92,7 @@ static const char *sb_to_cstr(StringBuilder *sb) {
     return cstr;
 }
 
-static bool sb_to_file(StringBuilder *sb, String filename) {
+static bool sb_to_file(StringBuilder *sb, Str filename) {
     return str_to_file(sb_to_string(sb), filename);
 }
 

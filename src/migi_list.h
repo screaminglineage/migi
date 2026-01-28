@@ -134,31 +134,31 @@
     for (type *(item) = (head); (item); (item) = (item)->next)
 
 
-// StringList (Linked List of Strings)
-typedef struct StringNode StringNode;
-struct StringNode {
-    String string;
-    StringNode *next;
+// StrList (Linked List of Strings)
+typedef struct StrNode StrNode;
+struct StrNode {
+    Str string;
+    StrNode *next;
 };
 
 typedef struct {
-    StringNode *head, *tail;
+    StrNode *head, *tail;
     size_t length;
     size_t total_size;
-} StringList;
+} StrList;
 
-static void strlist_push(Arena *a, StringList *list, String str);
-static void strlist_push_char(Arena *a, StringList *list, char ch);
-static void strlist_push_cstr(Arena *a, StringList *list, const char *cstr);
-static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t length);
-migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...);
-static void strlist_extend(StringList *list, StringList *extend_with);
-static String strlist_pop(StringList *list);
+static void strlist_push(Arena *a, StrList *list, Str str);
+static void strlist_push_char(Arena *a, StrList *list, char ch);
+static void strlist_push_cstr(Arena *a, StrList *list, const char *cstr);
+static void strlist_push_buffer(Arena *a, StrList *list, char *str, size_t length);
+migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StrList *list, const char *fmt, ...);
+static void strlist_extend(StrList *list, StrList *extend_with);
+static Str strlist_pop(StrList *list);
 
-#define strlist_foreach(strlist, node) list_foreach((strlist)->head, StringNode, (node))
+#define strlist_foreach(strlist, node) list_foreach((strlist)->head, StrNode, (node))
 
-static String strlist_to_string(Arena *a, StringList *list);
-static String strlist_join(Arena *a, StringList *list, String join_with);
+static Str strlist_to_string(Arena *a, StrList *list);
+static Str strlist_join(Arena *a, StrList *list, Str join_with);
 
 typedef enum {
     // Skip empty strings
@@ -169,10 +169,10 @@ typedef enum {
     Split_AsChars   = (1 << 1),
 } SplitOpt;
 
-static StringList str_split_ex(Arena *a, String str, String delimiter, SplitOpt flags);
+static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags);
 #define str_split(arena, str, delim) str_split_ex((arena), (str), (delim), 0)
 
-static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter, SplitOpt flags);
+static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt flags);
 #define strlist_split(arena, strlist, delim) strlist_split_ex((arena), (strlist), (delim), 0)
 
 
@@ -214,51 +214,51 @@ do {                                                                 \
 } while (0)
 
 
-static void strlist_push(Arena *a, StringList *list, String str) {
-    StringNode *node = arena_new(a, StringNode);
+static void strlist_push(Arena *a, StrList *list, Str str) {
+    StrNode *node = arena_new(a, StrNode);
     node->string = str;
     queue_push(list->head, list->tail, node);
     list->total_size += str.length;
     list->length += 1;
 }
 
-static void strlist_push_char(Arena *a, StringList *list, char ch) {
+static void strlist_push_char(Arena *a, StrList *list, char ch) {
     char *data = arena_new(a, char);
     *data = ch;
-    strlist_push(a, list, (String){data, 1});
+    strlist_push(a, list, (Str){data, 1});
 }
 
-static void strlist_push_cstr(Arena *a, StringList *list, const char *cstr) {
+static void strlist_push_cstr(Arena *a, StrList *list, const char *cstr) {
     strlist_push(a, list, str_from_cstr(cstr));
 }
 
-static void strlist_push_buffer(Arena *a, StringList *list, char *str, size_t length) {
+static void strlist_push_buffer(Arena *a, StrList *list, char *str, size_t length) {
     char *data = arena_copy(a, char, str, length);
-    strlist_push(a, list, (String){data, length});
+    strlist_push(a, list, (Str){data, length});
 }
 
 // NOTE: strlist_pushf doesnt append a null terminator at the end
 // of the format string unlike regular sprintf
-static void strlist_pushf(Arena *a, StringList *list, const char *fmt, ...) {
+static void strlist_pushf(Arena *a, StrList *list, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    String string = str__format(a, fmt, args);
+    Str string = str__format(a, fmt, args);
     va_end(args);
     strlist_push(a, list, string);
 }
 
-static String strlist_to_string(Arena *a, StringList *list) {
+static Str strlist_to_string(Arena *a, StrList *list) {
     char *mem = arena_push_nonzero(a, char, list->total_size);
     char *dest = mem;
-    for (StringNode *node = list->head; node != NULL; node = node->next) {
+    for (StrNode *node = list->head; node != NULL; node = node->next) {
         memcpy(dest, node->string.data, node->string.length);
         dest += node->string.length;
     }
-    return (String){mem, list->total_size};
+    return (Str){mem, list->total_size};
 }
 
-static void strlist_extend(StringList *list, StringList *extend_with) {
-    // Update the head as well for an empty StringList
+static void strlist_extend(StrList *list, StrList *extend_with) {
+    // Update the head as well for an empty StrList
     if (list->length == 0) {
         list->head = extend_with->head;
     } else {
@@ -270,22 +270,22 @@ static void strlist_extend(StringList *list, StringList *extend_with) {
     list->total_size += extend_with->total_size;
 }
 
-static String strlist_pop(StringList *list) {
-    if (!list->head) return (String){0};
+static Str strlist_pop(StrList *list) {
+    if (!list->head) return (Str){0};
 
-    String popped = list->head->string;
+    Str popped = list->head->string;
     queue_pop(list->head, list->tail);
     list->length -= 1;
     list->total_size -= popped.length;
     return popped;
 }
 
-static String strlist_join(Arena *a, StringList *list, String join_with) {
+static Str strlist_join(Arena *a, StrList *list, Str join_with) {
     size_t total_size = list->total_size + (list->length - 1) * join_with.length;
     char *mem = arena_push_nonzero(a, char, total_size);
 
     char *dest = mem;
-    StringNode *node = list->head;
+    StrNode *node = list->head;
     for (; node->next; node = node->next) {
         memcpy(dest, node->string.data, node->string.length);
         dest += node->string.length;
@@ -294,13 +294,13 @@ static String strlist_join(Arena *a, StringList *list, String join_with) {
         dest += join_with.length;
     }
     memcpy(dest, node->string.data, node->string.length);
-    return (String){mem, total_size};
+    return (Str){mem, total_size};
 }
 
 
-// Splits a string by delimiter, pushing each chunk onto a StringList
-static StringList str_split_ex(Arena *a, String str, String delimiter, SplitOpt flags) {
-    StringList strings = {0};
+// Splits a string by delimiter, pushing each chunk onto a StrList
+static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
+    StrList strings = {0};
     if (delimiter.length == 0) return strings;
 
     StrCutOpt cut_flags = (flags & Split_AsChars)? Cut_AsChars: 0;
@@ -312,12 +312,12 @@ static StringList str_split_ex(Arena *a, String str, String delimiter, SplitOpt 
     return strings;
 }
 
-static StringList strlist_split_ex(Arena *a, StringList *list, String delimiter, SplitOpt flags) {
-    StringList strings = {0};
+static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt flags) {
+    StrList strings = {0};
     if (delimiter.length == 0) return strings;
 
     strlist_foreach(list, node) {
-        StringList splits = str_split_ex(a, node->string, delimiter, flags);
+        StrList splits = str_split_ex(a, node->string, delimiter, flags);
         strlist_extend(&strings, &splits);
     }
     return strings;

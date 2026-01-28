@@ -8,7 +8,7 @@ struct Node {
     Node *last_child;
     Node *parent;
 
-    String name;
+    Str name;
 };
 
 Node *pre_order_next(Node *root) {
@@ -38,7 +38,7 @@ Node *post_order_next(Node *root) {
     return NULL;
 }
 
-Node *push_child(Arena *a, Node *root, String data) {
+Node *push_child(Arena *a, Node *root, Str data) {
     Node *node = arena_new(a, Node);
     node->name = data;
     node->parent = root;
@@ -57,7 +57,7 @@ int main() {
 
     list_foreach(root->first_child, Node, child) {
         for (size_t i = 0; i < 3; i++) {
-            push_child(a, child, stringf(a, "%.*s-child-%zu", SV_FMT(child->name), i));
+            push_child(a, child, stringf(a, "%.*s-child-%zu", SArg(child->name), i));
         }
     }
 
@@ -65,7 +65,7 @@ int main() {
     {
         Node *it = root;
         while (it) {
-            printf("%.*s\n", SV_FMT(it->name));
+            printf("%.*s\n", SArg(it->name));
             it = pre_order_next(it);
         }
     }
@@ -78,7 +78,7 @@ int main() {
             it = it->first_child;
         }
         while (it) {
-            printf("%.*s\n", SV_FMT(it->name));
+            printf("%.*s\n", SArg(it->name));
             it = post_order_next(it);
         }
     }

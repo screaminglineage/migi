@@ -16,19 +16,19 @@ bool dump_tokens(Lexer *lexer) {
 
         switch (tok.type) {
             case Tok_Identifier:  {
-                printf("got '%.*s': %.*s\n", SV_FMT(TOKEN_STRINGS[tok.type]), SV_FMT(tok.string)); break;
+                printf("got '%.*s': %.*s\n", SArg(TOKEN_STRINGS[tok.type]), SArg(tok.string)); break;
             } break;
-            case Tok_Integer:   printf("got '%.*s': %lu\n", SV_FMT(TOKEN_STRINGS[tok.type]), tok.integer); break;
-            case Tok_Floating:  printf("got '%.*s': %f\n", SV_FMT(TOKEN_STRINGS[tok.type]), tok.floating); break;
+            case Tok_Integer:   printf("got '%.*s': %lu\n", SArg(TOKEN_STRINGS[tok.type]), tok.integer); break;
+            case Tok_Floating:  printf("got '%.*s': %f\n", SArg(TOKEN_STRINGS[tok.type]), tok.floating); break;
 
             case Tok_Count:
             case Tok_Invalid: {
                 printf("error: unexpected token, `%.*s`, at: %zu\n",
-                        SV_FMT(TOKEN_STRINGS[tok.type]), lexer->end - tok.string.length);
+                        SArg(TOKEN_STRINGS[tok.type]), lexer->end - tok.string.length);
                 return false;
             } break;
             default: {
-                printf("got '%.*s': %.*s\n", SV_FMT(TOKEN_STRINGS[tok.type]), SV_FMT(tok.string));
+                printf("got '%.*s': %.*s\n", SArg(TOKEN_STRINGS[tok.type]), SArg(tok.string));
                 if (tok.type == Tok_Eof) return true;
             } break;
         }
@@ -44,7 +44,7 @@ int main() {
     while (match_token_any(&l, (TokenType[]){Tok_Identifier, Tok_OpenParen, Tok_CloseParen, Tok_OpenBrace})) {
         Token tok = {0};
         consume_token(&l, &tok);
-        printf("%.*s\n", SV_FMT(tok.string));
+        printf("%.*s\n", SArg(tok.string));
     }
     mem_clear(&l);
     l.string = sb_to_string(&sb);

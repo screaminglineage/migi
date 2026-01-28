@@ -6,12 +6,12 @@ typedef struct {
     int *data;
     size_t length;
     size_t capacity;
-    String *extra;
+    Str *extra;
 } Ints;
 #include "../gen/Ints_printer.gen.c"
 
 typedef struct {
-    String *data;
+    Str *data;
     size_t length;
     void *more;
 } Strings;
@@ -28,7 +28,7 @@ typedef struct {
 #include "../gen/Foo_printer.gen.c"
 
 typedef struct {
-    String string;
+    Str string;
     const char *c_string;
     char *char_ptr;
     Foo foo;
@@ -46,7 +46,7 @@ int main() {
         array_push(&arr, i);
     }
 
-    Strings strings = slice_from(String, Strings, S("hello"), S("world"), S("Generated!"));
+    Strings strings = slice_from(Str, Strings, S("hello"), S("world"), S("Generated!"));
     strings.more = (void *)0x8000f;
 
     Foo f = {

@@ -62,7 +62,7 @@ typedef enum {
     Tok_Count
 } TokenType;
 
-static String TOKEN_STRINGS[] = {
+static Str TOKEN_STRINGS[] = {
     [Tok_Invalid]             = S("invalid token"),
     [Tok_Eof]                 = S("end of file"),
     [Tok_OpenParen]           = S("("),
@@ -106,7 +106,7 @@ static_assert(array_len(TOKEN_STRINGS) == Tok_Count, "Token Strings is not the s
 
 typedef struct {
     TokenType type;
-    String string;
+    Str string;
     union {
         double floating;
         uint64_t integer;
@@ -115,7 +115,7 @@ typedef struct {
 
 // TODO: add filename in Lexer
 typedef struct {
-    String string;
+    Str string;
     size_t start;
     size_t end;
     Token token_buf[2];
@@ -142,11 +142,11 @@ static inline bool peek_token(Lexer *lexer, Token *tok);
 // Check if the next token is the same as expected and consume it
 // The next token is always consumed even if it doesn't match
 static inline bool expect_token(Lexer *lexer, TokenType expected);
-static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str);
+static inline bool expect_token_str(Lexer *lexer, TokenType expected, Str str);
 
 // Check if the next token is the same as expected
 static inline bool match_token(Lexer *lexer, TokenType expected);
-static inline bool match_token_str(Lexer *lexer, TokenType expected, String token_str);
+static inline bool match_token_str(Lexer *lexer, TokenType expected, Str token_str);
 
 // Check if the next token is one of the passed in tokens
 // bool match_token_any(Lexer *lexer, (TokenType[]){ ... })
@@ -156,7 +156,7 @@ static inline bool match_token_str(Lexer *lexer, TokenType expected, String toke
 #define lexer_new_token(lexer, tok_type)              \
     ((Token){                                         \
      .type   = (tok_type),                            \
-     .string = (String){                              \
+     .string = (Str){                              \
          .data = &lexer->string.data[(lexer)->start], \
          .length = lexer->end - (lexer)->start        \
      }, {0}})
@@ -244,7 +244,7 @@ static bool tokenize_string(Lexer *lexer) {
 
     lexer->token_buf[1] = (Token){
         .type = Tok_String,
-        .string = (String){
+        .string = (Str){
             .data = &lexer->string.data[lexer->start],
             .length = lexer->end - lexer->start
         }
@@ -275,7 +275,7 @@ static bool tokenize_number(Lexer *lexer) {
                 lexer->end++;
             }
 
-            String number_str = str_slice(lexer->string, lexer->start, lexer->end);
+            Str number_str = str_slice(lexer->string, lexer->start, lexer->end);
             // TODO: implement strtod rather than depending on it
             // NOTE: Since the next character after the end of the floating point literal
             // is guaranteed to be something not part of the literal (e, E, ., number),
@@ -285,7 +285,7 @@ static bool tokenize_number(Lexer *lexer) {
 
             if (end_ptr != number_str.data + number_str.length) {
                 fprintf(stderr, "error: invalid floating point constant, `%.*s`, at: %zu\n",
-                        SV_FMT(number_str), lexer->start);
+                        SArg(number_str), lexer->start);
                 return false;
             }
 
@@ -299,7 +299,7 @@ static bool tokenize_number(Lexer *lexer) {
     }
 
     // parsing as integer
-    String num = str_slice(lexer->string, lexer->start, lexer->end);
+    Str num = str_slice(lexer->string, lexer->start, lexer->end);
     lexer->token_buf[1] = (Token){
         .type = Tok_Integer,
         .string = num,
@@ -504,7 +504,7 @@ static inline bool match_token_any_slice(Lexer *lexer, TokenType *expected, size
     return false;
 }
 
-static inline bool match_token_str(Lexer *lexer, TokenType expected, String token_str) {
+static inline bool match_token_str(Lexer *lexer, TokenType expected, Str token_str) {
     Token tok = {0};
     if (!peek_token(lexer, &tok)) return false;
     if (tok.type != expected) return false;
@@ -518,7 +518,7 @@ static inline bool expect_token(Lexer *lexer, TokenType expected) {
     return matches;
 }
 
-static inline bool expect_token_str(Lexer *lexer, TokenType expected, String str) {
+static inline bool expect_token_str(Lexer *lexer, TokenType expected, Str str) {
     bool matches = match_token_str(lexer, expected, str);
     next_token(lexer);
     return matches;
