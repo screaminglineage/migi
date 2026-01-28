@@ -222,7 +222,7 @@ static bool tokenize_char(Lexer *lexer) {
         return false;
     }
 
-    tok.string = string_slice(lexer->string, lexer->start, lexer->end);
+    tok.string = str_slice(lexer->string, lexer->start, lexer->end);
     lexer->token_buf[1] = tok;
     return true;
 }
@@ -275,7 +275,7 @@ static bool tokenize_number(Lexer *lexer) {
                 lexer->end++;
             }
 
-            String number_str = string_slice(lexer->string, lexer->start, lexer->end);
+            String number_str = str_slice(lexer->string, lexer->start, lexer->end);
             // TODO: implement strtod rather than depending on it
             // NOTE: Since the next character after the end of the floating point literal
             // is guaranteed to be something not part of the literal (e, E, ., number),
@@ -299,7 +299,7 @@ static bool tokenize_number(Lexer *lexer) {
     }
 
     // parsing as integer
-    String num = string_slice(lexer->string, lexer->start, lexer->end);
+    String num = str_slice(lexer->string, lexer->start, lexer->end);
     lexer->token_buf[1] = (Token){
         .type = Tok_Integer,
         .string = num,
@@ -329,7 +329,7 @@ static bool tokenize_identifier(Lexer *lexer) {
 
     lexer->token_buf[1] = (Token){
         .type = Tok_Identifier,
-        .string = string_slice(lexer->string, identifier_start, lexer->end),
+        .string = str_slice(lexer->string, identifier_start, lexer->end),
     };
     return true;
 }

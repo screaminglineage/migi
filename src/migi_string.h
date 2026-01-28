@@ -52,15 +52,27 @@ bool str_eq_any_slice(String to_match, StringSlice matches);
 
 // Slice string into [start, end) (exclusive range)
 // Out of bounds accesses are clamped to the length of the string itself
+// The above property holds true for the following 4 functions as well
 static String str_slice(String str, size_t start, size_t end);
 
 // Skip `amount` characters from beginning of string
-// If `amount` == `str.length`, then returns an empty string
+// str_skip("abcde", 2) => "cde"
 static String str_skip(String str, size_t amount);
 
 // Take `amount` characters from beginning of string
-// If `amount` == `str.length`, then returns the string itself
+// str_take("abcde", 2) => "ab"
 static String str_take(String str, size_t amount);
+
+// TODO: find where these two can be used
+
+// Drop `amount` characters from end of string
+// str_drop("abcde", 2) => "abc"
+static String str_drop(String str, size_t amount);
+
+// Lift `amount` characters from end of string
+// str_lift("abcde", 2) => "de"
+static String str_lift(String str, size_t amount);
+
 
 
 typedef enum {
@@ -86,10 +98,10 @@ static bool str_starts_with(String str, String prefix);
 static bool str_ends_with(String str, String suffix);
 
 // Slice off the prefix from the string if it exists
-static String str_cut_prefix(String str, String prefix);
+static String str_chop_prefix(String str, String prefix);
 
 // Slice off the suffix from the string if it exists
-static String str_cut_suffix(String str, String suffix);
+static String str_chop_suffix(String str, String suffix);
 
 
 // Function type for str_skip_while_ functions
@@ -282,6 +294,14 @@ static String str_take(String str, size_t amount) {
     return str_slice(str, 0, amount);
 }
 
+static String str_drop(String str, size_t amount) {
+    return str_slice(str, 0, str.length - amount);
+}
+
+static String str_lift(String str, size_t amount) {
+    return str_slice(str, str.length - amount, str.length);
+}
+
 static int64_t str_find_suffix(String str, String suffix) {
     if (suffix.length > str.length) return -1;
 
@@ -303,14 +323,14 @@ static bool str_ends_with(String str, String suffix) {
     return str_find_suffix(str, suffix) != -1;
 }
 
-static String str_cut_prefix(String str, String prefix) {
+static String str_chop_prefix(String str, String prefix) {
     if (!str_starts_with(str, prefix)) {
         return str;
     }
     return str_skip(str, prefix.length);
 }
 
-static String str_cut_suffix(String str, String suffix) {
+static String str_chop_suffix(String str, String suffix) {
     return str_take(str, str_find_suffix(str, suffix));
 }
 
