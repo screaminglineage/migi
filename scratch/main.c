@@ -282,6 +282,32 @@ void test_random() {
     rand_global_rng_seed(seed);
     rand_fill_bytes(buf2, size);
 
+    assertf(mem_eq_array(buf1, buf2, size),
+            "random with same seed must have same data");
+
+    // seeding a custom RNG and setting it as global
+    {
+        Rng rng = {0};
+        rand_rng_seed(&rng, seed);
+
+        Rng old_rng = rand_global_rng_set(rng);
+
+        byte *buf = arena_push_nonzero(arena, byte, size);
+        rand_fill_bytes(buf, size);
+
+        assertf(mem_eq_array(buf1, buf, size),
+                "random with same seed must have same data");
+
+        // change the state of global rng
+        rand_global_rng_seed(seed + 1);
+        assertf(!mem_eq_array(MIGI_GLOBAL_RNG.state, old_rng.state, MIGI_RNG_STATE_LEN), 
+                "rng must be in different states");
+        rand_global_rng_set(old_rng);
+        assertf(mem_eq_array(MIGI_GLOBAL_RNG.state, old_rng.state, MIGI_RNG_STATE_LEN),
+                "rng must be in the same state");
+
+    }
+
     int a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
     rand_shuffle(a, int, array_len(a));
     array_print(a, array_len(a), "%d");
@@ -299,8 +325,6 @@ void test_random() {
         printf("%d %d %s\n", b[i].a, b[i].b, b[i].foo);
     }
 
-    assertf(mem_eq_array(buf1, buf2, size),
-            "random with same seed must have same data");
 
     for (size_t i = 0; i < 10; i++) {
         assert(rand_range_exclusive(-1, 0) != 0);

@@ -35,17 +35,21 @@ typedef struct {
 
 threadvar Rng MIGI_GLOBAL_RNG;
 
-// Resetting and seeding functions
+// Reset RNGs
 static void rand_rng_reset(Rng *rng);
 static void rand_global_rng_reset();
-static void rand_global_rng_set(Rng rng);
+
+// Set the global RNG to `rng`, and return the old one
+static Rng rand_global_rng_set(Rng rng);
+
+// Seed RNGs
 static void rand_rng_seed(Rng *rng, uint64_t seed);
 static void rand_global_rng_seed(uint64_t seed);
 
+// Random Generation Functions
 static inline uint64_t rotl(const uint64_t x, int k); // TODO: move this to core???
 static uint64_t xoshiro256_starstar(uint64_t state[MIGI_RNG_STATE_LEN]);
 static uint64_t xoshiro256_plus(uint64_t state[MIGI_RNG_STATE_LEN]);
-
 // Used for initialising the seed
 static uint64_t splitmix64(uint64_t x);
 
@@ -107,8 +111,10 @@ static void rand_global_rng_reset() {
     rand_rng_reset(&MIGI_GLOBAL_RNG);
 }
 
-static void rand_global_rng_set(Rng rng) {
+static Rng rand_global_rng_set(Rng rng) {
+    Rng current_global = MIGI_GLOBAL_RNG;
     MIGI_GLOBAL_RNG = rng;
+    return current_global;
 }
 
 static void rand_rng_seed(Rng *rng, uint64_t seed) {
