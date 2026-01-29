@@ -37,7 +37,6 @@
 
 #include "smol_map.h"
 #include "filepath.h"
-
 #include "migi_math.h"
 
 #ifdef __GNUC__
@@ -100,7 +99,7 @@ void test_linear_arena_regular(Arena *arena) {
 
     size_t count = memory_page_size() / sizeof(int);
     int *a = arena_push(arena, int, count);
-    random_array(a, int, count);
+    rand_fill(a, int, count);
 
     byte *x = arena_push_bytes(arena, memory_page_size(), 1, true);
     unused(x);
@@ -123,7 +122,7 @@ void test_linear_arena_rewind() {
     size_t size = memory_page_size() * 4;
 
     byte *mem = arena_push_bytes(arena1, size, 1, false);
-    random_bytes(mem, size);
+    rand_fill_bytes(mem, size);
 
     Arena *arena2 = arena_init(.type = Arena_Linear);
     arena_copy_bytes(arena2, arena1->current->data, arena1->current->position - sizeof(Arena), 1);
@@ -131,7 +130,7 @@ void test_linear_arena_rewind() {
     uint64_t old_capacity = arena1->current->reserved;
 
     mem = arena_push_bytes(arena1, size, 1, true);
-    random_bytes(mem, size);
+    rand_fill_bytes(mem, size);
     arena_rewind(checkpoint);
     assertf(old_capacity == arena1->current->reserved &&
                 mem_eq_array(arena1->current->data, arena2->current->data, arena1->current->position - sizeof(Arena)),
@@ -203,7 +202,7 @@ void test_chained_arena() {
                     "default arena capacity");
 
     double *f = arena_push(arena, double, 100);
-    random_array(f, double, 100);
+    rand_fill(f, double, 100);
     double *g = arena_realloc(arena, double, f, 100, 500);
     assertf(f == g && mem_eq_array(f, g, 100), "previous allocation was reused");
 
@@ -277,14 +276,14 @@ void test_random() {
     byte *buf1 = arena_push_nonzero(arena, byte, size);
     byte *buf2 = arena_push_nonzero(arena, byte, size);
 
-    migi_seed(seed);
-    random_bytes(buf1, size);
+    rand_global_rng_seed(seed);
+    rand_fill_bytes(buf1, size);
 
-    migi_seed(seed);
-    random_bytes(buf2, size);
+    rand_global_rng_seed(seed);
+    rand_fill_bytes(buf2, size);
 
     int a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-    array_shuffle(a, int, array_len(a));
+    rand_shuffle(a, int, array_len(a));
     array_print(a, array_len(a), "%d");
 
     typedef struct {
@@ -295,7 +294,7 @@ void test_random() {
         (Foo){1, 2, "12"}, (Foo){2, 3, "23"}, (Foo){3, 4, "34"},
         (Foo){4, 5, "45"}, (Foo){5, 6, "56"},
     };
-    array_shuffle(b, Foo, array_len(b));
+    rand_shuffle(b, Foo, array_len(b));
     for (size_t i = 0; i < array_len(b); i++) {
         printf("%d %d %s\n", b[i].a, b[i].b, b[i].foo);
     }
@@ -304,29 +303,31 @@ void test_random() {
             "random with same seed must have same data");
 
     for (size_t i = 0; i < 10; i++) {
-        assert(random_range_exclusive(-1, 0) != 0);
-        assert(random_range_exclusive(0, 1) != 1);
+        assert(rand_range_exclusive(-1, 0) != 0);
+        assert(rand_range_exclusive(0, 1) != 1);
     }
 
     {
-        Str s = random_choose((Str []){S("foo"), S("bar"), S("baz"), S("hello"), S("world")});
+        Str s = rand_choose((Str []){S("foo"), S("bar"), S("baz"), S("hello"), S("world")});
         printf("Choosing a random element: `%.*s`\n", SArg(s));
 
         int foo[] = {0, 10, 20, 30, 40, 50, 60, 70, 80, 90};
-        int num = random_choose(foo);
+        int num = rand_choose(foo);
         printf("Choosing a random element: `%d`\n", num);
 
         int frequencies[10] = {0};
         int sample_size = 1000000;
         int total = 0;
         for (int i = 0; i < sample_size; i++) {
-            int chosen = random_choose_ex(foo, int, array_len(foo));
+            int chosen = rand_choose_ex(foo, int, array_len(foo));
             frequencies[chosen / 10] += 1;
             total++;
         }
         printf("Equal Weights:\n");
         for (size_t i = 0; i < array_len(foo); i++) {
-            double percentage = ((double)frequencies[i] / (double)total) * 100.0;
+            double normalized = (double)frequencies[i] / (double)total;
+            double percentage = normalized * 100.0;
+            assertf(isclose(normalized, 0.1, .abs_tol=0.01), "%f was not close to 0.1", normalized);
             printf("[%zu] => %.2f%%\n", i, percentage);
         }
         printf("\n");
@@ -346,7 +347,7 @@ void test_random() {
         int sample_size = 1000000;
         int total = 0;
         for (int i = 0; i < sample_size; i++) {
-            int chosen = random_choose_ex(arr, int, array_len(arr), .weights=weights);
+            int chosen = rand_choose_ex(arr, int, array_len(arr), .weights=weights);
             frequencies[chosen] += 1;
             total += 1;
         }
@@ -423,7 +424,7 @@ void test_repetition_tester() {
                                           estimate_cpu_timer_freq(), size);
     while (!tester.finished) {
         tester_begin(&tester);
-        random_bytes(buf, size);
+        rand_fill_bytes(buf, size);
         tester_end(&tester);
     }
     tester_print_stats(&tester);
@@ -941,9 +942,9 @@ void test_pool_allocator_impl(StructPool *p) {
     LargeStruct *allocs[10] = {0};
     for (size_t i = 0; i < array_len(allocs); i++) {
         allocs[i] = pool_alloc(p);
-        random_bytes(&allocs[i]->foo, sizeof(allocs[i]->foo));
-        random_bytes(&allocs[i]->bar, sizeof(allocs[i]->bar));
-        random_bytes(&allocs[i]->baz, sizeof(allocs[i]->baz));
+        rand_fill_bytes(&allocs[i]->foo, sizeof(allocs[i]->foo));
+        rand_fill_bytes(&allocs[i]->bar, sizeof(allocs[i]->bar));
+        rand_fill_bytes(&allocs[i]->baz, sizeof(allocs[i]->baz));
     }
     assert(p->p.length == 10);
 
@@ -974,14 +975,14 @@ void test_pool_allocator() {
     assert(p.p.length == 0 && p.p.free_list == NULL && p.p.arena->current->position == sizeof(Arena));
 
     LargeStruct *s1 = pool_alloc(&p);
-    random_bytes(s1, sizeof(*s1));
+    rand_fill_bytes(s1, sizeof(*s1));
     assert(p.p.length == 1);
 
     pool_free(&p, s1);
     assert(p.p.length == 0);
 
     LargeStruct *s2 = pool_alloc(&p);
-    random_bytes(s2, sizeof(*s2));
+    rand_fill_bytes(s2, sizeof(*s2));
     assertf(s1 == s2, "s1 reallocated as s2 from free list");
 }
 
@@ -1300,15 +1301,10 @@ void test_filepath() {
 }
 
 int main() {
-    Temp tmp = arena_temp();
-    Arena *a = tmp.arena;
+    Arena *a = arena_init(.reserve_size = 8*GB);
     unused(a);
 
-    Str s = str_from_file(a, S("cratch\\main.c"));
-    str_to_file(s, S("build\\main-generated"));
-
-    arena_temp_release(tmp);
-    printf("\nExiting successfully\n");
+    test_random();
 
     return 0;
 }

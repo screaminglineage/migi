@@ -1,8 +1,6 @@
 #ifndef MIGI_RANDOM_H
 #define MIGI_RANDOM_H
 
-// TODO: forward declare all functions
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -35,11 +33,97 @@ typedef struct {
 #endif
 } Rng;
 
-static Rng rng;
+threadvar Rng MIGI_GLOBAL_RNG;
 
-static void rng_reset() {
-    memset(&rng, 0, sizeof(rng));
+// Resetting and seeding functions
+static void rand_rng_reset(Rng *rng);
+static void rand_global_rng_reset();
+static void rand_global_rng_set(Rng rng);
+static void rand_rng_seed(Rng *rng, uint64_t seed);
+static void rand_global_rng_seed(uint64_t seed);
+
+static inline uint64_t rotl(const uint64_t x, int k); // TODO: move this to core???
+static uint64_t xoshiro256_starstar(uint64_t state[MIGI_RNG_STATE_LEN]);
+static uint64_t xoshiro256_plus(uint64_t state[MIGI_RNG_STATE_LEN]);
+
+// Used for initialising the seed
+static uint64_t splitmix64(uint64_t x);
+
+// Return a random unsigned 64 bit integer
+static uint64_t migi_random();
+
+// Return a random float/double in the range [0, 1]
+// 0 <= num <= 1
+static float rand_float();
+static double rand_double();
+
+// Return a random number in the range [min, max]
+// min <= num <= max
+static int64_t rand_range(int64_t min, int64_t max);
+static float rand_range_float(float min, float max);
+static double rand_range_double(double min, double max);
+
+// Return a random integer in the range [min, max)
+// min <= num < max
+static int64_t rand_range_exclusive(int64_t min, int64_t max);
+
+// Fill passed in buffer with random bytes
+static void rand_fill_bytes(void *buf, size_t size);
+#define rand_fill(array, type, size) rand_fill_bytes((byte *)(array), sizeof(type)*(size))
+
+// Shuffle elements of buffer
+static void rand_shuffle_bytes(byte *buf, size_t elem_size, size_t size);
+#define rand_shuffle(array, type, size) rand_shuffle_bytes((byte *)(array), sizeof(type), (size))
+
+
+typedef struct {
+    double *weights;
+} RandomChooseOpt;
+
+// Choose a random element from an designated initializer or a static array
+// Examples:
+//
+// Str s = rand_choose((Str []){S("foo"), S("bar"), S("baz"), S("hello"), S("world")});
+//
+// int foo[] = {10, 20, 30, 40, 50, 60, 70, 80, 90};
+// int num = rand_choose(foo);
+#define rand_choose(...) \
+    ((__VA_ARGS__)[rand_range_exclusive(0, sizeof((__VA_ARGS__))/sizeof((__VA_ARGS__)[0]))])
+static byte *rand_choose_bytes(byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt);
+
+// Choose a random element from an array by weight
+// If no weight is passed in, then all elements have equal weightage
+#define rand_choose_ex(array, type, len, ...) \
+    *(type *)(rand_choose_bytes((byte *)(array), sizeof(type), len, (RandomChooseOpt){__VA_ARGS__}))
+
+
+
+static void rand_rng_reset(Rng *rng) {
+    mem_clear(rng);
 }
+
+
+static void rand_global_rng_reset() {
+    rand_rng_reset(&MIGI_GLOBAL_RNG);
+}
+
+static void rand_global_rng_set(Rng rng) {
+    MIGI_GLOBAL_RNG = rng;
+}
+
+static void rand_rng_seed(Rng *rng, uint64_t seed) {
+    for (size_t i = 0; i < MIGI_RNG_STATE_LEN; i++) {
+        rng->state[i] = splitmix64(seed);
+    }
+#ifndef MIGI_DONT_AUTO_SEED_RNG
+    rng->is_seeded = true;
+#endif
+}
+
+static void rand_global_rng_seed(uint64_t seed) {
+    rand_rng_seed(&MIGI_GLOBAL_RNG, seed);
+}
+
 
 static inline uint64_t rotl(const uint64_t x, int k) {
     return (x << k) | (x >> (64 - k));
@@ -79,7 +163,6 @@ static uint64_t xoshiro256_plus(uint64_t state[MIGI_RNG_STATE_LEN]) {
 }
 
 
-// Used for initialising the seed
 static uint64_t splitmix64(uint64_t x) {
     uint64_t z = (x += 0x9e3779b97f4a7c15);
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
@@ -87,70 +170,47 @@ static uint64_t splitmix64(uint64_t x) {
     return z ^ (z >> 31);
 }
 
-// Seed the random number generator
-static void migi_seed(uint64_t seed) {
-    for (size_t i = 0; i < MIGI_RNG_STATE_LEN; i++) {
-        rng.state[i] = splitmix64(seed);
-    }
-#ifndef MIGI_DONT_AUTO_SEED_RNG
-    rng.is_seeded = true;
-#endif
-}
 
-
-// Return a random unsigned 64 bit integer
 static uint64_t migi_random() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
-    if (!rng.is_seeded) migi_seed(time(NULL));
+    if (!MIGI_GLOBAL_RNG.is_seeded) rand_rng_seed(&MIGI_GLOBAL_RNG, time(NULL));
 #endif
-    return xoshiro256_starstar(rng.state);
+    return xoshiro256_starstar(MIGI_GLOBAL_RNG.state);
 }
 
-// Return a random float in the range [0, 1]
-// 0 <= num <= 1
-static float random_float() {
+static float rand_float() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
-    if (!rng.is_seeded) migi_seed(time(NULL));
+    if (!MIGI_GLOBAL_RNG.is_seeded) rand_rng_seed(&MIGI_GLOBAL_RNG, time(NULL));
 #endif
-    return (float)xoshiro256_plus(rng.state) / (float)UINT64_MAX;
+    return (float)xoshiro256_plus(MIGI_GLOBAL_RNG.state) / (float)UINT64_MAX;
 }
 
-// Return a random double in the range [0, 1]
-// 0 <= num <= 1
-static double random_double() {
+static double rand_double() {
 #ifndef MIGI_DONT_AUTO_SEED_RNG
-    if (!rng.is_seeded) migi_seed(time(NULL));
+    if (!MIGI_GLOBAL_RNG.is_seeded) rand_rng_seed(&MIGI_GLOBAL_RNG, time(NULL));
 #endif
-    return (double)xoshiro256_plus(rng.state) / (double)UINT64_MAX;
+    return (double)xoshiro256_plus(MIGI_GLOBAL_RNG.state) / (double)UINT64_MAX;
 }
 
-// Return a random integer in the range [min, max]
-// min <= num <= max
-static int64_t random_range(int64_t min, int64_t max) {
-    return (int64_t)floorf(random_float() * (max - min + 1) + min);
+static int64_t rand_range(int64_t min, int64_t max) {
+    return (int64_t)floorf(rand_float() * (max - min + 1) + min);
 }
 
-// Return a random integer in the range [min, max)
-// min <= num < max
-static int64_t random_range_exclusive(int64_t min, int64_t max) {
-    float r = random_float();
+static int64_t rand_range_exclusive(int64_t min, int64_t max) {
+    float r = rand_float();
     return (int64_t)floorf(r * (max - min) + min);
 }
 
-// Return a random double in the range [min, max]
-// min <= num <= max
-static double random_range_double(double min, double max) {
-    return (random_double() * (max - min) + min);
+static double rand_range_double(double min, double max) {
+    return (rand_double() * (max - min) + min);
 }
 
-// Return a random float in the range [min, max]
-// min <= num <= max
-static float random_range_float(float min, float max) {
-    return (random_float() * (max - min) + min);
+static float rand_range_float(float min, float max) {
+    return (rand_float() * (max - min) + min);
 }
 
-// Fill passed in buffer with random bytes
-static void random_bytes(void *buf, size_t size) {
+
+static void rand_fill_bytes(void *buf, size_t size) {
     byte *dest = (byte *)buf;
     for (size_t i = 0; i < size; i+=8) {
         uint64_t rand = migi_random();
@@ -160,12 +220,12 @@ static void random_bytes(void *buf, size_t size) {
     }
 }
 
-static void random_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
+static void rand_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
     Temp tmp = arena_temp();
     byte *temp_buf = arena_push_nonzero(tmp.arena, byte, elem_size);
 
     for (size_t i = 0; i < size - 1; i++) {
-        int64_t rand_index = random_range_exclusive(0, size);
+        int64_t rand_index = rand_range_exclusive(0, size);
 
         memcpy(temp_buf, &buf[elem_size*i], elem_size);
         memcpy(&buf[elem_size*i], &buf[elem_size*rand_index], elem_size);
@@ -174,30 +234,9 @@ static void random_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
     arena_temp_release(tmp);
 }
 
-typedef struct {
-    float weight;
-    size_t index;
-} WeightIndex;
-
-static int compare_weights(const void *a_, const void *b_) {
-    const WeightIndex *a = a_;
-    const WeightIndex *b = b_;
-    if (a->weight > b->weight) {
-        return 1;
-    } else if (a->weight < b->weight) {
-        return -1;
-    } else {
-        return 0;
-    }
-}
-
-typedef struct {
-    double *weights;
-} RandomChooseOpt;
-
-static byte *random_choose_bytes(byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt) {
+static byte *rand_choose_bytes(byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt) {
     if (!opt.weights) {
-        size_t i = random_range_exclusive(0, len);
+        size_t i = rand_range_exclusive(0, len);
         return buf + elem_size*i;
     }
 
@@ -205,7 +244,7 @@ static byte *random_choose_bytes(byte *buf, size_t elem_size, size_t len, Random
     for (size_t i = 0; i < len; i++) {
         total_weight += opt.weights[i];
     }
-    double choice = random_float() * total_weight;
+    double choice = rand_float() * total_weight;
     size_t i = 0;
     for (; i < len; i++) {
         if (choice <= opt.weights[i]) {
@@ -216,24 +255,9 @@ static byte *random_choose_bytes(byte *buf, size_t elem_size, size_t len, Random
     return buf + elem_size*i;
 }
 
-// Convenience macro to get a random array of any type
-#define random_array(array, type, size) \
-    random_bytes((byte *)(array), sizeof(type)*(size))
 
-// Convenience macro to shuffle an array of any type
-#define array_shuffle(array, type, size) \
-    random_shuffle_bytes((byte *)(array), sizeof(type), (size))
 
-// Convenience macro to choose a random element from an designated initializer or a static array
-//
-// Str s = random_choose((Str []){S("foo"), S("bar"), S("baz"), S("hello"), S("world")});
-// int foo[] = {10, 20, 30, 40, 50, 60, 70, 80, 90};
-// int num = random_choose(foo);
-#define random_choose(...) \
-    ((__VA_ARGS__)[random_range_exclusive(0, sizeof((__VA_ARGS__))/sizeof((__VA_ARGS__)[0]))])
 
-// Convenience macros to choose a random element from an array by weight
-#define random_choose_ex(array, type, len, ...) \
-    *(type *)(random_choose_bytes((byte *)(array), sizeof(type), len, (RandomChooseOpt){__VA_ARGS__}))
+
 
 #endif // MIGI_RANDOM_H

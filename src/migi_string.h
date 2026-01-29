@@ -34,6 +34,7 @@ typedef struct {
 #define SArg(sv) (int)(sv).length, (sv).data
 
 
+static Str str_from_span(char *start, char *end);
 static Str str_from_cstr(const char *cstr);
 static char *str_to_cstr(Arena *arena, Str str);
 
@@ -185,6 +186,12 @@ migi_printf_format(2, 3) static Str stringf(Arena *arena, const char *fmt, ...);
 static Str str_from_file(Arena *arena, Str filepath);
 static bool str_to_file(Str string, Str filepath);
 
+static Str str_from_span(char *start, char *end) {
+    return (Str){
+        .data = start,
+        .length = end - start
+    };
+}
 
 static Str str_from_cstr(const char *cstr) {
     return (Str){
@@ -615,8 +622,8 @@ static StrResult read_entire_file(Arena *arena, File file) {
 
 static bool write_entire_str(File file, Str str) {
 #ifdef _WIN32
-    DWORD n = 0;
     while (str.length > 0) {
+        DWORD n = 0;
         if (!WriteFile(file, str.data, (DWORD)str.length, &n, NULL)) {
             return false;
         }
