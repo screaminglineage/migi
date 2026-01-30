@@ -377,6 +377,7 @@ static void walker_free(DirWalker *w) {
     }
     dstr_free(&w->temp_str);
     dstr_free(&w->current_dir);
+    mem_clear(w);
 }
 
 // NOTE: the entry returned contains temporary data that will be freed on

@@ -24,7 +24,7 @@ do {                                                                       \
         (arr)->data = arena_realloc_bytes((arena), (arr)->data,            \
             (old_capacity)*sizeof((arr)->data[0]),                         \
             ((arr)->capacity)*sizeof((arr)->data[0]),                      \
-            _Alignof(void *));                                             \
+            align_of(void *));                                             \
         assertf((arr)->data, "array_reserve: allocation failed");          \
     }                                                                      \
 } while(0)

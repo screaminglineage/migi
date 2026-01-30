@@ -1,4 +1,6 @@
-#ifndef CLI_PARSE_H
+#ifndef MIGI_CLI_PARSE_H
+#define MIGI_CLI_PARSE_H
+
 #include <stddef.h>
 #include <string.h>
 #include "migi.h"
@@ -233,5 +235,5 @@ static StrList flag_as_strlist(CmdLn *flags, Str name) {
 }
 
 
-#endif // ifndef CLI_PARSE_H
+#endif // ifndef MIGI_CLI_PARSE_H
 

@@ -49,7 +49,7 @@ static byte *pool_alloc_bytes(PoolAllocator *p, size_t size) {
         item = p->free_list;
         p->free_list = p->free_list->next;
     } else {
-        item = arena_push_bytes(p->arena, sizeof(PoolItem) + size, _Alignof(PoolItem), true);
+        item = arena_push_bytes(p->arena, sizeof(PoolItem) + size, align_of(PoolItem), true);
     }
     item->next = NULL;
 

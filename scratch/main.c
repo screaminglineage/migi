@@ -37,7 +37,7 @@
 
 #include "smol_map.h"
 #include "filepath.h"
-#include "migi_math.h"
+#include "ring_buffer.h"
 
 #ifdef __GNUC__
     #pragma GCC diagnostic pop
@@ -276,10 +276,10 @@ void test_random() {
     byte *buf1 = arena_push_nonzero(arena, byte, size);
     byte *buf2 = arena_push_nonzero(arena, byte, size);
 
-    rand_global_rng_seed(seed);
+    rand_rng_seed(seed);
     rand_fill_bytes(buf1, size);
 
-    rand_global_rng_seed(seed);
+    rand_rng_seed(seed);
     rand_fill_bytes(buf2, size);
 
     assertf(mem_eq_array(buf1, buf2, size),
@@ -288,9 +288,9 @@ void test_random() {
     // seeding a custom RNG and setting it as global
     {
         Rng rng = {0};
-        rand_rng_seed(&rng, seed);
+        randr_rng_seed(&rng, seed);
 
-        Rng old_rng = rand_global_rng_set(rng);
+        Rng old_rng = rand_rng_set(rng);
 
         byte *buf = arena_push_nonzero(arena, byte, size);
         rand_fill_bytes(buf, size);
@@ -299,10 +299,10 @@ void test_random() {
                 "random with same seed must have same data");
 
         // change the state of global rng
-        rand_global_rng_seed(seed + 1);
+        rand_rng_seed(seed + 1);
         assertf(!mem_eq_array(MIGI_GLOBAL_RNG.state, old_rng.state, MIGI_RNG_STATE_LEN), 
                 "rng must be in different states");
-        rand_global_rng_set(old_rng);
+        rand_rng_set(old_rng);
         assertf(mem_eq_array(MIGI_GLOBAL_RNG.state, old_rng.state, MIGI_RNG_STATE_LEN),
                 "rng must be in the same state");
 
@@ -384,7 +384,33 @@ void test_random() {
         printf("\n");
     }
 
+    {
+        size_t total = 10000000;
+        double mu = 0.0;
+        double sigma = 1.0;
 
+        int64_t range_top = 100;
+        int64_t *frequencies = arena_push(tmp.arena, int64_t, range_top);
+
+        for (size_t i = 0; i < total; i++) {
+            double r = randr_normal(&MIGI_GLOBAL_RNG, mu, sigma);
+            r = (r + 6.0) / 12.0; // assume r is in (-6, 6) and normalize
+
+            int64_t index = (int64_t)(r * range_top);
+            if (index >= 0 && index < range_top) {
+                frequencies[index]++;
+            }
+        }
+        
+        for (int64_t i = 0; i < range_top; i++) {
+            printf("[%zu] => ", i);
+            int64_t num = frequencies[i];
+            for (int64_t j = 0; j < num/1000; j++) {
+                printf("|");
+            }
+            printf("\n");
+        }
+    }
     arena_temp_release(tmp);
 }
 
@@ -577,7 +603,7 @@ void test_str_list() {
     strlist_push_buffer(a, &sl, s, len);
     strlist_pushf(a, &sl,
                   "%s:%d:%s: %.15f ... and more stuff... blah blah blah",
-                  __FILE__, __LINE__, __func__, M_PI);
+                  __FILE__, __LINE__, __func__, PI);
     Str final_str = strlist_to_string(a, &sl);
     printf("%.*s", SArg(final_str));
 
@@ -1062,7 +1088,7 @@ void test_smol_map() {
     } Ints;
 
     Arena *arena = arena_init();
-    SmolHashmap shm = {0};
+    SmolMap shm = {0};
 
     struct {Str a; int b;} data[] = {
         { S("Foo"),    121 },
@@ -1324,12 +1350,91 @@ void test_filepath() {
     arena_temp_release(tmp);
 }
 
+void test_ring_buffer() {
+    // TODO: add more tests
+    Temp tmp = arena_temp();
+    Arena *a = tmp.arena;
+
+    // Basic push and pop
+    {
+        Ring r = {0};
+        int *x = arena_push(a, int, 10);
+        for (int i = 0; i < 10; i++) {
+            x[i] = i;
+        }
+        char *y = arena_push(a, char, 10);
+        for (int i = 0; i < 10; i++) {
+            y[i] = (char)('a' + i);
+        }
+        float *z = arena_push(a, float, 10);
+        for (int i = 0; i < 10; i++) {
+            z[i] = i/10.0f;
+        }
+
+        ring_push(&r, int, x, 10);
+        ring_push(&r, char, y, 10);
+        ring_push(&r, float, z, 10);
+
+        int *x1 = arena_push(a, int, 10);
+        char *y1 = arena_push(a, char, 10);
+        float *z1 = arena_push(a, float, 10);
+
+        ring_pop(&r, int, x1, 10);
+        ring_pop(&r, char, y1, 10);
+        ring_pop(&r, float, z1, 10);
+
+        assert(mem_eq_array(x, x1, 10));
+        assert(mem_eq_array(y, y1, 10));
+        assert(mem_eq_array(z, z1, 10));
+    }
+
+    // Wrapping and alignment
+    {
+        Ring r = {0};
+        ring_init(64);
+
+        int *x = arena_push(a, int, 10);
+        for (int i = 0; i < 10; i++) {
+            x[i] = i;
+        }
+        char *y = arena_push(a, char, 10);
+        for (int i = 0; i < 10; i++) {
+            y[i] = (char)('a' + i);
+        }
+        float *z = arena_push(a, float, 10);
+        for (int i = 0; i < 10; i++) {
+            z[i] = i/10.0f;
+        }
+
+        int *x1 = arena_push(a, int, 10);
+        char *y1 = arena_push(a, char, 10);
+        float *z1 = arena_push(a, float, 10);
+
+        ring_push(&r, int, x, 10);
+        ring_push(&r, char, y, 10);
+        ring_pop(&r, int, x1, 10);
+        ring_pop(&r, char, y1, 10);
+
+        // head will be unaligned for float here,
+        // also the ring will wrap around
+        ring_push(&r, float, z, 10);
+        ring_pop(&r, float, z1, 10);
+
+        assert(mem_eq_array(x, x1, 10));
+        assert(mem_eq_array(y, y1, 10));
+        assert(mem_eq_array(z, z1, 10));
+    }
+
+    arena_temp_release(tmp);
+}
+
 int main() {
-    Arena *a = arena_init(.reserve_size = 8*GB);
+    Arena *a = arena_init();
     unused(a);
 
-    test_random();
+    test_ring_buffer();
 
+    printf("\nExiting Successfully\n");
     return 0;
 }
 

@@ -1,8 +1,6 @@
 #ifndef MIGI_HASHMAP_H
 #define MIGI_HASHMAP_H
 
-// TODO: try making an alternate implementation similar to this
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -94,16 +92,16 @@ typedef struct {
 // Reserve space for insertion of `count` elements into the hashmap without growing
 #define hashmap_reserve(arena, hashmap, count)                                                               \
     ((hashmap)->keys = hm_grow((arena), &(hashmap)->h,                                                       \
-        (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), _Alignof(__typeof__((hashmap)->keys[0])),       \
-        (void *)(hashmap)->values, sizeof((hashmap)->values[0]), _Alignof(__typeof__((hashmap)->values[0])), \
+        (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), align_of(__typeof__((hashmap)->keys[0])),       \
+        (void *)(hashmap)->values, sizeof((hashmap)->values[0]), align_of(__typeof__((hashmap)->values[0])), \
         (count)),                                                                                            \
     (hashmap)->values = (hashmap)->h.temp_values)
 
 // Insert a new key-value pair or update the value if it already exists
 #define hashmap_put(arena, hashmap, k, v)                                                                    \
     ((hashmap)->keys = hm_put_impl((arena), &(hashmap)->h,                                                   \
-        (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), _Alignof(__typeof__((hashmap)->keys[0])),       \
-        (void *)(hashmap)->values, sizeof((hashmap)->values[0]), _Alignof(__typeof__((hashmap)->values[0])), \
+        (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), align_of(__typeof__((hashmap)->keys[0])),       \
+        (void *)(hashmap)->values, sizeof((hashmap)->values[0]), align_of(__typeof__((hashmap)->values[0])), \
         _addr_of((k)), _hashmap_key_type((k))),                                                              \
     (hashmap)->values = (hashmap)->h.temp_values,                                                            \
     (hashmap)->keys[(hashmap)->h.temp_index] = (k),                                                          \
@@ -113,8 +111,8 @@ typedef struct {
 // Insert a new key and return a pointer to the value
 #define hashmap_entry(arena, hashmap, k)                                                                     \
     ((hashmap)->keys = hm_put_impl((arena), &(hashmap)->h,                                                   \
-        (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), _Alignof(__typeof__((hashmap)->keys[0])),       \
-        (void *)(hashmap)->values, sizeof((hashmap)->values[0]), _Alignof(__typeof__((hashmap)->values[0])), \
+        (void *)(hashmap)->keys, sizeof((hashmap)->keys[0]), align_of(__typeof__((hashmap)->keys[0])),       \
+        (void *)(hashmap)->values, sizeof((hashmap)->values[0]), align_of(__typeof__((hashmap)->values[0])), \
         _addr_of((k)), _hashmap_key_type((k))),                                                              \
     (hashmap)->values = (hashmap)->h.temp_values,                                                            \
     (hashmap)->keys[(hashmap)->h.temp_index] = (k),                                                          \
@@ -315,7 +313,7 @@ static HashmapItem hm_internal_index(HashmapHeader *header, void *keys, size_t k
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
         hashmap__probes++;
-        hashmap__max_probe_length = migi_max(hashmap__max_probe_length, hashmap__probes);
+        hashmap__max_probe_length = max_of(hashmap__max_probe_length, hashmap__probes);
 #endif
         dist++;
         i = (i + 1) & (header->capacity - 1);

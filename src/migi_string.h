@@ -277,8 +277,8 @@ static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
         for (size_t i = 0; i < needle.length; i++) {
             Str ch = (Str){.data = &needle.data[i], .length = 1};
             int64_t index = str_find_ex(haystack, ch, flags & ~Find_AsChars);
-            last_match = migi_max(last_match, index);
-            first_match = migi_min(first_match, index);
+            last_match = max_of(last_match, index);
+            first_match = min_of(first_match, index);
         }
         return (flags & Find_Reverse)? last_match: first_match;
     } 
@@ -686,7 +686,6 @@ static Str last_error_string(Arena *arena) {
 
 
 // TODO: passing in a directory as filepath causes ftell to return LONG_MAX which overflows the arena
-// BUG: on windows the mode needs to be rb since for r, it converts \r\n to \n, which makes `n` != `file_pos`
 static Str str_from_file(Arena *arena, Str filepath) {
     Str str = {0};
     Temp tmp = arena_temp_excl(arena);
@@ -701,7 +700,8 @@ static Str str_from_file(Arena *arena, Str filepath) {
 #endif // #ifdef _WIN32
 
     if (file == FILE_ERROR) {
-        migi_log(Log_Error, "failed to open file `%.*s`: %.*s", SArg(filepath), SArg(last_error_string(tmp.arena)));
+        migi_log(Log_Error, "failed to open file `%.*s`: %.*s",
+                SArg(filepath), SArg(last_error_string(tmp.arena)));
         arena_temp_release(tmp);
         return str;
     }
@@ -723,7 +723,7 @@ static bool str_to_file(Str string, Str filepath) {
     Temp tmp = arena_temp();
     File file;
 #ifdef _WIN32
-    file = CreateFileA(str_to_cstr(tmp.arena, filepath), 
+    file = CreateFileA(str_to_cstr(tmp.arena, filepath),
             GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
             FILE_ATTRIBUTE_NORMAL, NULL);
 #else

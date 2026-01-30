@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include "migi_core.h"
+#include "migi_math.h"
 #include "migi_memory.h"
 
 typedef struct {
@@ -43,13 +44,13 @@ static inline Deque deque_init_ex(size_t total);
 static inline void deque_free(Deque *deque);
 
 #define deque_push_head(deque, type, length) \
-    (type*)deque_push_head_bytes((deque), (length)*sizeof(type), _Alignof(type))
+    (type*)deque_push_head_bytes((deque), (length)*sizeof(type), align_of(type))
 
 #define deque_pop_head(deque, type, length) \
     deque_pop_head_bytes((deque), (length)*sizeof(type))
 
 #define deque_push_tail(deque, type, length) \
-    (type*)deque_push_tail_bytes((deque), (length)*sizeof(type), _Alignof(type))
+    (type*)deque_push_tail_bytes((deque), (length)*sizeof(type), align_of(type))
 
 #define deque_pop_tail(deque, type, length) \
     deque_pop_tail_bytes((deque), (length)*sizeof(type))
@@ -79,7 +80,7 @@ static inline void deque_free(Deque *deque) {
 
 static void *deque_push_tail_bytes(Deque *d, size_t size, size_t align) {
     byte *alloc_start = d->data + d->tail;
-    size_t alignment = align_up_padding((uintptr_t)alloc_start, align);
+    size_t alignment = align_up_pow2_amt((uintptr_t)alloc_start, align);
     size_t alloc_end = d->tail + alignment + size;
 
     if (alloc_end > d->committed_end) {
@@ -99,7 +100,7 @@ static void *deque_push_tail_bytes(Deque *d, size_t size, size_t align) {
 
 static void *deque_push_head_bytes(Deque *d, size_t size, size_t align) {
     byte *start = d->data + d->head - size;
-    size_t alignment = align_down_padding((uintptr_t)start, align);
+    size_t alignment = align_down_pow2_amt((uintptr_t)start, align);
     size_t alloc_start = d->head - size - alignment;
 
     if (alloc_start < d->committed_start) {

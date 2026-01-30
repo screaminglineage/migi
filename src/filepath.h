@@ -1,5 +1,5 @@
-#ifndef FILEPATH_H
-#define FILEPATH_H
+#ifndef MIGI_FILEPATH_H
+#define MIGI_FILEPATH_H
 
 #include "arena.h"
 #include "migi_string.h"
@@ -66,4 +66,4 @@ static Str path_cannonicalize(Arena *a, Str path, Str dir_sep) {
     return result;
 }
 
-#endif // ifndef FILEPATH_H
+#endif // ifndef MIGI_FILEPATH_H

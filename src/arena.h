@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "migi_core.h"
+#include "migi_math.h"
 
 // Use malloc/free instead of OS memory mapping
 // TODO: use max_align_t for arena__alignment
@@ -80,13 +81,13 @@ static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buff
 static void arena_free(Arena *arena);
 
 #define arena_new(arena, type) \
-    (type *)arena_push_bytes((arena), sizeof(type), _Alignof(type), true)
+    (type *)arena_push_bytes((arena), sizeof(type), align_of(type), true)
 
 #define arena_push(arena, type, length) \
-    (type *)arena_push_bytes((arena), (length)*sizeof(type), _Alignof(type), true)
+    (type *)arena_push_bytes((arena), (length)*sizeof(type), align_of(type), true)
 
 #define arena_push_nonzero(arena, type, length) \
-    (type *)arena_push_bytes((arena), (length)*sizeof(type), _Alignof(type), false)
+    (type *)arena_push_bytes((arena), (length)*sizeof(type), align_of(type), false)
 
 #define arena_pop(arena, type, length) \
     arena_pop_bytes((arena), (length)*sizeof(type));
@@ -95,12 +96,12 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
 static void arena_pop_bytes(Arena *arena, size_t size);
 
 #define arena_realloc(arena, type, old, old_length, new_length) \
-    (type *)arena_realloc_bytes((arena), (old), (old_length)*sizeof(type), (new_length)*sizeof(type), _Alignof(type))
+    (type *)arena_realloc_bytes((arena), (old), (old_length)*sizeof(type), (new_length)*sizeof(type), align_of(type))
 
 static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_t new_size, size_t align);
 
 #define arena_copy(arena, type, mem, length) \
-    (type *)arena_copy_bytes((arena), (void *)(mem), (length)*sizeof(type), _Alignof(type))
+    (type *)arena_copy_bytes((arena), (void *)(mem), (length)*sizeof(type), align_of(type))
 
 static inline void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align);
 
@@ -145,9 +146,9 @@ static Arena *arena__init(ArenaOptions opt, void *backing_buffer, size_t backing
     // backing buffer was not provided
     if (!mem) {
         // always align to page size
-        reserve_size = align_up(opt.reserve_size, arena__alignment());
+        reserve_size = align_up_pow2(opt.reserve_size, arena__alignment());
         // commit_size must not be greater than reserve_size
-        commit_size = clamp_top(align_up(opt.commit_size, arena__alignment()), reserve_size);
+        commit_size = clamp_top(align_up_pow2(opt.commit_size, arena__alignment()), reserve_size);
 
         mem = arena__reserve(reserve_size);
         reserved = reserve_size;
@@ -184,7 +185,7 @@ static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buff
 
 static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clear_mem) {
     Arena *current = arena->current;
-    size_t alloc_start = align_up(current->position, align);
+    size_t alloc_start = align_up_pow2(current->position, align);
     size_t alloc_end = alloc_start + size;
 
     // allocate new block for chained arena if it doesn't fit
@@ -194,8 +195,8 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
         size_t reserve_size = current->reserve_size;
         size_t effective_size = sizeof(Arena) + size;
         if (effective_size > reserve_size) {
-            reserve_size = align_up(effective_size, align);
-            commit_size = align_up(effective_size, align);
+            reserve_size = align_up_pow2(effective_size, align);
+            commit_size = align_up_pow2(effective_size, align);
         }
         Arena *next = arena__init((ArenaOptions){
             .commit_size = commit_size,
@@ -207,13 +208,13 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
         arena->current = current;
 
         // update allocation offsets for the new block
-        alloc_start = align_up(current->position, align);
+        alloc_start = align_up_pow2(current->position, align);
         alloc_end = alloc_start + size;
     }
 
     // commit memory if needed
     if (current->type != Arena_Static && alloc_end > current->committed) {
-        size_t new_committed = clamp_top(align_up(alloc_end, current->commit_size), current->reserved);
+        size_t new_committed = clamp_top(align_up_pow2(alloc_end, current->commit_size), current->reserved);
         arena__commit((byte *)current + current->committed, new_committed - current->committed);
         current->committed = new_committed;
     }
@@ -253,7 +254,7 @@ static void arena_pop_bytes(Arena *arena, size_t size) {
 
     // decommit excess region
     if (current->type != Arena_Static) {
-        size_t new_committed = align_up(new_position, current->commit_size);
+        size_t new_committed = align_up_pow2(new_position, current->commit_size);
         arena__decommit((byte *)current + new_committed, current->committed - new_committed);
         current->committed = new_committed;
     }
@@ -275,7 +276,7 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
             current->position += new_size - old_size;
 
             if (current->position > current->committed) {
-                size_t new_committed = align_up(current->position, current->commit_size);
+                size_t new_committed = align_up_pow2(current->position, current->commit_size);
                 arena__commit((byte *)current + current->committed, new_committed - current->committed);
                 current->committed = new_committed;
             }
@@ -335,7 +336,7 @@ static void arena_rewind(Temp tmp) {
     size_t new_position = tmp.position;
     // decommit excess region
     if (current->type != Arena_Static) {
-        size_t new_committed = align_up(new_position, current->commit_size);
+        size_t new_committed = align_up_pow2(new_position, current->commit_size);
         arena__decommit((byte *)current + new_committed, current->committed - new_committed);
         current->committed = new_committed;
     }

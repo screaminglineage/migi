@@ -5,6 +5,7 @@
 #include <stdio.h>     // needed for prints in asserts
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>    // needed for mem_* functions
 #include <math.h>
 
 typedef uint8_t byte;
@@ -21,59 +22,8 @@ typedef uint8_t byte;
 #define PS (1000ull*NS)
 #define FS (1000ull*PS)
 
-#define migi_min(a, b) ((a) < (b)? (a): (b))
-#define migi_max(a, b) ((a) > (b)? (a): (b))
-#define between(value, start, end) ((start) <= (value) && (value) <= (end))
-
-#define clamp_top(a, b) (migi_min(a, b))
-#define clamp_bottom(a, b) (migi_max(a, b))
-
-// Return value if it lies in [low, high], otherwise return the respective end (low or high)
-#define clamp(value, low, high) (clamp_bottom(clamp_top((value), (high)), (low)))
-
-// modulo that wraps-around to b - 1 if result is negative
-#define modulo(a, b) ((a) - (b) * ((a) / (b)))
-
-#define abs_difference(a, b) ((a) > (b)? (a) - (b): (b) - (a))
-
-// NOTE: Returns `n` if its already a power of two
-static uint64_t next_power_of_two(uint64_t n) {
-    n--;
-    n |= n >> 1;
-    n |= n >> 2;
-    n |= n >> 4;
-    n |= n >> 8;
-    n |= n >> 16;
-    n |= n >> 32;
-    n++;
-    return n;
-}
-
-// TODO: rename these to align_*_pow2
-
-// Return the number of bytes needed to align `value` to the next multiple of `align_to`
-static inline uint64_t align_up_padding(uint64_t value, uint64_t align_to) {
-    return -value & (align_to - 1);
-}
-
-// Return the number of bytes needed to align `value` to the previous multiple of `align_to`
-static inline uint64_t align_down_padding(uint64_t value, uint64_t align_to) {
-    return value & (align_to - 1);
-}
-
-// Align up `value` to the next multiple of `align_to`
-// Returns `value` if it is already aligned
-// align_up(9, 8) = 16 [next multiple of 8]
-static inline uint64_t align_up(uint64_t value, uint64_t align_to) {
-    return value + align_up_padding(value, align_to);
-}
-
-// Align down `value` to the previous multiple of `align_to`
-// Returns `value` if it is already aligned
-// align_down(21, 8) = 16 [prev multiple of 8]
-static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
-    return value - align_down_padding(value, align_to);
-}
+#define align_of(type) _Alignof(type)
+#define bool_to_str(boolean) ((boolean)? S("true"): S("false"))
 
 #if defined(__GNUC__) || defined (__clang__)
     #define migi_crash() __builtin_trap()
@@ -159,6 +109,12 @@ static inline uint64_t align_down(uint64_t value, uint64_t align_to) {
 #define macro_concat(A, B) macro__concat(A, B)
 #define make_unique(a) macro_concat(a, __LINE__)
 
+// Checks that `obj` is a pointer to `type`
+// This can be helpful to typecheck macros which take in a pointer and a type to
+// ensure that they are the same. See `ring_buffer.h` for an example
+// Use like: check_type(int, int_arr)
+#define check_type(type, obj) (1 == 0)? (type *)0: (obj)
+
 
 // Allows typechecking of printf-like format arguments
 // `format_index` - index of format string in parameters
@@ -192,18 +148,15 @@ do {                         \
 
 // Incrementally shift command line arguments
 #define shift_args(argc, argv) ((argc--), *(argv)++)
-
 #define array_shift(array) (*(array)++)
 
 #define array_len(array) (sizeof(array) / sizeof(*(array)))
-
-
 
 // Creates a Slice (any struct with a data and length) from an 
 // array designated initializer and allocate the data on an arena
 #define slice_new(arena, type, slice, ...)                                                                     \
     (slice){                                                                                                   \
-        .data = arena_copy_bytes(arena, (type[]){__VA_ARGS__}, sizeof((type[]){__VA_ARGS__}), _Alignof(type)), \
+        .data = arena_copy_bytes(arena, (type[]){__VA_ARGS__}, sizeof((type[]){__VA_ARGS__}), align_of(type)), \
         .length = sizeof((type[]){__VA_ARGS__}) / sizeof(type),                                                \
     }
 
@@ -304,10 +257,10 @@ static struct {
     const char *name;
     const char *colour_code;
 } MIGI_LOG_LEVELS[] = {
-    [Log_Debug]   = { "DEBUG",   "\033[35m" },
-    [Log_Info]    = { "INFO",    "\033[32m" },
-    [Log_Warning] = { "WARNING", "\033[33m" },
-    [Log_Error]   = { "ERROR",   "\033[31m" },
+    [Log_Debug]   = { "DEBUG",   "\x1b[35m" },
+    [Log_Info]    = { "INFO",    "\x1b[32m" },
+    [Log_Warning] = { "WARNING", "\x1b[33m" },
+    [Log_Error]   = { "ERROR",   "\x1b[31m" },
 };
 static_assert(array_len(MIGI_LOG_LEVELS) == Log_Count, "the number of log levels has changed");
 
@@ -326,8 +279,8 @@ static void migi_log_ex(LogLevel level, const char *file, int line, const char *
         fprintf(stderr, "%s:%d: ", file, line);
     }
 
-    const char *bold_code  = "\033[1m";
-    const char *reset_code = "\033[0m";
+    const char *bold_code  = "\x1b[1m";
+    const char *reset_code = "\x1b[0m";
     fprintf(stderr, "%s%s[%s]%s", bold_code, MIGI_LOG_LEVELS[level].colour_code,
             MIGI_LOG_LEVELS[level].name, reset_code);
 

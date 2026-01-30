@@ -123,7 +123,7 @@ static void dstr_consume(DStr *dstr, DStr *dstr_other) {
 
 static void dstr_free(DStr *dstr) {
     free((char *)dstr->data);
-    *dstr = (DStr){0};
+    mem_clear(dstr);
 }
 
 

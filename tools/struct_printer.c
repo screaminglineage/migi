@@ -6,7 +6,6 @@
 #include "string_builder.h"
 #include "migi_lexer.h"
 #include "dynamic_array.h"
-#include "migi_temp.h"
 
 // TODO: generate special case for:
 // - unions [?] (undefined behaviour to access the wrong member)
@@ -198,7 +197,7 @@ void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent
     size_t members_length = struct_def.members.length;
     size_t max_name_length = 0;
     for (size_t i = 0; i < members_length; i++) {
-        max_name_length = migi_max(max_name_length, struct_def.members.data[i].name.length);
+        max_name_length = max_of(max_name_length, struct_def.members.data[i].name.length);
     }
 
     // TODO: save the index of data and length so that this loop is not required here
@@ -233,7 +232,7 @@ void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent
 #define DEFAULT_OUTPUT_DIR "./gen"
 
 int main(int argc, char *argv[]) {
-    temp_init();
+    Temp tmp = arena_temp();
 
     shift_args(argc, argv);
     if (argc == 0) {
@@ -289,14 +288,14 @@ int main(int argc, char *argv[]) {
     StringBuilder writer = sb_init();
 
     generate_string_printer(&writer);
-    Str filename_string = temp_format("%s/String_printer.gen.c", output_dir);
+    Str filename_string = stringf(tmp.arena, "%s/String_printer.gen.c", output_dir);
     sb_to_file(&writer, filename_string);
     printf("Generated printer for `Str`: `%.*s`\n", SArg(filename_string));
     sb_reset(&writer);
 
     array_foreach(&structs, StructDef, struct_def) {
         generate_struct_printer(&writer, *struct_def, DEFAULT_INDENT_LEVEL);
-        Str filename_struct = temp_format("%s/%.*s_printer.gen.c", output_dir, SArg(struct_def->name));
+        Str filename_struct = stringf(tmp.arena, "%s/%.*s_printer.gen.c", output_dir, SArg(struct_def->name));
         sb_to_file(&writer, filename_struct);
         printf("Generated printer for `%.*s`: `%.*s`\n",
                 SArg(struct_def->name), SArg(filename_struct));

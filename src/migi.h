@@ -7,8 +7,6 @@
 // Disabling microsoft's "security" warnings
 // https://learn.microsoft.com/en-us/cpp/c-runtime-library/security-features-in-the-crt?view=msvc-170#eliminating-deprecation-warnings
     #define _CRT_SECURE_NO_WARNINGS
-// MSVC needs this macro to define math constants (M_PI, etc.)
-    #define _USE_MATH_DEFINES
 #endif
 
 // IWYU - Include What You Use pragma is needed by clangd to not warn of unused includes
@@ -16,6 +14,7 @@
 
 // IWYU pragma: begin_exports
 #include "migi_core.h"
+#include "migi_math.h"
 #include "arena.h"
 #include "migi_string.h"
 #include "migi_list.h"

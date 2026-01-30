@@ -68,6 +68,7 @@ void sb_reset(StringBuilder *sb) {
 
 void sb_free(StringBuilder *sb) {
     arena_free(sb->arena);
+    mem_clear(sb);
 }
 
 static StringBuilder sb_from_string(Str string) {
