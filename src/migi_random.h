@@ -11,17 +11,15 @@
 #include "migi_core.h"
 #include "migi_math.h"
 
-// TODO: look into using a PCG random number generator
-// TODO: add normal distribution random generation
-
 // MIGI_DONT_AUTO_SEED_RNG can be defined to allow the user manually seed the
 // RNG before calling it for the first time.
 // This is helpful when the user wants to control the seed, or if checking
 // the seed state on each call of random appears to be slow
 //
 // If when not defined (default) the RNG will be seeded when any of the
-// `random_()` functions are called for the first time.
+// `rand_*` functions are called for the first time.
 // By default, it is seeded with the UNIX timestamp from time(NULL)
+// The `randr_*` functions take in an rng from the user as the argument instead.
 
 #ifndef MIGI_DONT_AUTO_SEED_RNG
 #include <time.h>
@@ -31,6 +29,7 @@
 #define MIGI_RNG_STATE_LEN 4
 typedef struct {
     uint64_t state[MIGI_RNG_STATE_LEN];
+    double prev_normal_distr;           // last normal distribution value, cached for efficiency
 #ifndef MIGI_DONT_AUTO_SEED_RNG
     bool is_seeded;
 #endif
@@ -50,7 +49,6 @@ static void randr_rng_seed(Rng *rng, uint64_t seed);
 static void rand_rng_seed(uint64_t seed);
 
 // Random Generation Functions
-static inline uint64_t rotl(const uint64_t x, int k); // TODO: move this to core???
 static uint64_t xoshiro256_starstar(uint64_t state[MIGI_RNG_STATE_LEN]);
 static uint64_t xoshiro256_plus(uint64_t state[MIGI_RNG_STATE_LEN]);
 // Used for initialising the seed
@@ -78,7 +76,6 @@ static double rand_range_double(double min, double max);
 
 // Return a random integer in the range [min, max)
 // min <= num < max
-// TODO: rename this to something shorter
 static int64_t randr_range_exclusive(Rng *rng, int64_t min, int64_t max);
 static int64_t rand_range_exclusive(int64_t min, int64_t max);
 
@@ -97,7 +94,7 @@ static void rand_shuffle_bytes(byte *buf, size_t elem_size, size_t size);
 
 typedef struct {
     double *weights;
-} RandomChooseOpt;
+} RandChooseOpt;
 
 // Choose a random element from an designated initializer or a static array
 // Examples:
@@ -108,18 +105,38 @@ typedef struct {
 // int num = rand_choose(foo);
 #define randr_choose(rng, ...) \
     ((__VA_ARGS__)[randr_range_exclusive(rng, 0, sizeof((__VA_ARGS__))/sizeof((__VA_ARGS__)[0]))])
-static byte *randr_choose_bytes(Rng *rng, byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt);
+static byte *randr_choose_bytes(Rng *rng, byte *buf, size_t elem_size, size_t len, RandChooseOpt opt);
 
 #define rand_choose(...) \
     ((__VA_ARGS__)[rand_range_exclusive(0, sizeof((__VA_ARGS__))/sizeof((__VA_ARGS__)[0]))])
-static byte *rand_choose_bytes(byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt);
+static byte *rand_choose_bytes(byte *buf, size_t elem_size, size_t len, RandChooseOpt opt);
 
 // Choose a random element from an array by weight
 // If no weight is passed in, then all elements have equal weightage
 #define randr_choose_ex(rng, array, type, len, ...) \
-    *(type *)(randr_choose_bytes(rng, (byte *)(array), sizeof(type), len, (RandomChooseOpt){__VA_ARGS__}))
+    *(type *)(randr_choose_bytes(rng, (byte *)(array), sizeof(type), len, (RandChooseOpt){__VA_ARGS__}))
 #define rand_choose_ex(array, type, len, ...) \
-    *(type *)(rand_choose_bytes((byte *)(array), sizeof(type), len, (RandomChooseOpt){__VA_ARGS__}))
+    *(type *)(rand_choose_bytes((byte *)(array), sizeof(type), len, (RandChooseOpt){__VA_ARGS__}))
+
+
+// Mean and Standard Deviation for normal distribution
+// The default values are 0.0 and 1.0 respectively which
+// gives the standard normal distribution
+typedef struct {
+    double mean;
+    double standard_deviation;
+} RandNormalOpt;
+
+// Generate normally distributed doubles
+static double randr_normal_opt(Rng *rng, RandNormalOpt opt);
+static double rand_normal_opt(RandNormalOpt opt);
+
+#define randr_normal(rng, ...) randr_normal_opt(rng, \
+    (RandNormalOpt){ .mean = 0.0, .standard_deviation = 1.0, __VA_ARGS__ })
+#define rand_normal(...) rand_normal_opt( \
+    (RandNormalOpt){ .mean = 0.0, .standard_deviation = 1.0, __VA_ARGS__ })
+
+
 
 
 static void randr_rng_reset(Rng *rng) {
@@ -140,6 +157,7 @@ static void randr_rng_seed(Rng *rng, uint64_t seed) {
     for (size_t i = 0; i < MIGI_RNG_STATE_LEN; i++) {
         rng->state[i] = splitmix64(seed);
     }
+    rng->prev_normal_distr = NAN;
 }
 
 static void rand_rng_seed(uint64_t seed) {
@@ -150,13 +168,9 @@ static void rand_rng_seed(uint64_t seed) {
 }
 
 
-static inline uint64_t rotl(const uint64_t x, int k) {
-    return (x << k) | (x >> (64 - k));
-}
-
 // xoshiro256** algorithm
 static uint64_t xoshiro256_starstar(uint64_t state[MIGI_RNG_STATE_LEN]) {
-    const uint64_t result = rotl(state[1] * 5, 7) * 9;
+    const uint64_t result = rotate_left(state[1] * 5, 7) * 9;
 
     const uint64_t t = state[1] << 17;
 
@@ -166,7 +180,7 @@ static uint64_t xoshiro256_starstar(uint64_t state[MIGI_RNG_STATE_LEN]) {
     state[0] ^= state[3];
 
     state[2] ^= t;
-    state[3] = rotl(state[3], 45);
+    state[3] = rotate_left(state[3], 45);
     return result;
 }
 
@@ -183,7 +197,7 @@ static uint64_t xoshiro256_plus(uint64_t state[MIGI_RNG_STATE_LEN]) {
     state[0] ^= state[3];
 
     state[2] ^= t;
-    state[3] = rotl(state[3], 45);
+    state[3] = rotate_left(state[3], 45);
     return result;
 }
 
@@ -294,7 +308,7 @@ static void rand_shuffle_bytes(byte *buf, size_t elem_size, size_t size) {
     randr_shuffle_bytes(&MIGI_GLOBAL_RNG, buf, elem_size, size);
 }
 
-static byte *randr_choose_bytes(Rng *rng, byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt) {
+static byte *randr_choose_bytes(Rng *rng, byte *buf, size_t elem_size, size_t len, RandChooseOpt opt) {
     if (!opt.weights) {
         size_t i = randr_range_exclusive(rng, 0, len);
         return buf + elem_size*i;
@@ -315,14 +329,20 @@ static byte *randr_choose_bytes(Rng *rng, byte *buf, size_t elem_size, size_t le
     return buf + elem_size*i;
 }
 
-static byte *rand_choose_bytes(byte *buf, size_t elem_size, size_t len, RandomChooseOpt opt) {
+static byte *rand_choose_bytes(byte *buf, size_t elem_size, size_t len, RandChooseOpt opt) {
     return randr_choose_bytes(&MIGI_GLOBAL_RNG, buf, elem_size, len, opt);
 }
 
 
 // Box-Muller Transform to convert uniform distribution to normal distribution
 // Taken from: https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform#C++
-static double randr_normal(Rng *rng, double mean, double standard_deviation) {
+static double randr_normal_opt(Rng *rng, RandNormalOpt opt) {
+    if (!isnan(rng->prev_normal_distr)) {
+        double r = rng->prev_normal_distr;
+        rng->prev_normal_distr = NAN;
+        return r;
+    }
+
     double u1 = 1.0, u2 = 0.0;
     do {
         u1 = randr_double(rng);
@@ -330,21 +350,16 @@ static double randr_normal(Rng *rng, double mean, double standard_deviation) {
     while (u1 == 0);
     u2 = randr_double(rng);
 
-    double mag = standard_deviation * sqrt(-2.0 * log(u1));
-    double z0  = mag * cos(TAU * u2) + mean;
-
-    // TODO: z1 is currently being simply discarded
-    // maybe benchmark and see if caching it makes any difference (probably wont)
-    // double z1  = mag * sin(two_pi * u2) + mean;
-    // unused(z1);
+    double mag = opt.standard_deviation * sqrt(-2.0 * log(u1));
+    double z0  = mag * cos(TAU * u2) + opt.mean;
+    double z1  = mag * sin(TAU * u2) + opt.mean;
+    rng->prev_normal_distr = z1;
     return z0;
 }
 
 
-static double rand_normal() {
-    // calls the standard normal distribution where
-    // mean = 0, standard_deviation = 1
-    return randr_normal(&MIGI_GLOBAL_RNG, 0.0, 1.0);
+static double rand_normal_opt(RandNormalOpt opt) {
+    return randr_normal_opt(&MIGI_GLOBAL_RNG, opt);
 }
 
 #endif // MIGI_RANDOM_H

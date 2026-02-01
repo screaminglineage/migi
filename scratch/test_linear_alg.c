@@ -261,9 +261,9 @@ void test_generic_mul() {
 }
 
 int main() {
-    // test_determinant();
-    // test_transform();
-    // test_mul();
+    test_determinant();
+    test_transform();
+    test_mul();
     printf("\nExiting Successfully\n");
     return 0;
 }

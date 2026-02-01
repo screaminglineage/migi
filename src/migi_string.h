@@ -227,16 +227,12 @@ static Str str_cat(Arena *arena, Str head, Str tail) {
 }
 
 char char_to_upper(char ch) {
-    if ('a' <= ch && ch <= 'z') {
-        ch -= ('a' - 'A');
-    }
+    if (between(ch, 'a', 'z')) ch -= ('a' - 'A');
     return ch;
 }
 
 char char_to_lower(char ch) {
-    if ('A' <= ch && ch <= 'Z') {
-        ch += ('a' - 'A');
-    }
+    if (between(ch, 'A', 'Z')) ch += ('a' - 'A');
     return ch;
 }
 

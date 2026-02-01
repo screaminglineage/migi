@@ -23,10 +23,12 @@
 // #define ENABLE_PROFILING
 #include "profiler.h"
 
+// #define MIGI_DONT_AUTO_SEED_RNG
+#include "migi_random.h"
 
 // #define DYNAMIC_ARRAY_USE_ARENA
 #include "dynamic_array.h"
-#include "migi_random.h"
+
 #include "dynamic_string.h"
 #include "string_builder.h"
 
@@ -386,24 +388,19 @@ void test_random() {
 
     {
         size_t total = 10000000;
-        double mu = 0.0;
-        double sigma = 1.0;
-
         int64_t range_top = 100;
         int64_t *frequencies = arena_push(tmp.arena, int64_t, range_top);
 
         for (size_t i = 0; i < total; i++) {
-            double r = randr_normal(&MIGI_GLOBAL_RNG, mu, sigma);
-            r = (r + 6.0) / 12.0; // assume r is in (-6, 6) and normalize
-
-            int64_t index = (int64_t)(r * range_top);
-            if (index >= 0 && index < range_top) {
+            double r = rand_normal(.mean = 50.0, .standard_deviation = 17.0);
+            int64_t index = (int64_t)r;
+            if (index > 0 && index < range_top) {
                 frequencies[index]++;
             }
         }
         
-        for (int64_t i = 0; i < range_top; i++) {
-            printf("[%zu] => ", i);
+        for (int64_t i = 1; i < range_top; i++) {
+            printf("[%02zu] => ", i);
             int64_t num = frequencies[i];
             for (int64_t j = 0; j < num/1000; j++) {
                 printf("|");
@@ -1431,8 +1428,6 @@ void test_ring_buffer() {
 int main() {
     Arena *a = arena_init();
     unused(a);
-
-    test_ring_buffer();
 
     printf("\nExiting Successfully\n");
     return 0;

@@ -8,12 +8,13 @@
 #include <math.h>
 
 
-// These constants are not part of the C standard (even e and pi!)
-// and so its best to just define them in one place manually
+// These constants are not part of the C standard (not even e and pi!)
+// so its best to just define them in one place manually
 
 #define E        2.71828182845904523536   // lim(n -> inf) [ (1 + 1/n)^n ]
 #define PI       3.14159265358979323846   // ln(-1)/i
-#define TAU      6.28318530717958647692   // 2*pi
+#define TAU      6.28318530717958647693   // 2*pi
+#define PHI      1.61803398874989484820   // the spin itself
 #define SQRT2    1.41421356237309504880   // sqrt(2)
 #define LOG2E    1.44269504088896340736   // log2(e)
 #define LOG10E   0.434294481903251827651  // log10(e)
@@ -64,6 +65,8 @@ static uint64_t align_up_pow2(uint64_t value, uint64_t align_to);
 // NOTE: `align_to` should be a power of 2
 static uint64_t align_down_pow2(uint64_t value, uint64_t align_to);
 
+static uint64_t rotate_left(const uint64_t x, int k);
+
 
 // Relative and absolute Tolerances for isclose
 typedef struct {
@@ -112,6 +115,10 @@ static uint64_t align_down_pow2(uint64_t value, uint64_t align_to) {
 // From: https://docs.python.org/3/whatsnew/3.5.html#pep-485-a-function-for-testing-approximate-equality
 static bool isclose_opt(double a, double b, IsCloseOpt opt) {
     return fabs(a - b) <= max_of(opt.rel_tol * max_of(fabs(a), fabs(b)), opt.abs_tol);
+}
+
+static uint64_t rotate_left(const uint64_t x, int k) {
+    return (x << k) | (x >> (64 - k));
 }
 
 

@@ -8,18 +8,18 @@ set "vcvars_path=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxi
 if NOT "%~1" == "" (
     set "InputFile=%1"
 ) else (
-    echo "Setting input file to test.c"
-    set "InputFile=test.c"
+    echo "Setting input file to scratch\main.c"
+    set "InputFile=scratch\main.c"
 )
 
 if "%InputFile:~0,1%" == "-" (
-    echo "Setting input file to test.c"
-    set "InputFile=test.c"
+    echo "Setting input file to scratch\main.c"
+    set "InputFile=scratch\main.c"
 )
 
 
 set "BuildFolder=build"
-set "Debug=0"
+set "Debug=1"
 REM set "Sanitizer=/fsanitize=address"
 
 set "CFlags=/nologo /W4 /wd4200 /wd4146 /wd4127 /wd4034 /wd4201 /I../src"
