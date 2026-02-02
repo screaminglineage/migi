@@ -73,9 +73,8 @@ typedef struct {
     DStr current_dir;
     DStr temp_str;
     uint32_t depth;
-    uint32_t max_depth;
     bool stop_on_error;
-    bool traverse_symlinks;
+    bool follow_symlinks;
     DirWalkerMode mode;
     DirWalkerMode next_mode;
 
@@ -99,11 +98,13 @@ static int64_t win32__system_time_to_unix(FILETIME ft) {
 #endif
 
 #ifdef _WIN32
-static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, DirEntry *entry) {
+static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, uint32_t depth, DirEntry *entry) {
     size_t end = parent_dir->length;
     dstr_pushf(parent_dir, "\\%s", file_info->cFileName);
     entry->path = parent_dir->as_string;
     entry->name = str_skip(parent_dir->as_string, end + 1);
+
+    entry->depth = depth;
 
     entry->is_dir     = file_info->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
     entry->is_hidden  = file_info->dwFileAttributes & FILE_ATTRIBUTE_HIDDEN;
@@ -122,7 +123,7 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, Dir
     entry->time_created  = win32__system_time_to_unix(file_info->ftCreationTime);
 }
 #else
-static bool posix__os_to_entry(DString *parent_dir, char *filename, DirEntry *entry) {
+static bool posix__os_to_entry(DString *parent_dir, char *filename, uint32_t depth, DirEntry *entry) {
     entry->name = str_from_cstr(filename);
     dstring_pushf(parent_dir, "/%.*s", SArg(entry->name));
     struct stat statbuf;
@@ -134,6 +135,7 @@ static bool posix__os_to_entry(DString *parent_dir, char *filename, DirEntry *en
     }
 
     entry->path = parent_dir->as_string;
+    entry->depth = depth;
 
     entry->is_dir     = S_ISDIR(statbuf.st_mode);
     entry->is_symlink = S_ISLNK(statbuf.st_mode);
@@ -167,7 +169,7 @@ static bool walker_open_dir(DirWalker *w) {
 
     // Remove the `\*` added at the end
     parent_dir->as_string = str_drop(parent_dir->as_string, 2);
-    win32__os_to_entry(&file_info, parent_dir, &w->entry);
+    win32__os_to_entry(&file_info, parent_dir, w->depth, &w->entry);
     return true;
 #else
     DString *parent_dir = &w->temp_str;
@@ -181,7 +183,7 @@ static bool walker_open_dir(DirWalker *w) {
 
     struct dirent *entry = readdir(w->dir);
     assertf(entry, "walker_open_dir: readdir cannot fail since dir was just opened");
-    return posix__os_to_entry(parent_dir, entry->d_name, &w->entry);
+    return posix__os_to_entry(parent_dir, entry->d_name, w->depth, &w->entry);
 #endif // ifdef _WIN32
 }
 
@@ -206,8 +208,7 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
 
     DStr *parent_dir = &w->temp_str;
     dstr_push(parent_dir, w->current_dir.as_string);
-    win32__os_to_entry(&file_info, parent_dir, &w->entry);
-    w->entry.depth = w->depth;
+    win32__os_to_entry(&file_info, parent_dir, w->depth, &w->entry);
     return Read_Ok;
 #else
     errno = 0;
@@ -219,8 +220,7 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
 
     DString *parent_dir = &w->temp_str;
     dstring_push(parent_dir, w->current_dir.as_string);
-    if (!posix__os_to_entry(parent_dir, entry->d_name, &w->entry)) return Read_Error;
-    w->entry.depth = w->depth;
+    if (!posix__os_to_entry(parent_dir, entry->d_name, w.depth, &w->entry)) return Read_Error;
     return Read_Ok;
 #endif // ifdef _WIN32
 }
@@ -229,20 +229,15 @@ static void close_directory(DirHandle dir) {
 #ifdef _WIN32
     FindClose(dir);
 #else
-    if (dir != INVALID_DIR_HANDLE) closedir(dir);
+    if (dir) closedir(dir);
 #endif // ifdef _WIN32
 }
 
 typedef struct {
-    // -1 means no limit (default: 1)
-    uint32_t max_depth;
-    // stop immediately on error rather than continuing (default: false)
-    bool stop_on_error;
-
-    bool traverse_symlinks;
+    bool stop_on_error;     // stop immediately on error
+    bool follow_symlinks;
 } WalkerInitOpt;
 
-// TODO: maybe return a pointer to the struct allocated on the arena
 static DirWalker walker__init(Str filepath, WalkerInitOpt opt) {
     DirWalker walker = {0};
 
@@ -254,18 +249,13 @@ static DirWalker walker__init(Str filepath, WalkerInitOpt opt) {
     // TODO: convert path to an absolute canonical form
     walker.current_dir = dstr_from_string(filepath);
     walker.mode = DirWalkerMode_Recurse;
-    walker.max_depth = opt.max_depth;
     walker.stop_on_error = opt.stop_on_error;
-    walker.traverse_symlinks = opt.traverse_symlinks;
+    walker.follow_symlinks = opt.follow_symlinks;
 
     return walker;
 }
 
-#define WALKER_INFINITE_DEPTH ((uint32_t)-1)
-
-#define walker_init(filepath, ...) walker__init((filepath), (WalkerInitOpt){ .max_depth = 1, __VA_ARGS__ })
-
-
+#define walker_init(filepath, ...) walker__init((filepath), (WalkerInitOpt){ __VA_ARGS__ })
 
 static void walker_update(Arena *arena, DirWalker *w) {
     if (w->entry.is_dir) {
@@ -276,8 +266,8 @@ static void walker_update(Arena *arena, DirWalker *w) {
             return;
         }
 
-        // skip symlinks if not explicitly asked to traverse them
-        if (w->entry.is_symlink && !w->traverse_symlinks) {
+        // skip symlinks if not explicitly asked to follow them
+        if (w->entry.is_symlink && !w->follow_symlinks) {
             w->mode = DirWalkerMode_Return;
             return;
         }
@@ -288,11 +278,7 @@ static void walker_update(Arena *arena, DirWalker *w) {
         w->depth += 1;
 
         dstr_pushf(&w->current_dir, "%.*s%.*s", SArg(DIRECTORY_SEPARATOR), SArg(w->entry.name));
-        if (w->depth < w->max_depth) {
-            w->next_mode = DirWalkerMode_Recurse;
-        } else {
-            w->next_mode = DirWalkerMode_PopStack;
-        }
+        w->next_mode = DirWalkerMode_Recurse;
     } else {
         w->next_mode = DirWalkerMode_NextFile;
     }
@@ -308,24 +294,22 @@ typedef struct {
 static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
     w->entry = (DirEntry){0};
 
+    if (opt.dont_recurse) w->mode = DirWalkerMode_PopStack;
+
     while (true) {
         w->temp_str.length = 0;
 
         switch (w->mode) {
             case DirWalkerMode_Recurse: {
-                if (opt.dont_recurse) {
-                    w->mode = DirWalkerMode_PopStack;
+                bool ok = walker_open_dir(w);
+                if (!ok) {
+                    w->entry.over = w->stop_on_error;
+                    w->entry.error = true;
+                    close_directory(w->dir);
+                    w->next_mode = DirWalkerMode_PopStack;
+                    w->mode = DirWalkerMode_Return;
                 } else {
-                    bool ok = walker_open_dir(w);
-                    if (!ok) {
-                        w->entry.over = w->stop_on_error;
-                        w->entry.error = true;
-                        close_directory(w->dir);
-                        w->next_mode = DirWalkerMode_PopStack;
-                        w->mode = DirWalkerMode_Return;
-                    } else {
-                        walker_update(arena, w);
-                    }
+                    walker_update(arena, w);
                 }
             } break;
 
@@ -415,12 +399,21 @@ struct DirEntryNode {
 };
 
 
-static DirEntryNode *dir_get_all(Arena *arena, Str dir, uint32_t max_depth) {
-    DirWalker walker = walker_init(dir, .max_depth = max_depth, .stop_on_error = false);
+// get all the children of the directory path passed in
+// does not recurse into the sub-directories
+static DirEntryNode *dir_get_all_children(Arena *arena, Str dir_path) {
+    DirWalker walker = walker_init(dir_path, .stop_on_error = false);
 
     Temp tmp = arena_temp_excl(arena);
     DirEntryNode *head = NULL;
-    dir_foreach(tmp.arena, &walker, entry) {
+
+    WalkerOptions opt = {0};
+    dir_foreach_opt(tmp.arena, &walker, entry, &opt) {
+        if (entry.depth >= 1) {
+            opt.dont_recurse = true;
+            continue;
+        }
+
         DirEntryNode *node = arena_new(arena, DirEntryNode);
         node->entry = entry;
         node->entry.path = str_copy(arena, node->entry.path);
@@ -457,15 +450,23 @@ Str file_type_str(Arena *a, DirEntry entry) {
 
 void test_walk_dir(Str path) {
     DirWalker walker = walker_init(path,
-                        .max_depth         = WALKER_INFINITE_DEPTH,
-                        .stop_on_error     = false,
-                        .traverse_symlinks = true);
+                        .stop_on_error   = false,
+                        .follow_symlinks = true);
+    size_t max_depth = 2;
 
     Temp tmp = arena_temp();
 #if 0
     DirEntry file = walker_next(tmp.arena, &walker, false);
 
     while (!file.over) {
+        if (file.error) continue;
+
+        bool is_git = file.is_dir && str_eq(file.name, S(".git"));
+        if (file.depth >= max_depth || is_git) {
+            file = walker_next(tmp.arena, &walker, .dont_recurse = true);
+            continue;
+        }
+
         printf("Path: %.*s\n", SArg(file.path));
         printf("Name: %.*s\n", SArg(file.name));
         printf("Size: %zu bytes\n", file.size);
@@ -476,14 +477,19 @@ void test_walk_dir(Str path) {
         printf("Hidden: %.*s\n", SArg(bool_to_str(file.is_hidden)));
         printf("------------------------------------------\n");
 
-        bool dont_recurse = file.is_dir && str_eq(file.name, S(".git"));
-        file = walker_next(tmp.arena, &walker, .dont_recurse = dont_recurse);
+        file = walker_next(tmp.arena, &walker);
     }
 #else
     WalkerOptions opt = {0};
     dir_foreach_opt(tmp.arena, &walker, file, &opt) {
         if (file.error) continue;
 
+        bool is_git = file.is_dir && str_eq(file.name, S(".git"));
+        if (file.depth >= max_depth || is_git) {
+            opt.dont_recurse = true;
+            continue;
+        }
+
         printf("Path: %.*s\n", SArg(file.path));
         printf("Name: %.*s\n", SArg(file.name));
         printf("Size: %zu bytes\n", file.size);
@@ -493,8 +499,6 @@ void test_walk_dir(Str path) {
         printf("Type: %.*s\n", SArg(file_type_str(tmp.arena, file)));
         printf("Hidden: %.*s\n", SArg(bool_to_str(file.is_hidden)));
         printf("------------------------------------------\n");
-
-        opt.dont_recurse = file.is_dir && str_eq(file.name, S(".git"));
     }
 #endif
     walker_free(&walker);
@@ -511,8 +515,7 @@ int main(int argc, char **argv) {
     test_walk_dir(path);
 
     Temp tmp = arena_temp();
-    uint32_t max_depth = 3;
-    DirEntryNode *entries = dir_get_all(tmp.arena, path, max_depth);
+    DirEntryNode *entries = dir_get_all_children(tmp.arena, path);
 
     list_foreach(entries, DirEntryNode, node) {
         printf("%.*s\n", SArg(node->entry.name));
