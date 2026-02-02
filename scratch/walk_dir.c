@@ -46,6 +46,7 @@ typedef struct {
     Str path;
     Str name;
     size_t size;    // 0 for directories
+    uint32_t depth;
 
     // in unix epoch, 0 if not available (eg: time_created on linux)
     int64_t time_modified;
@@ -54,6 +55,7 @@ typedef struct {
 
     // TODO: convert the booleans into bit-flags
     bool is_dir;
+    bool is_symlink;
     bool is_hidden;
 
     // iteration specific
@@ -73,6 +75,7 @@ typedef struct {
     uint32_t depth;
     uint32_t max_depth;
     bool stop_on_error;
+    bool traverse_symlinks;
     DirWalkerMode mode;
     DirWalkerMode next_mode;
 
@@ -95,7 +98,6 @@ static int64_t win32__system_time_to_unix(FILETIME ft) {
 }
 #endif
 
-
 #ifdef _WIN32
 static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, DirEntry *entry) {
     size_t end = parent_dir->length;
@@ -103,7 +105,9 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, Dir
     entry->path = parent_dir->as_string;
     entry->name = str_skip(parent_dir->as_string, end + 1);
 
-    entry->is_dir = file_info->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
+    entry->is_dir     = file_info->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
+    entry->is_hidden  = file_info->dwFileAttributes & FILE_ATTRIBUTE_HIDDEN;
+    entry->is_symlink = file_info->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT;
 
     if (!entry->is_dir) {
         LARGE_INTEGER filesize = {
@@ -116,7 +120,6 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, Dir
     entry->time_modified = win32__system_time_to_unix(file_info->ftLastWriteTime);
     entry->time_accessed = win32__system_time_to_unix(file_info->ftLastAccessTime);
     entry->time_created  = win32__system_time_to_unix(file_info->ftCreationTime);
-    entry->is_hidden     = file_info->dwFileAttributes & FILE_ATTRIBUTE_HIDDEN;
 }
 #else
 static bool posix__os_to_entry(DString *parent_dir, char *filename, DirEntry *entry) {
@@ -131,12 +134,16 @@ static bool posix__os_to_entry(DString *parent_dir, char *filename, DirEntry *en
     }
 
     entry->path = parent_dir->as_string;
-    entry->is_dir = S_ISDIR(statbuf.st_mode);
-    entry->size = entry->is_dir? 0: statbuf.st_size;
-    entry->time_modified = statbuf.st_mtim.tv_sec;
-    entry->time_accessed = statbuf.st_atim.tv_sec;
+
+    entry->is_dir     = S_ISDIR(statbuf.st_mode);
+    entry->is_symlink = S_ISLNK(statbuf.st_mode);
     entry->is_hidden = entry->name.length != 0 && entry->name.data[0] == '.';
 
+    if (!entry.is_dir) {
+        entry->size = statbuf.st_size;
+    }
+    entry->time_modified = statbuf.st_mtim.tv_sec;
+    entry->time_accessed = statbuf.st_atim.tv_sec;
     return true;
 }
 #endif // ifdef _WIN32
@@ -146,25 +153,20 @@ static bool walker_open_dir(DirWalker *w) {
 #ifdef _WIN32
     // TODO: also prepend "\\?\" to the path to extend the file path size from MAX_PATH
     // https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilea
-    // TODO: come up with a better name
-    // Search with wildcard appended to end of file
 
+    // Search with wildcard appended to end of file
     DStr *parent_dir = &w->temp_str;
     dstr_pushf(parent_dir, "%.*s\\*", SArg(w->current_dir.as_string));
 
     WIN32_FIND_DATA file_info;
     w->dir = FindFirstFile(dstr_to_temp_cstr(&w->temp_str), &file_info);
     if (w->dir == INVALID_HANDLE_VALUE) {
-        // DisplayErrorBox(TEXT("FindFirstFile"));
-        // TODO: print the error here
-        // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessage
         migi_log(Log_Error, "failed to open directory: `%.*s`: %ld", SArg(w->current_dir), GetLastError());
-        // FindClose(w->find); // TODO: does the handle still need to be closed?
         return false;
     }
 
     // Remove the `\*` added at the end
-    parent_dir->as_string = str_take(parent_dir->as_string, parent_dir->length - 2);
+    parent_dir->as_string = str_drop(parent_dir->as_string, 2);
     win32__os_to_entry(&file_info, parent_dir, &w->entry);
     return true;
 #else
@@ -197,9 +199,6 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
         if (error == ERROR_NO_MORE_FILES) {
             return Read_Over;
         } else {
-            // DisplayErrorBox(TEXT("FindNextFile"));
-            // TODO: print the error here
-            // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessage
             migi_log(Log_Error, "failed to read file in directory: `%.*s`: %ld", SArg(w->current_dir), GetLastError());
             return Read_Error;
         }
@@ -208,6 +207,7 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
     DStr *parent_dir = &w->temp_str;
     dstr_push(parent_dir, w->current_dir.as_string);
     win32__os_to_entry(&file_info, parent_dir, &w->entry);
+    w->entry.depth = w->depth;
     return Read_Ok;
 #else
     errno = 0;
@@ -220,6 +220,7 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
     DString *parent_dir = &w->temp_str;
     dstring_push(parent_dir, w->current_dir.as_string);
     if (!posix__os_to_entry(parent_dir, entry->d_name, &w->entry)) return Read_Error;
+    w->entry.depth = w->depth;
     return Read_Ok;
 #endif // ifdef _WIN32
 }
@@ -232,12 +233,13 @@ static void close_directory(DirHandle dir) {
 #endif // ifdef _WIN32
 }
 
-// TODO: add an option to disable entering symbolic links
 typedef struct {
     // -1 means no limit (default: 1)
     uint32_t max_depth;
     // stop immediately on error rather than continuing (default: false)
     bool stop_on_error;
+
+    bool traverse_symlinks;
 } WalkerInitOpt;
 
 // TODO: maybe return a pointer to the struct allocated on the arena
@@ -254,6 +256,7 @@ static DirWalker walker__init(Str filepath, WalkerInitOpt opt) {
     walker.mode = DirWalkerMode_Recurse;
     walker.max_depth = opt.max_depth;
     walker.stop_on_error = opt.stop_on_error;
+    walker.traverse_symlinks = opt.traverse_symlinks;
 
     return walker;
 }
@@ -268,7 +271,14 @@ static void walker_update(Arena *arena, DirWalker *w) {
     if (w->entry.is_dir) {
         // skip `.` and `..`
         if (str_eq(w->entry.name, S(".")) || str_eq(w->entry.name, S(".."))) {
-            w->mode = DirWalkerMode_NextFile;
+            w->next_mode = DirWalkerMode_NextFile;
+            w->mode = DirWalkerMode_Return;
+            return;
+        }
+
+        // skip symlinks if not explicitly asked to traverse them
+        if (w->entry.is_symlink && !w->traverse_symlinks) {
+            w->mode = DirWalkerMode_Return;
             return;
         }
 
@@ -424,9 +434,32 @@ static DirEntryNode *dir_get_all(Arena *arena, Str dir, uint32_t max_depth) {
     return head;
 }
 
+Str file_type_str(Arena *a, DirEntry entry) {
+    Str s = {0};
+    if (entry.is_dir) {
+        s = str_copy(a, S("Directory, "));
+    }
+
+    if (entry.is_symlink) {
+        s = str_copy(a, S("Symbolic Link, "));
+    }
+
+    if (entry.is_hidden) {
+        s = str_copy(a, S("Hidden, "));
+    }
+
+    if (s.length == 0) {
+        s = str_copy(a, S("Regular, "));
+    }
+    return s;
+}
+
 
 void test_walk_dir(Str path) {
-    DirWalker walker = walker_init(path, .max_depth = WALKER_INFINITE_DEPTH, .stop_on_error = false);
+    DirWalker walker = walker_init(path,
+                        .max_depth         = WALKER_INFINITE_DEPTH,
+                        .stop_on_error     = false,
+                        .traverse_symlinks = true);
 
     Temp tmp = arena_temp();
 #if 0
@@ -439,15 +472,12 @@ void test_walk_dir(Str path) {
         printf("Time Created: %zu\n", file.time_created);
         printf("Time Modified: %zu\n", file.time_modified);
         printf("Time Accessed: %zu\n", file.time_accessed);
-        printf("Directory: %s\n", file.is_dir? "yes": "no");
-        printf("Hidden: %s\n", file.is_hidden? "yes": "no");
+        printf("Type: %.*s\n", SArg(file_type_str(tmp.arena, file)));
+        printf("Hidden: %.*s\n", SArg(bool_to_str(file.is_hidden)));
         printf("------------------------------------------\n");
 
-        if (file.is_dir && str_eq(file.name, S(".git"))) {
-            file = walker_next(tmp.arena, &walker, .dont_recurse = true);
-        } else {
-            file = walker_next(tmp.arena, &walker, .dont_recurse = false);
-        }
+        bool dont_recurse = file.is_dir && str_eq(file.name, S(".git"));
+        file = walker_next(tmp.arena, &walker, .dont_recurse = dont_recurse);
     }
 #else
     WalkerOptions opt = {0};
@@ -460,13 +490,11 @@ void test_walk_dir(Str path) {
         printf("Time Created: %zu\n", file.time_created);
         printf("Time Modified: %zu\n", file.time_modified);
         printf("Time Accessed: %zu\n", file.time_accessed);
-        printf("Directory: %s\n", file.is_dir? "yes": "no");
-        printf("Hidden: %s\n", file.is_hidden? "yes": "no");
+        printf("Type: %.*s\n", SArg(file_type_str(tmp.arena, file)));
+        printf("Hidden: %.*s\n", SArg(bool_to_str(file.is_hidden)));
         printf("------------------------------------------\n");
 
-        if (file.is_dir && str_eq(file.name, S(".git"))) {
-            opt.dont_recurse = true;
-        }
+        opt.dont_recurse = file.is_dir && str_eq(file.name, S(".git"));
     }
 #endif
     walker_free(&walker);
@@ -480,17 +508,16 @@ int main(int argc, char **argv) {
         return 1;
     }
     Str path = str_from_cstr(argv[1]);
-    uint32_t max_depth = WALKER_INFINITE_DEPTH;
     test_walk_dir(path);
 
     Temp tmp = arena_temp();
+    uint32_t max_depth = 3;
     DirEntryNode *entries = dir_get_all(tmp.arena, path, max_depth);
 
     list_foreach(entries, DirEntryNode, node) {
-        printf("Path: %.*s\n", SArg(node->entry.path));
-        printf("Name: %.*s\n", SArg(node->entry.name));
-        printf("\n");
+        printf("%.*s\n", SArg(node->entry.name));
     }
+    arena_temp_release(tmp);
 
     return 0;
 }

@@ -64,4 +64,4 @@ set "result=%errorlevel%"
 
 popd
 
-exit /b %comp_result%
+exit /b %result%

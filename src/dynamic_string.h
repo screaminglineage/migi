@@ -51,7 +51,7 @@ static DStr dstr_new(const char *data, size_t length) {
     };
     return (DStr){
         .as_string = string,
-        .capacity = DSTRING_INIT_CAP
+        .capacity = size_bytes
     };
 }
 
