@@ -218,10 +218,10 @@ void test_chained_arena() {
 void test_string_builder() {
     StringBuilder sb = sb_init();
     defer_block(sb_reset(&sb)) {
-        sb_push_string(&sb, S("hello"));
-        sb_push_string(&sb, S("foo"));
-        sb_push_string(&sb, S("bar"));
-        sb_push_string(&sb, S("baz"));
+        sb_push(&sb, S("hello"));
+        sb_push(&sb, S("foo"));
+        sb_push(&sb, S("bar"));
+        sb_push(&sb, S("baz"));
 
         printf("%s\n", sb_to_cstr(&sb));
         printf("len: %zu\n", sb_length(&sb));
@@ -240,9 +240,9 @@ void test_string_builder_formatted() {
 
     {
         StringBuilder sb1 = sb_init();
-        sb_push_string(&sb1, S("foo"));
-        sb_push_string(&sb1, S("bar"));
-        sb_push_string(&sb1, S("baz"));
+        sb_push(&sb1, S("foo"));
+        sb_push(&sb1, S("bar"));
+        sb_push(&sb1, S("baz"));
         sb_pushf(&sb1, "\nhello world! %d, %.*s, %f\n", 12, SArg(S("more stuff")), 3.14);
         sb_pushf(&sb1, "abcd efgh 12345678 %x\n", 0xdeadbeef);
 

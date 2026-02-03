@@ -32,11 +32,11 @@ static size_t sb_length(StringBuilder *sb) {
     return sb->arena->position - sizeof(Arena);
 }
 
-static void sb_push(StringBuilder *sb, char to_push) {
+static void sb_push_char(StringBuilder *sb, char to_push) {
     *arena_push(sb->arena, char, 1) = to_push;
 }
 
-static void sb_push_string(StringBuilder *sb, Str string) {
+static void sb_push(StringBuilder *sb, Str string) {
     memcpy(arena_push(sb->arena, char, string.length), string.data, string.length);
 }
 
@@ -73,7 +73,7 @@ void sb_free(StringBuilder *sb) {
 
 static StringBuilder sb_from_string(Str string) {
     StringBuilder sb = {0};
-    sb_push_string(&sb, string);
+    sb_push(&sb, string);
     return sb;
 }
 
@@ -87,7 +87,7 @@ static Str sb_to_string(StringBuilder *sb) {
 // NOTE: The cstring returned from this function is not separately allocated
 // and is destroyed after a subsequent push onto the string builder
 static const char *sb_to_cstr(StringBuilder *sb) {
-    sb_push(sb, 0);
+    sb_push_char(sb, 0);
     const char *cstr = (const char *)sb->arena->data;
     arena_pop(sb->arena, char, 1);
     return cstr;
