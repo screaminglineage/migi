@@ -254,6 +254,7 @@ bool line_is_ol(Str line, int *digits_at_start) {
 
 // TODO: add support for automatic compilation of the code blocks
 // TODO: merge ul and ol parsing into a single function
+// TODO: add blockquotes parsing
 void html_render_md(StringBuilder *html, Str md) {
     Temp tmp = arena_temp();
 

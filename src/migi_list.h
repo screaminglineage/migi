@@ -32,8 +32,9 @@
         : ((head) = (tail) = NULL))
 
 
-// Single Linked List
+// Singly Linked List
 // Insert node after `after` and returns the inserted `node`
+// NOTE: after shouldnt be NULL
 #define sll_insert_after(tail, after, node) \
     (((node)->next = (after)->next),        \
     ((after)->next = (node)),               \
@@ -147,6 +148,8 @@ typedef struct {
     size_t total_size;
 } StrList;
 
+static StrList strlist_from_str(Arena *a, Str str);
+
 static void strlist_push(Arena *a, StrList *list, Str str);
 static void strlist_push_char(Arena *a, StrList *list, char ch);
 static void strlist_push_cstr(Arena *a, StrList *list, const char *cstr);
@@ -159,6 +162,8 @@ static Str strlist_pop(StrList *list);
 
 static Str strlist_to_string(Arena *a, StrList *list);
 static Str strlist_join(Arena *a, StrList *list, Str join_with);
+static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with);
+
 
 typedef enum {
     // Skip empty strings
@@ -169,6 +174,7 @@ typedef enum {
     Split_AsChars   = (1 << 1),
 } SplitOpt;
 
+// Splits a string by delimiter, pushing each chunk onto a StrList
 static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags);
 #define str_split(arena, str, delim) str_split_ex((arena), (str), (delim), 0)
 
@@ -213,6 +219,12 @@ do {                                                                 \
     (list)->total_length++;                                          \
 } while (0)
 
+
+static StrList strlist_from_str(Arena *a, Str str) {
+    StrList list = {0};
+    strlist_push(a, &list, str);
+    return list;
+}
 
 static void strlist_push(Arena *a, StrList *list, Str str) {
     StrNode *node = arena_new(a, StrNode);
@@ -298,10 +310,14 @@ static Str strlist_join(Arena *a, StrList *list, Str join_with) {
 }
 
 
-// Splits a string by delimiter, pushing each chunk onto a StrList
 static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
     StrList strings = {0};
-    if (delimiter.length == 0) return strings;
+    if (delimiter.length == 0) {
+        for (size_t i = 0; i < str.length; i++) {
+            strlist_push(a, &strings, (Str){.data = &str.data[i], .length = 1});
+        }
+        return strings;
+    }
 
     StrCutOpt cut_flags = (flags & Split_AsChars)? Cut_AsChars: 0;
     strcut_foreach(str, delimiter, cut_flags, cut) {
@@ -312,6 +328,7 @@ static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
     return strings;
 }
 
+// TODO: implement special parsing for empty delimiter like `str_split`
 static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt flags) {
     StrList strings = {0};
     if (delimiter.length == 0) return strings;
@@ -323,5 +340,71 @@ static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt
     return strings;
 }
 
+
+static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with) {
+    size_t total_size = 0;
+    size_t length = 0;
+    StrNode *prev_node = NULL;
+    
+    StrNode *node = list->head;
+    while (node) {
+        Str string = node->string;
+        StrNode *node_next = node->next;
+
+        StrNode *head = NULL;
+        StrNode *tail = NULL;
+        size_t find_index = str_find(string, find);
+        if (find_index == string.length) {
+            total_size += string.length;
+            length += 1;
+            prev_node = node;
+            node = node->next;
+            continue;
+        }
+
+        bool first = true;
+        do {
+            Str before = str_take(string, find_index);
+            string = str_skip(string, find_index + find.length);
+            find_index = str_find(string, find);
+
+            if (before.length != 0) {
+                StrNode *before_node = arena_new(a, StrNode);
+                before_node->string = before;
+                queue_push(head, tail, before_node);
+                total_size += before.length;
+                length += 1;
+            }
+
+            // reuse the current node the first time around
+            StrNode *replace_node = first? node: arena_new(a, StrNode);
+            replace_node->string = replace_with;
+            queue_push(head, tail, replace_node);
+            total_size += replace_with.length;
+            length += 1;
+
+            first = false;
+        } while(find_index < string.length);
+
+        if (string.length > 0) {
+            StrNode *end = arena_new(a, StrNode);
+            end->string = string;
+            queue_push(head, tail, end);
+            total_size += string.length;
+            length += 1;
+        }
+
+        if (prev_node) {
+            prev_node->next = head;
+        } else {
+            list->head = head;
+        }
+        tail->next = node_next;
+        prev_node = tail;
+        node = node_next;
+    }
+    list->total_size = total_size;
+    list->length = length;
+}
 
 #endif // MIGI_LISTS_H
