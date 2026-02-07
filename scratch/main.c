@@ -531,8 +531,8 @@ void test_str_split_and_join() {
             .actual = str_split(a, S("Mary--had--a--little--lamb--"), S("--"))
         },
         {
-            .expected = (StrSlice){0},
-            .actual = str_split(a, S("Mary had a little lamb"), S(""))
+            .expected = slice_from(Str, StrSlice, S("a"), S("b"), S("c"), S("d")),
+            .actual = str_split(a, S("abcd"), S(""))
         },
         {
             .expected = slice_from(Str, StrSlice, S(""), S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
@@ -583,7 +583,59 @@ void linear_arena_stress_test() {
     }
 }
 
-void test_str_list() {
+void test_strlist_replace() {
+    Temp t = arena_temp();
+    Arena *a = t.arena;
+
+    Str s = {0};
+    StrList l = {0};
+    {
+        s = S("foo bar baz");
+        l = strlist_from_str(a, s);
+        l = strlist_replace(a, &l, S("a"), S("i"));
+        s = strlist_to_string(a, &l);
+        assert(str_eq(s, S("foo bir biz")));
+    }
+
+    {
+        s = S("This is an interesting sentence");
+        l = strlist_from_str(a, s);
+        l = strlist_replace(a, &l, S("sentence"), S("paragraph!!"));
+        s = strlist_to_string(a, &l);
+        assert(str_eq(s, S("This is an interesting paragraph!!")));
+    }
+
+    {
+        s = S("This is an interesting sentence");
+        l = strlist_from_str(a, s);
+        l = strlist_replace(a, &l, S("an interesting"), S("a boring"));
+        s = strlist_to_string(a, &l);
+        assert(str_eq(s, S("This is a boring sentence")));
+    }
+
+    {
+        s = S("hello world");
+        l = str_split(a, s, S(" "));
+        l = strlist_replace(a, &l, S("world"), S("warudo"));
+        s = strlist_to_string(a, &l);
+        assert(str_eq(s, S("hellowarudo")));
+    }
+
+    {
+        s = S("abcdefgh");
+        l = str_split(a, s, S(""));
+        l = strlist_replace(a, &l, S("e"), S("E"));
+        l = strlist_replace(a, &l, S("g"), S("G"));
+        l = strlist_replace(a, &l, S("a"), S("A"));
+        l = strlist_replace(a, &l, S("h"), S("H"));
+        s = strlist_join(a, &l, S("-"));
+        assert(str_eq(s, S("A-b-c-d-E-f-G-H")));
+    }
+    arena_temp_release(t);
+}
+
+void test_strlist() {
+    test_strlist_replace();
     test_str_split_and_join();
 
     Temp tmp = arena_temp();
@@ -1425,12 +1477,15 @@ void test_ring_buffer() {
     arena_temp_release(tmp);
 }
 
+
+
 int main() {
     Arena *a = arena_init();
-    unused(a);
 
+    test_strlist();
+
+    arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;
 }
-
 

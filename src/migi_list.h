@@ -32,8 +32,9 @@
         : ((head) = (tail) = NULL))
 
 
-// Single Linked List
+// Singly Linked List
 // Insert node after `after` and returns the inserted `node`
+// NOTE: after shouldnt be NULL
 #define sll_insert_after(tail, after, node) \
     (((node)->next = (after)->next),        \
     ((after)->next = (node)),               \
@@ -147,6 +148,8 @@ typedef struct {
     size_t total_size;
 } StrList;
 
+static StrList strlist_from_str(Arena *a, Str str);
+
 static void strlist_push(Arena *a, StrList *list, Str str);
 static void strlist_push_char(Arena *a, StrList *list, char ch);
 static void strlist_push_cstr(Arena *a, StrList *list, const char *cstr);
@@ -159,6 +162,7 @@ static Str strlist_pop(StrList *list);
 
 static Str strlist_to_string(Arena *a, StrList *list);
 static Str strlist_join(Arena *a, StrList *list, Str join_with);
+static StrList strlist_replace(Arena *a, StrList *list, Str find, Str replace_with);
 
 typedef enum {
     // Skip empty strings
@@ -169,6 +173,7 @@ typedef enum {
     Split_AsChars   = (1 << 1),
 } SplitOpt;
 
+// Splits a string by delimiter, pushing each chunk onto a StrList
 static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags);
 #define str_split(arena, str, delim) str_split_ex((arena), (str), (delim), 0)
 
@@ -213,6 +218,12 @@ do {                                                                 \
     (list)->total_length++;                                          \
 } while (0)
 
+
+static StrList strlist_from_str(Arena *a, Str str) {
+    StrList list = {0};
+    strlist_push(a, &list, str);
+    return list;
+}
 
 static void strlist_push(Arena *a, StrList *list, Str str) {
     StrNode *node = arena_new(a, StrNode);
@@ -298,10 +309,14 @@ static Str strlist_join(Arena *a, StrList *list, Str join_with) {
 }
 
 
-// Splits a string by delimiter, pushing each chunk onto a StrList
 static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
     StrList strings = {0};
-    if (delimiter.length == 0) return strings;
+    if (delimiter.length == 0) {
+        for (size_t i = 0; i < str.length; i++) {
+            strlist_push(a, &strings, (Str){.data = &str.data[i], .length = 1});
+        }
+        return strings;
+    }
 
     StrCutOpt cut_flags = (flags & Split_AsChars)? Cut_AsChars: 0;
     strcut_foreach(str, delimiter, cut_flags, cut) {
@@ -312,6 +327,7 @@ static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
     return strings;
 }
 
+// TODO: implement special parsing for empty delimiter like `str_split`
 static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt flags) {
     StrList strings = {0};
     if (delimiter.length == 0) return strings;
@@ -323,5 +339,29 @@ static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt
     return strings;
 }
 
+static StrList strlist_replace(Arena *a, StrList *list, Str find, Str replace_with) {
+    StrList replaced = {0};
+    strlist_foreach(list, node) {
+        Str str = node->string;
+        size_t index = str_find(str, find);
+        if (index == str.length) {
+            strlist_push(a, &replaced, str);
+        } else {
+            while (index < str.length) {
+                Str before = str_take(str, index);
+                if (before.length > 0) {
+                    strlist_push(a, &replaced, str_take(str, index));
+                }
+                strlist_push(a, &replaced, replace_with);
+                str = str_skip(str, index + find.length);
+                index = str_find(str, find);
+            }
+            if (str.length > 0) {
+                strlist_push(a, &replaced, str);
+            }
+        }
+    }
+    return replaced;
+}
 
 #endif // MIGI_LISTS_H
