@@ -40,8 +40,8 @@ typedef struct {
 
 
 #define deque_init() (deque_init_ex(DEQUE_DEFAULT_CAPACITY))
-static inline Deque deque_init_ex(size_t total);
-static inline void deque_free(Deque *deque);
+static Deque deque_init_ex(size_t total);
+static void deque_free(Deque *deque);
 
 #define deque_push_head(deque, type, length) \
     (type*)deque_push_head_bytes((deque), (length)*sizeof(type), align_of(type))
@@ -60,7 +60,7 @@ static void deque_pop_head_bytes(Deque *deque, size_t size);
 static void *deque_push_tail_bytes(Deque *deque, size_t size, size_t align);
 static void deque_pop_tail_bytes(Deque *deque, size_t size);
 
-static inline Deque deque_init_ex(size_t total) {
+static Deque deque_init_ex(size_t total) {
     Deque deque = {0};
     deque.total = total;
     deque.data = memory_reserve(deque.total);
@@ -73,7 +73,7 @@ static inline Deque deque_init_ex(size_t total) {
     return deque;
 }
 
-static inline void deque_free(Deque *deque) {
+static void deque_free(Deque *deque) {
     memory_release(deque->data, deque->total);
     mem_clear(deque);
 }

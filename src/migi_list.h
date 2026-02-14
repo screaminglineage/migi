@@ -162,7 +162,7 @@ static Str strlist_pop(StrList *list);
 
 static Str strlist_to_string(Arena *a, StrList *list);
 static Str strlist_join(Arena *a, StrList *list, Str join_with);
-static StrList strlist_replace(Arena *a, StrList *list, Str find, Str replace_with);
+static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with);
 
 typedef enum {
     // Skip empty strings
@@ -339,29 +339,70 @@ static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt
     return strings;
 }
 
-static StrList strlist_replace(Arena *a, StrList *list, Str find, Str replace_with) {
-    StrList replaced = {0};
-    strlist_foreach(list, node) {
-        Str str = node->string;
-        size_t index = str_find(str, find);
-        if (index == str.length) {
-            strlist_push(a, &replaced, str);
-        } else {
-            while (index < str.length) {
-                Str before = str_take(str, index);
-                if (before.length > 0) {
-                    strlist_push(a, &replaced, str_take(str, index));
-                }
-                strlist_push(a, &replaced, replace_with);
-                str = str_skip(str, index + find.length);
-                index = str_find(str, find);
-            }
-            if (str.length > 0) {
-                strlist_push(a, &replaced, str);
-            }
+static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with) {
+    size_t total_size = 0;
+    size_t length = 0;
+    StrNode *prev_node = NULL;
+
+    StrNode *node = list->head;
+    while (node) {
+        Str string = node->string;
+        StrNode *node_next = node->next;
+
+        StrNode *head = NULL;
+        StrNode *tail = NULL;
+        size_t find_index = str_find(string, find);
+        if (find_index == string.length) {
+            total_size += string.length;
+            length += 1;
+            prev_node = node;
+            node = node->next;
+            continue;
         }
+
+        bool first = true;
+        do {
+            Str before = str_take(string, find_index);
+            string = str_skip(string, find_index + find.length);
+            find_index = str_find(string, find);
+
+            if (before.length != 0) {
+                StrNode *before_node = arena_new(a, StrNode);
+                before_node->string = before;
+                queue_push(head, tail, before_node);
+                total_size += before.length;
+                length += 1;
+            }
+
+            // reuse the current node the first time around
+            StrNode *replace_node = first? node: arena_new(a, StrNode);
+            replace_node->string = replace_with;
+            queue_push(head, tail, replace_node);
+            total_size += replace_with.length;
+            length += 1;
+
+            first = false;
+        } while(find_index < string.length);
+
+        if (string.length > 0) {
+            StrNode *end = arena_new(a, StrNode);
+            end->string = string;
+            queue_push(head, tail, end);
+            total_size += string.length;
+            length += 1;
+        }
+
+        if (prev_node) {
+            prev_node->next = head;
+        } else {
+            list->head = head;
+        }
+        tail->next = node_next;
+        prev_node = tail;
+        node = node_next;
     }
-    return replaced;
+    list->total_size = total_size;
+    list->length = length;
 }
 
 #endif // MIGI_LISTS_H

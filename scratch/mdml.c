@@ -22,6 +22,7 @@ void html_end(StringBuilder *html) {
           "</html>\n"));
 }
 
+// TODO: can the str_cat be done in bulk rather than character by character in the default branch?
 Str escape_html(Arena *a, Str str) {
     Str escaped = {0};
 
@@ -33,35 +34,6 @@ Str escape_html(Arena *a, Str str) {
             case '<': {
                 escaped = str_cat(a, escaped, S("&lt;"));
             } break;
-            case '\\': {
-                str = str_skip(str, 1);
-                if (str.length == 0) break;
-
-                switch (str.data[0]) {
-                    case '\\':
-                    case '`':
-                    case '*':
-                    case '_':
-                    case '[':
-                    case ']':
-                    case '(':
-                    case ')':
-                    case '>':
-                    case '#':
-                    case '+':
-                    case '-':
-                    case '.':
-                    case '!':
-                    case '|': {
-                        escaped = str_cat(a, escaped, str_take(str, 1));
-                    } break;
-                    default: {
-                        escaped = str_cat(a, escaped, S("\\"));
-                        escaped = str_cat(a, escaped, str_take(str, 1));
-                    } break;
-                }
-            } break;
-
             default: {
                 escaped = str_cat(a, escaped, str_take(str, 1));
             } break;
@@ -104,6 +76,7 @@ Str parse_link(StringBuilder *html, Str str, bool image) {
     link = str_skip(link, link_url_end + 1);
 
     if (image) {
+        // TODO: should the image size be limited?
         sb_pushf(html, "<img src=\"%.*s\" alt=\"%.*s\">", SArg(link_url), SArg(link_text));
     } else {
         sb_pushf(html, "<a href=\"%.*s\">", SArg(link_url));
@@ -114,6 +87,9 @@ Str parse_link(StringBuilder *html, Str str, bool image) {
     return link;
 }
 
+// TODO: if there is no matching `*`/`**`/etc. on the same line,
+// then treat it as a regular character rather than formatting
+//
 // parse inline elements into html
 void html_push_text(StringBuilder *html, Str str) {
     bool parsing_strong = false;
@@ -130,6 +106,12 @@ void html_push_text(StringBuilder *html, Str str) {
             str = str_skip(str, code_end + 1);
             sb_push(html, S("</code>"));
 
+            continue;
+        }
+
+        if (str_starts_with(str, S("\\"))) {
+            sb_push(html, str_slice(str, 1, 2));
+            str = str_skip(str, 2);
             continue;
         }
 
@@ -186,7 +168,7 @@ void html_push_text(StringBuilder *html, Str str) {
         }
 
 
-        int64_t markup_end = str_find_ex(str, S("*_`[!"), Find_AsChars);
+        int64_t markup_end = str_find_ex(str, S("\\*_`[!"), Find_AsChars);
         sb_push(html, str_take(str, markup_end));
         str = str_skip(str, markup_end);
     }
@@ -252,9 +234,9 @@ bool line_is_ol(Str line, int *digits_at_start) {
     return count > 0 && str_starts_with(str_skip(line, count), S(". "));
 }
 
-// TODO: add support for automatic compilation of the code blocks
-// TODO: merge ul and ol parsing into a single function
 // TODO: add blockquotes parsing
+// TODO: merge ul and ol parsing into a single function
+// TODO: add support for automatic compilation of the code blocks
 void html_render_md(StringBuilder *html, Str md) {
     Temp tmp = arena_temp();
 
@@ -288,6 +270,7 @@ void html_render_md(StringBuilder *html, Str md) {
                     html_indent -= 1;
                     html_push_tag(html, html_indent, S("ol"), .closing=true);
                 }
+                last_ol_indent = 0;
             }
             if (ul_level > 0) {
                 while (ul_level > 0) {
@@ -295,6 +278,7 @@ void html_render_md(StringBuilder *html, Str md) {
                     html_indent -= 1;
                     html_push_tag(html, html_indent, S("ul"), .closing=true);
                 }
+                last_ul_indent = 0;
             }
             continue;
         }

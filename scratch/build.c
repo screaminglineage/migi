@@ -85,6 +85,7 @@ static bool run_compiler(Str compiler, bool debug, Str filename, Str output_path
     strlist_push(tmp.arena, &command, S("-Wextra"));
     strlist_push(tmp.arena, &command, S("-Wno-unused-function"));
     strlist_push(tmp.arena, &command, S("-Wno-override-init"));
+    strlist_push(tmp.arena, &command, S("-Wno-missing-braces")); // dont warn on specific kinds of designated initializers
     strlist_push(tmp.arena, &command, S("-lm"));
 
     if (debug) {

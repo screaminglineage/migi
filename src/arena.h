@@ -77,7 +77,7 @@ typedef struct {
         __VA_ARGS__                                 \
     }, NULL, 0)
 
-static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size);
+static Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size);
 static void arena_free(Arena *arena);
 
 #define arena_new(arena, type) \
@@ -103,11 +103,11 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
 #define arena_copy(arena, type, mem, length) \
     (type *)arena_copy_bytes((arena), (void *)(mem), (length)*sizeof(type), align_of(type))
 
-static inline void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align);
+static void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align);
 
 static void arena_reset(Arena *arena);
 
-static inline Temp arena_save(Arena *arena);
+static Temp arena_save(Arena *arena);
 static void arena_rewind(Temp checkpoint);
 
 // Create a temporary region within the arena
@@ -179,7 +179,7 @@ static Arena *arena__init(ArenaOptions opt, void *backing_buffer, size_t backing
     return arena;
 }
 
-static inline Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size) {
+static Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size) {
     return arena__init((ArenaOptions){.type = Arena_Static}, backing_buffer, backing_buffer_size);
 }
 
@@ -226,7 +226,7 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
     return mem;
 }
 
-static inline void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align) {
+static void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align) {
     if (!mem) {
         return arena_push_bytes(arena, size, align, true);
     }
@@ -311,7 +311,7 @@ static void arena_free(Arena *arena) {
     }
 }
 
-static inline Temp arena_save(Arena *arena) {
+static Temp arena_save(Arena *arena) {
     return (Temp) {
         .arena = arena,
         .current = arena->current,

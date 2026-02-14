@@ -398,7 +398,7 @@ void test_random() {
                 frequencies[index]++;
             }
         }
-        
+
         for (int64_t i = 1; i < range_top; i++) {
             printf("[%02zu] => ", i);
             int64_t num = frequencies[i];
@@ -592,7 +592,8 @@ void test_strlist_replace() {
     {
         s = S("foo bar baz");
         l = strlist_from_str(a, s);
-        l = strlist_replace(a, &l, S("a"), S("i"));
+        strlist_replace(a, &l, S("a"), S("i"));
+        assert(l.length == 5);
         s = strlist_to_string(a, &l);
         assert(str_eq(s, S("foo bir biz")));
     }
@@ -600,7 +601,8 @@ void test_strlist_replace() {
     {
         s = S("This is an interesting sentence");
         l = strlist_from_str(a, s);
-        l = strlist_replace(a, &l, S("sentence"), S("paragraph!!"));
+        strlist_replace(a, &l, S("sentence"), S("paragraph!!"));
+        assert(l.length == 2);
         s = strlist_to_string(a, &l);
         assert(str_eq(s, S("This is an interesting paragraph!!")));
     }
@@ -608,7 +610,8 @@ void test_strlist_replace() {
     {
         s = S("This is an interesting sentence");
         l = strlist_from_str(a, s);
-        l = strlist_replace(a, &l, S("an interesting"), S("a boring"));
+        strlist_replace(a, &l, S("an interesting"), S("a boring"));
+        assert(l.length == 3);
         s = strlist_to_string(a, &l);
         assert(str_eq(s, S("This is a boring sentence")));
     }
@@ -616,7 +619,8 @@ void test_strlist_replace() {
     {
         s = S("hello world");
         l = str_split(a, s, S(" "));
-        l = strlist_replace(a, &l, S("world"), S("warudo"));
+        strlist_replace(a, &l, S("world"), S("warudo"));
+        assert(l.length == 2);
         s = strlist_to_string(a, &l);
         assert(str_eq(s, S("hellowarudo")));
     }
@@ -624,12 +628,22 @@ void test_strlist_replace() {
     {
         s = S("abcdefgh");
         l = str_split(a, s, S(""));
-        l = strlist_replace(a, &l, S("e"), S("E"));
-        l = strlist_replace(a, &l, S("g"), S("G"));
-        l = strlist_replace(a, &l, S("a"), S("A"));
-        l = strlist_replace(a, &l, S("h"), S("H"));
+        strlist_replace(a, &l, S("e"), S("E")); assert(l.length == 8);
+        strlist_replace(a, &l, S("g"), S("G")); assert(l.length == 8);
+        strlist_replace(a, &l, S("a"), S("A")); assert(l.length == 8);
+        strlist_replace(a, &l, S("h"), S("H")); assert(l.length == 8);
+
         s = strlist_join(a, &l, S("-"));
         assert(str_eq(s, S("A-b-c-d-E-f-G-H")));
+    }
+
+    {
+        s = S("jackal camel armadillo alligator");
+        l = str_split(a, s, S(" "));
+        strlist_replace(a, &l, S("a"), S("A")); assert(l.length == 16);
+        strlist_replace(a, &l, S("l"), S("L")); assert(l.length == 22);
+        s = strlist_join(a, &l, S("_"));
+        assert(str_eq(s, S("j_A_ck_A_L_c_A_me_L_A_rm_A_di_L_L_o_A_L_L_ig_A_tor")));
     }
     arena_temp_release(t);
 }

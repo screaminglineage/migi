@@ -45,7 +45,7 @@ struct DirHandleNode {
 typedef struct {
     Str path;
     Str name;
-    size_t size;    // 0 for directories
+    size_t size;    // 0 for available (eg: for directories)
     uint32_t depth;
 
     // in unix epoch, 0 if not available (eg: time_created on linux)
@@ -123,11 +123,11 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, uin
     entry->time_created  = win32__system_time_to_unix(file_info->ftCreationTime);
 }
 #else
-static bool posix__os_to_entry(DString *parent_dir, char *filename, uint32_t depth, DirEntry *entry) {
+static bool posix__os_to_entry(DStr *parent_dir, char *filename, uint32_t depth, DirEntry *entry) {
     entry->name = str_from_cstr(filename);
-    dstring_pushf(parent_dir, "/%.*s", SArg(entry->name));
+    dstr_pushf(parent_dir, "/%.*s", SArg(entry->name));
     struct stat statbuf;
-    int res = stat(dstring_to_temp_cstr(parent_dir), &statbuf);
+    int res = stat(dstr_to_temp_cstr(parent_dir), &statbuf);
     if (res == -1) {
         migi_log(Log_Error, "failed to get file info for: `%.*s`: %s",
                 SArg(parent_dir->as_string), strerror(errno));
@@ -141,7 +141,7 @@ static bool posix__os_to_entry(DString *parent_dir, char *filename, uint32_t dep
     entry->is_symlink = S_ISLNK(statbuf.st_mode);
     entry->is_hidden = entry->name.length != 0 && entry->name.data[0] == '.';
 
-    if (!entry.is_dir) {
+    if (!entry->is_dir) {
         entry->size = statbuf.st_size;
     }
     entry->time_modified = statbuf.st_mtim.tv_sec;
@@ -172,9 +172,9 @@ static bool walker_open_dir(DirWalker *w) {
     win32__os_to_entry(&file_info, parent_dir, w->depth, &w->entry);
     return true;
 #else
-    DString *parent_dir = &w->temp_str;
-    dstring_push(parent_dir, w->current_dir.as_string);
-    w->dir = opendir(dstring_to_temp_cstr(parent_dir));
+    DStr *parent_dir = &w->temp_str;
+    dstr_push(parent_dir, w->current_dir.as_string);
+    w->dir = opendir(dstr_to_temp_cstr(parent_dir));
     if (!w->dir) {
         migi_log(Log_Error, "failed to open directory: `%.*s`: %s",
                 SArg(parent_dir->as_string), strerror(errno));
@@ -218,9 +218,9 @@ static ReadDirResult walker_read_dir(DirWalker *w) {
         return Read_Over;
     }
 
-    DString *parent_dir = &w->temp_str;
-    dstring_push(parent_dir, w->current_dir.as_string);
-    if (!posix__os_to_entry(parent_dir, entry->d_name, w.depth, &w->entry)) return Read_Error;
+    DStr *parent_dir = &w->temp_str;
+    dstr_push(parent_dir, w->current_dir.as_string);
+    if (!posix__os_to_entry(parent_dir, entry->d_name, w->depth, &w->entry)) return Read_Error;
     return Read_Ok;
 #endif // ifdef _WIN32
 }
@@ -276,6 +276,7 @@ static void walker_update(Arena *arena, DirWalker *w) {
         dir_handle->dir = w->dir;
         stack_push(w->dir_handles, dir_handle);
         w->depth += 1;
+        w->entry.depth += 1; // TODO: do this when creating entry if its a dir
 
         dstr_pushf(&w->current_dir, "%.*s%.*s", SArg(DIRECTORY_SEPARATOR), SArg(w->entry.name));
         w->next_mode = DirWalkerMode_Recurse;
@@ -294,7 +295,9 @@ typedef struct {
 static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
     w->entry = (DirEntry){0};
 
-    if (opt.dont_recurse) w->mode = DirWalkerMode_PopStack;
+    if (opt.dont_recurse) {
+        w->mode = DirWalkerMode_PopStack;
+    }
 
     while (true) {
         w->temp_str.length = 0;
@@ -306,6 +309,7 @@ static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
                     w->entry.over = w->stop_on_error;
                     w->entry.error = true;
                     close_directory(w->dir);
+                    w->dir = INVALID_DIR_HANDLE;
                     w->next_mode = DirWalkerMode_PopStack;
                     w->mode = DirWalkerMode_Return;
                 } else {
@@ -315,6 +319,8 @@ static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
 
             case DirWalkerMode_PopStack: {
                 if (w->dir_handles == NULL) {
+                    close_directory(w->dir);
+                    w->dir = INVALID_DIR_HANDLE;
                     w->entry.over = true;
                     w->next_mode = DirWalkerMode_NextFile;
                     w->mode = DirWalkerMode_Return;
@@ -342,6 +348,7 @@ static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
                     } break;
                     case Read_Over: {
                         close_directory(w->dir);
+                        w->dir = INVALID_DIR_HANDLE;
                         w->mode = DirWalkerMode_PopStack;
                     } break;
                     case Read_Ok: {
@@ -363,6 +370,8 @@ static DirEntry walker__next(Arena *arena, DirWalker *w, WalkerOptions opt) {
 static void walker_free(DirWalker *w) {
     migi_log(Log_Debug, "Temp Str Allocated: %zu bytes", w->temp_str.capacity);
     migi_log(Log_Debug, "Current Directory Allocated: %zu bytes", w->current_dir.capacity);
+
+    // if stop_on_error was enabled, then all open directory handles might not have been closed
     if (w->stop_on_error) {
         list_foreach(w->dir_handles, DirHandleNode, dir_handle) {
             close_directory(dir_handle->dir);
@@ -409,6 +418,8 @@ static DirEntryNode *dir_get_all_children(Arena *arena, Str dir_path) {
 
     WalkerOptions opt = {0};
     dir_foreach_opt(tmp.arena, &walker, entry, &opt) {
+        if (entry.error) continue;
+
         if (entry.depth >= 1) {
             opt.dont_recurse = true;
             continue;
@@ -422,8 +433,8 @@ static DirEntryNode *dir_get_all_children(Arena *arena, Str dir_path) {
         stack_push(head, node);
     }
 
-    arena_temp_release(tmp);
     walker_free(&walker);
+    arena_temp_release(tmp);
     return head;
 }
 
@@ -504,7 +515,6 @@ void test_walk_dir(Str path) {
     walker_free(&walker);
     arena_temp_release(tmp);
 }
-
 
 int main(int argc, char **argv) {
     if (argc <= 1) {

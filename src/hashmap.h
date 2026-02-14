@@ -16,7 +16,7 @@
 
 
 // Taken from https://nullprogram.com/blog/2025/01/19/
-static inline uint64_t hash_fnv(byte *data, size_t length) {
+static uint64_t hash_fnv(byte *data, size_t length) {
     uint64_t h = 0x100;
     for (size_t i = 0; i < length; i++) {
         h ^= data[i] & 255;

@@ -177,14 +177,20 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags);
             : cut._count++)
 
 
-static inline uint64_t str_hash_fnv(Str string, uint64_t seed);
-static inline uint64_t str_hash(Str string);
+static uint64_t str_hash_fnv(Str string, uint64_t seed);
+static uint64_t str_hash(Str string);
 
 // Create formatted string on an arena
 migi_printf_format(2, 3) static Str stringf(Arena *arena, const char *fmt, ...);
 
 static Str str_from_file(Arena *arena, Str filepath);
 static bool str_to_file(Str string, Str filepath);
+
+// Gets the last error from the OS as a string
+// NOTE: `arena` is currently unused on linux as it just calls `strerror` which uses its own memory
+static Str str_last_error(Arena *arena);
+
+
 
 static Str str_from_span(char *start, char *end) {
     return (Str){
@@ -495,7 +501,7 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags) {
 }
 
 
-static inline uint64_t str_hash_fnv(Str string, uint64_t seed) {
+static uint64_t str_hash_fnv(Str string, uint64_t seed) {
     uint64_t h = seed? seed: 0x100;
     for (size_t i = 0; i < string.length; i++) {
         h ^= string.data[i] & 255;
@@ -504,7 +510,7 @@ static inline uint64_t str_hash_fnv(Str string, uint64_t seed) {
     return h;
 }
 
-static inline uint64_t str_hash(Str string) {
+static uint64_t str_hash(Str string) {
     return str_hash_fnv(string, 0);
 }
 
@@ -560,6 +566,7 @@ static StrResult read_entire_file(Arena *arena, File file) {
     StrResult result = {0};
 #ifdef _WIN32
     DWORD size_high = 0;
+    // TODO: check if GetFileSize can fail
     DWORD size_low = GetFileSize(file, &size_high);
     LARGE_INTEGER filesize = {
         .LowPart = size_low,
@@ -580,19 +587,17 @@ static StrResult read_entire_file(Arena *arena, File file) {
         buf += n;
     }
 
-    result.string = (Str){
-        .data = buf_start,
-        .length = length,
+    result = (StrResult){
+        .string.data = buf_start,
+        .string.length = length,
+        .ok = true;
     };
-    result.ok = true;
-    return result;
-}
 #else
-    off_t length = lseek(fd, 0, SEEK_END);
+    off_t length = lseek(file, 0, SEEK_END);
     if (length == -1) {
-        return (Str){0};
+        return result;
     }
-    lseek(fd, 0, SEEK_SET);
+    lseek(file, 0, SEEK_SET);
 
     // file position cannot be negative at this point
     char *buf = arena_push(arena, char, length);
@@ -600,21 +605,24 @@ static StrResult read_entire_file(Arena *arena, File file) {
     ssize_t n = 0;
     char *buf_at = buf;
     while (n < length) {
-        ssize_t m = read(fd, buf_at, length);
+        ssize_t m = read(file, buf_at, length);
         if (m == -1) {
             arena_pop(arena, char, length);
-            return (Str){0};
+            return result;
         }
         n += m;
         buf_at += m;
     }
 
-    return (Str){
-        .data = buf,
-        .length = length,
+    result = (StrResult){
+        .string.data = buf,
+        .string.length = length,
+        .ok = true
     };
-}
 #endif // #ifndef _WIN32
+
+    return result;
+}
 
 static bool write_entire_str(File file, Str str) {
 #ifdef _WIN32
@@ -628,7 +636,7 @@ static bool write_entire_str(File file, Str str) {
     return true;
 #else
     while (str.length > 0) {
-        ssize_t n = write(fd, str.data, str.length);
+        ssize_t n = write(file, str.data, str.length);
         if (n == -1) {
             return false;
         }
@@ -645,13 +653,13 @@ static bool file_close(File file) {
     return CloseHandle(file);
 #else
     // TODO: can close return an error?
-    close(fd);
+    close(file);
     return true;
 #endif // ifdef _WIN32
 }
 
 
-static Str last_error_string(Arena *arena) {
+static Str str_last_error(Arena *arena) {
 #ifdef _WIN32
     DWORD err = GetLastError();
 
@@ -675,8 +683,9 @@ static Str last_error_string(Arena *arena) {
     }
     return err_string;
 #else
+    unused(arena);
     const char *s = strerror(errno);
-    return string_from_cstr(s);
+    return str_from_cstr(s);
 #endif
 }
 
@@ -697,7 +706,7 @@ static Str str_from_file(Arena *arena, Str filepath) {
 
     if (file == FILE_ERROR) {
         migi_log(Log_Error, "failed to open file `%.*s`: %.*s",
-                SArg(filepath), SArg(last_error_string(tmp.arena)));
+                SArg(filepath), SArg(str_last_error(tmp.arena)));
         arena_temp_release(tmp);
         return str;
     }
@@ -705,7 +714,7 @@ static Str str_from_file(Arena *arena, Str filepath) {
     StrResult result = read_entire_file(arena, file);
     if (!result.ok) {
         migi_log(Log_Error, "failed to read from file `%.*s`: %.*s",
-                SArg(filepath), SArg(last_error_string(tmp.arena)));
+                SArg(filepath), SArg(str_last_error(tmp.arena)));
     }
     str = result.string;
 
@@ -730,7 +739,7 @@ static bool str_to_file(Str string, Str filepath) {
 
     if (file == FILE_ERROR) {
         migi_log(Log_Error, "failed to open file `%.*s`: %.*s",
-                SArg(filepath), SArg(last_error_string(tmp.arena)));
+                SArg(filepath), SArg(str_last_error(tmp.arena)));
         arena_temp_release(tmp);
         return false;
     }
@@ -738,7 +747,7 @@ static bool str_to_file(Str string, Str filepath) {
     bool ok = write_entire_str(file, string);
     if (!ok) {
         migi_log(Log_Error, "failed to write to file `%.*s`: %.*s", 
-                SArg(filepath), SArg(last_error_string(tmp.arena)));
+                SArg(filepath), SArg(str_last_error(tmp.arena)));
     }
 
     file_close(file);
