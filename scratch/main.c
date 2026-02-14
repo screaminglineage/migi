@@ -41,6 +41,8 @@
 #include "filepath.h"
 #include "ring_buffer.h"
 
+#include "file.h"
+
 #ifdef __GNUC__
     #pragma GCC diagnostic pop
 #endif
@@ -215,20 +217,6 @@ void test_chained_arena() {
     arena_free(arena);
 }
 
-void test_string_builder() {
-    StringBuilder sb = sb_init();
-    defer_block(sb_reset(&sb)) {
-        sb_push(&sb, S("hello"));
-        sb_push(&sb, S("foo"));
-        sb_push(&sb, S("bar"));
-        sb_push(&sb, S("baz"));
-
-        printf("%s\n", sb_to_cstr(&sb));
-        printf("len: %zu\n", sb_length(&sb));
-    }
-    printf("len: %zu\n", sb_length(&sb));
-}
-
 void test_string_builder_formatted() {
     StringBuilder sb = sb_init();
     sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99),
@@ -253,7 +241,7 @@ void test_string_builder_formatted() {
 
     static char buf[1*MB];
     Arena *a = arena_init_static(buf, sizeof(buf));
-    Str str = str_from_file(a, S("./src/str_builder.h"));
+    Str str = str_from_file(a, S("./src/string_builder.h"));
     const char *cstr = str_to_cstr(a, str);
 
     sb_pushf(&sb, "%s\n", cstr);
@@ -268,6 +256,23 @@ void test_string_builder_formatted() {
         printf("%.*s", SArg(sb_to_string(&sb_static)));
     }
 }
+
+void test_string_builder() {
+    test_string_builder_formatted();
+
+    StringBuilder sb = sb_init();
+    defer_block(sb_reset(&sb)) {
+        sb_push(&sb, S("hello"));
+        sb_push(&sb, S("foo"));
+        sb_push(&sb, S("bar"));
+        sb_push(&sb, S("baz"));
+
+        printf("%s\n", sb_to_cstr(&sb));
+        printf("len: %zu\n", sb_length(&sb));
+    }
+    printf("len: %zu\n", sb_length(&sb));
+}
+
 
 
 void test_random() {
@@ -1495,8 +1500,6 @@ void test_ring_buffer() {
 
 int main() {
     Arena *a = arena_init();
-
-    test_strlist();
 
     arena_free(a);
     printf("\nExiting Successfully\n");

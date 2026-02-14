@@ -1,5 +1,5 @@
-#ifndef MIGI_LINEAR_ALG_H
-#define MIGI_LINEAR_ALG_H
+#ifndef MIGI_LINEAR_ALGEBRA_H
+#define MIGI_LINEAR_ALGEBRA_H
 
 // Linear Algebra types and functions
 
@@ -1777,4 +1777,4 @@ static MatD matd_mul(Arena *arena, MatD a, MatD b) {
 }
 
 
-#endif // ifndef MIGI_LINEAR_ALG_H
+#endif // ifndef MIGI_LINEAR_ALGEBRA_H

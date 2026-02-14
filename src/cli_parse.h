@@ -3,7 +3,9 @@
 
 #include <stddef.h>
 #include <string.h>
-#include "migi.h"
+#include "migi_core.h"
+#include "migi_string.h"
+#include "migi_list.h"
 
 typedef struct {
     Str key;
