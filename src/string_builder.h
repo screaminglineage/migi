@@ -1,12 +1,14 @@
 #ifndef MIGI_STRING_BUILDER_H
 #define MIGI_STRING_BUILDER_H
 
-#include "migi_core.h"
-#include "migi_string.h"
-#include "arena.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+
+#include "migi_core.h"
+#include "migi_string.h"
+#include "arena.h"
+#include "file.h"
 
 typedef struct {
     Arena *arena;

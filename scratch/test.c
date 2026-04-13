@@ -1,4 +1,5 @@
 #include "migi.h"
+#include "file.h"
 
 typedef enum {
     RackNode_None = 0,
@@ -65,7 +66,7 @@ RackNode *rack__get_node_to_fill(Rack *rack) {
             rack->fill = RackFill_None;
         } break;
 
-        case RackNode_None: {
+        case RackFill_None: {
             migi_unreachablef("`%s` called without first calling `rack_begin_pair`", __func__);
         }
     }
@@ -93,10 +94,10 @@ void rack__dump_node(Arena *arena, StrList *list, RackNode node) {
 
             // store size in little endian order
             char string_length[sizeof(uint32_t)];
-            string_length[0] = (string.length >> 0);
-            string_length[1] = (string.length >> 8);
-            string_length[2] = (string.length >> 16);
-            string_length[3] = (string.length >> 24);
+            string_length[0] = (char)(string.length >> 0);
+            string_length[1] = (char)(string.length >> 8);
+            string_length[2] = (char)(string.length >> 16);
+            string_length[3] = (char)(string.length >> 24);
 
             strlist_push_buffer(arena, list, string_length, sizeof(uint32_t));
             strlist_push(arena, list, string);
@@ -108,7 +109,7 @@ void rack__dump_node(Arena *arena, StrList *list, RackNode node) {
             // store number in little endian order
             char num_as_bytes[sizeof(int64_t)];
             for (size_t i = 0; i < sizeof(int64_t); i++) {
-                num_as_bytes[i] = num >> 8 * i;
+                num_as_bytes[i] = (char)(num >> 8 * i);
             }
             strlist_push_buffer(arena, list, num_as_bytes, sizeof(int64_t));
         } break;

@@ -212,16 +212,26 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
         alloc_end = alloc_start + size;
     }
 
+    bool committed = false;
     // commit memory if needed
     if (current->type != Arena_Static && alloc_end > current->committed) {
         size_t new_committed = clamp_top(align_up_pow2(alloc_end, current->commit_size), current->reserved);
         arena__commit((byte *)current + current->committed, new_committed - current->committed);
+        committed = true;
         current->committed = new_committed;
     }
     avow(alloc_end <= current->reserved, "%s: out of memory", __func__);
 
     byte *mem = (byte *)current + alloc_start;
+
+#ifdef ARENA_USE_MALLOC
+    // Commit operation in malloc mode doesnt do anything,
+    // so the memory must always be cleared in this case
     if (clear_mem) mem_clear_array(mem, size);
+#else
+    if (clear_mem && !committed) mem_clear_array(mem, size);
+#endif
+
     current->position = alloc_end;
     return mem;
 }
