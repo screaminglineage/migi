@@ -422,7 +422,6 @@ static DirEntryNode *dir_get_all_children(Arena *arena, Str dir_path) {
 
         if (entry.depth >= 1) {
             opt.dont_recurse = true;
-            continue;
         }
 
         DirEntryNode *node = arena_new(arena, DirEntryNode);
@@ -495,10 +494,9 @@ void test_walk_dir(Str path) {
     dir_foreach_opt(tmp.arena, &walker, file, &opt) {
         if (file.error) continue;
 
-        bool is_git = file.is_dir && str_eq(file.name, S(".git"));
+        bool is_git = false;//file.is_dir && str_eq(file.name, S(".git"));
         if (file.depth >= max_depth || is_git) {
             opt.dont_recurse = true;
-            continue;
         }
 
         printf("Path: %.*s\n", SArg(file.path));
