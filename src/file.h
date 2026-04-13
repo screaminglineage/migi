@@ -142,25 +142,24 @@ static StrResult file_read(Arena *arena, File file) {
         buf += n;
     }
 #else
-    off_t length = lseek(fd, 0, SEEK_END);
+    off_t length = lseek(file, 0, SEEK_END);
     if (length == -1) {
-        return (Str){0};
+        return result;
     }
-    lseek(fd, 0, SEEK_SET);
+    lseek(file, 0, SEEK_SET);
 
     // file position cannot be negative at this point
     char *buf = arena_push(arena, char, length);
 
-    ssize_t n = 0;
-    char *buf_at = buf;
-    while (n < length) {
-        ssize_t m = read(fd, buf_at, length);
+    char *buf_start = buf;
+    char *buf_end = buf_start + length;
+    while (buf < buf_end) {
+        ssize_t m = read(file, buf, length);
         if (m == -1) {
             arena_pop(arena, char, length);
             return result;
         }
-        n += m;
-        buf_at += m;
+        buf += m;
     }
 #endif // #ifndef _WIN32
     result = (StrResult){
@@ -184,7 +183,7 @@ static bool file_write(File file, Str str) {
     return true;
 #else
     while (str.length > 0) {
-        ssize_t n = write(fd, str.data, str.length);
+        ssize_t n = write(file, str.data, str.length);
         if (n == -1) {
             return false;
         }
@@ -200,7 +199,7 @@ static bool file_close(File file) {
     return CloseHandle(file);
 #else
     // TODO: can close return an error?
-    close(fd);
+    close(file);
     return true;
 #endif // ifdef _WIN32
 }

@@ -171,7 +171,7 @@ static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, uin
     entry->time_created  = win32__system_time_to_unix(file_info->ftCreationTime);
 }
 #else
-static bool posix__os_to_entry(DStr *parent_dir, char *filename, uint32_t depth, DirEntry *entry) {
+static bool posix__os_to_entry(DStr *parent_dir, char *filename, uint32_t depth, DirIter *entry) {
     entry->name = str_from_cstr(filename);
     dstr_pushf(parent_dir, "/%.*s", SArg(entry->name));
     struct stat statbuf;

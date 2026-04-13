@@ -9,6 +9,7 @@
 #include "hashmap.h"
 #include "migi.h"
 #include "migi_random.h"
+#include "file.h"
 
 
 void test_basic() {
