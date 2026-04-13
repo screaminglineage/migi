@@ -196,6 +196,10 @@ do {                                                \
 #define mem_eq_array(a, b, length) \
     (memcmp((a), (b), sizeof(*(a))*(length)) == 0)
 
+
+// TODO: mem_eq of 2 literals seems to not work on windows (probably undefined behaviour)
+// mem_eq(&hm.keys[1], &(S("foo"))) returns false when in fact it should return true
+// see src/hashmap.h for the actual line
 #define mem_eq(a, b) mem_eq_array(a, b, 1)
 
 #define mem_clear_array(mem, length) \

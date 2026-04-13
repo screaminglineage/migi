@@ -279,7 +279,7 @@ Str random_string(Arena *a, size_t length) {
     char *chars = arena_push(a, char, length);
 
     for (size_t i = 0; i < length; i++) {
-        chars[i] = random_range('a', 'z');
+        chars[i] = rand_range('a', 'z');
     }
     return (Str){.data = chars, .length = length};
 }
@@ -494,7 +494,7 @@ void profile_hashmap_iteration(Arena *a, MapIntInt *map, size_t capacity, int64_
     uint64_t samples[SAMPLES] = {0};
 
     for (size_t i = 0; i < SAMPLES; i++) {
-        int key = random_range_exclusive(-max_size, 0); // missing key
+        int key = rand_range_exclusive(-max_size, 0); // missing key
                                                         // int key = random_range_exclusive(0, max_size); // valid key
         uint64_t start = read_cpu_timer();
 
@@ -568,7 +568,7 @@ void profile_hashmap_deletion_times() {
         uint64_t samples[SAMPLES] = {0};
 
         for (size_t i = 0; i < SAMPLES; i++) {
-            int key = random_range_exclusive(0, max_size);
+            int key = rand_range_exclusive(0, max_size);
             uint64_t start = read_cpu_timer();
             hashmap_pop(&map, key);
             uint64_t end = read_cpu_timer();
@@ -639,6 +639,71 @@ void test_init() {
     assert(k == NULL);
 }
 
+typedef struct {
+    int x, y;
+} Point;
+
+uint64_t hash_point(void *data, size_t size) {
+    unused(size);
+    Point *p = data;
+    return (size_t)p->x * 1000003 + p->y;
+}
+
+bool eq_point(void *a, void *b, size_t size) {
+    unused(size);
+    Point *p1 = a;
+    Point *p2 = b;
+    return p1->x == p2->x && p1->y == p2->y;
+}
+
+void test_custom_hash() {
+
+    typedef struct {
+        HASHMAP_HEADER;
+        Point *keys;
+        Str *values;
+    } Map;
+
+    Arena *a = arena_init();
+    Map map = {
+        .h.hash_fn = hash_point,
+        .h.eq_fn = eq_point,
+    };
+
+    hashmap_put(a, &map, ((Point){1, 2}),    S("1, 2"));
+    hashmap_put(a, &map, ((Point){10, 45}),  S("10, 45"));
+    hashmap_put(a, &map, ((Point){50, 32}),  S("50, 32"));
+    hashmap_put(a, &map, ((Point){5, 13}),   S("5, 13"));
+
+    assert(mem_eq(&map.keys[0], &((Point){0})));      assert(str_eq(map.values[0], S("")));
+    assert(mem_eq(&map.keys[1], &((Point){1, 2})));   assert(str_eq(map.values[1], S("1, 2")));
+    assert(mem_eq(&map.keys[2], &((Point){10, 45}))); assert(str_eq(map.values[2], S("10, 45")));
+    assert(mem_eq(&map.keys[3], &((Point){50, 32}))); assert(str_eq(map.values[3], S("50, 32")));
+    assert(mem_eq(&map.keys[4], &((Point){5, 13})));  assert(str_eq(map.values[4], S("5, 13")));
+}
+
+void test_cstr_key() {
+    typedef struct {
+        HASHMAP_HEADER;
+        char **keys;
+        int *values;
+    } Map;
+
+    Arena *a = arena_init();
+    Map map = {0};
+
+    hashmap_put(a, &map, "foo", 100);
+    hashmap_put(a, &map, "bar", 149);
+    hashmap_put(a, &map, "baz", -49);
+    hashmap_put(a, &map, "buzz", 0);
+
+    assert(str_eq_cstr(S(""),     map.keys[0], 0)); assert(map.values[0] == 0);
+    assert(str_eq_cstr(S("foo"),  map.keys[1], 0)); assert(map.values[1] == 100);
+    assert(str_eq_cstr(S("bar"),  map.keys[2], 0)); assert(map.values[2] == 149);
+    assert(str_eq_cstr(S("baz"),  map.keys[3], 0)); assert(map.values[3] == -49);
+    assert(str_eq_cstr(S("buzz"), map.keys[4], 0)); assert(map.values[4] == 0);
+}
+
 int main() {
     // frequency_analysis();
     // profile_hashmap_lookup_times();
@@ -653,7 +718,8 @@ int main() {
     test_type_safety();
     test_reserve();
     test_init();
-
+    test_custom_hash();
+    test_cstr_key();
 
 
     printf("\nexiting successfully\n");
