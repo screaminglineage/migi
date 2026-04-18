@@ -288,23 +288,6 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
 
 static Str cli_help_text(Arena *arena, Cli *cli);
 
-typedef struct {
-    Cli *ctx;
-    Arena *arena;
-    Str help;       // help text for the program as a whole
-} CliParseOpt;
-
-#define cli_parse_args(argc, argv, ...)                \
-    (global_cli_temp.arena == NULL                     \
-        ? global_cli_temp = arena_temp()               \
-        : (void)0,                                     \
-    cli_parse_args_opt((argc), (argv), (CliParseOpt) { \
-        .ctx = &global_cli,                            \
-        .arena = global_cli_temp.arena,                \
-        __VA_ARGS__                                    \
-    }))
-
-
 static bool cli_parse_value(CliArg *cli_arg, Str flag_key, Str arg) {
     Temp tmp = arena_temp();
 
@@ -383,6 +366,23 @@ static CliArg *cli_key_to_arg(Cli *cli, Str key) {
 
 #define cli_executable() global_cli.executable
 
+typedef struct {
+    Cli *ctx;
+    Arena *arena;
+    Str help;                           // help text for the program as a whole
+    bool ignore_executable_name;        // whether to ignore the first argument (usually the name of the executable) [defaults to false and consumes it]
+    Str executable;                     // this is only used when `ignore_executable_name` is true
+} CliParseOpt;
+
+#define cli_parse_args(argc, argv, ...)                \
+    (global_cli_temp.arena == NULL                     \
+        ? global_cli_temp = arena_temp()               \
+        : (void)0,                                     \
+    cli_parse_args_opt((argc), (argv), (CliParseOpt) { \
+        .ctx = &global_cli,                            \
+        .arena = global_cli_temp.arena,                \
+        __VA_ARGS__                                    \
+    }))
 
 static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     Temp tmp = arena_temp();
@@ -408,12 +408,13 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         handle_help_flag = true;
     }
 
-    opt.ctx->executable = str_from_cstr(argv[0]);
     opt.ctx->help = opt.help;
 
-    Str flag_key = {0};
-
-    for (int i = 1; i < argc; i++) {
+    // Parse the first arg as executable if not asked to ignore
+    int i = 0;
+    opt.ctx->executable = (!opt.ignore_executable_name)? str_from_cstr(argv[i++]): opt.executable;
+    for (; i < argc; i++) {
+        Str flag_key = {0};
         Str arg = str_from_cstr(argv[i]);
         if (arg.length == 0) continue;
 
@@ -436,8 +437,8 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
             // if arg is only a `--` parse everything after it as meta arguments
             if (flag_key.length == 0) {
+                i++;
                 while (i < argc) {
-                    i++;
                     strlist_push_cstr(opt.arena, &opt.ctx->meta_args, argv[i++]);
                 }
                 break;
@@ -607,6 +608,7 @@ int main(int argc, char **argv) {
     // NOTE: the arenas in the parse_args and cli_* functions may or may not be provided
     // They can even be separate arenas if required
     Cli cli = {0};
+    // TODO: add option to make a flag required
     Str *str        = cli_add_str (S("str"),  S("help: str"),  .ctx = &cli, /*.arena = tmp.arena*/);
     int64_t *num    = cli_add_i64 (S("num"),  S("help: num"),  .ctx = &cli, /*.arena = tmp.arena*/);
     bool *flag      = cli_add_bool(S("flag"), S("help: flag"), .ctx = &cli, /*.arena = tmp.arena*/);
