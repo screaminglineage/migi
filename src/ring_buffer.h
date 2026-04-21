@@ -10,11 +10,11 @@
 // just popped.
 //
 // ```c
-// ring_push(ring, int, ints, 10)
-// ring_push(ring, float, floats, 10)
+// ring_push(ring, int, int_arr, 10)
+// ring_push(ring, float, float_arr, 10)
 //
 // // This pop will read the wrong type
-// ring_pop(ring, float, floats, 10)
+// ring_pop(ring, float, float_arr, 10)
 // ```
 //
 

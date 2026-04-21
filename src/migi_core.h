@@ -34,21 +34,18 @@ typedef uint8_t byte;
 #endif
 
 #ifndef MIGI_DISABLE_ASSERTS
-    #define assert(expr)                                                          \
-        (!(expr))?                                                                \
-            (printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
-            fflush(NULL),                                                         \
-            migi_crash())                                                         \
+    #define assert(expr)                                                                   \
+        (!(expr))?                                                                         \
+            (fprintf(stderr, "%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
+            migi_crash())                                                                  \
         : (void)0
 
-    #define assertf(expr, ...)                                                      \
-        (!(expr))?                                                                  \
-            (printf("%s:%d: assertion `%s` failed: \"", __FILE__, __LINE__, #expr), \
-            printf(__VA_ARGS__),                                                    \
-            putchar('"'),                                                           \
-            putchar('\n'),                                                          \
-            fflush(NULL),                                                           \
-            migi_crash())                                                           \
+    #define assertf(expr, ...)                                                               \
+        (!(expr))?                                                                           \
+            (fprintf(stderr, "%s:%d: assertion `%s` failed: \"", __FILE__, __LINE__, #expr), \
+            fprintf(stderr, __VA_ARGS__),                                                    \
+            fprintf(stderr, "\"\n"),                                                         \
+            migi_crash())                                                                    \
         : (void)0
 
 // NOTE: Use avow when the application should fail even if asserts are disabled
@@ -63,10 +60,10 @@ typedef uint8_t byte;
     #define assertf(expr, ...) ((void)(expr))
 
 // fallback to slightly simpler implementation when asserts are disabled
-   #define avow(expr, ...)                                                      \
-        (!(expr)                                                                \
-         ? printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
-           migi_crash()                                                         \
+   #define avow(expr, ...)                                                               \
+        (!(expr)                                                                         \
+         ? fprintf(stderr, "%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
+           migi_crash()                                                                  \
          : (void)0)
 #endif
 
@@ -84,11 +81,10 @@ typedef uint8_t byte;
     #endif
 #endif
 
-#define crash_with_message(...)             \
-    (printf("%s:%d: ", __FILE__, __LINE__), \
-    printf(__VA_ARGS__),                    \
-    putchar('\n'),                          \
-    fflush(NULL),                           \
+#define crash_with_message(...)                      \
+    (fprintf(stderr, "%s:%d: ", __FILE__, __LINE__), \
+    fprintf(stderr, __VA_ARGS__),                    \
+    fprintf(stderr, "\n"),                           \
     migi_crash())
 
 #define todo() crash_with_message("%s: not yet implemented!", __func__)
