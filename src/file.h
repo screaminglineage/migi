@@ -57,7 +57,7 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
 
     if (opt.append) {
         if (opt.write || opt.read) {
-            migi_log(Log_Error, "opening mode cannot simultaneously be read/write and append");
+            migi_log_with_ctx(Log_Error, "opening mode cannot simultaneously be read/write and append");
             return file;
         }
         opt.write = true;

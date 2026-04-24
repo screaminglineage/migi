@@ -34,21 +34,18 @@ typedef uint8_t byte;
 #endif
 
 #ifndef MIGI_DISABLE_ASSERTS
-    #define assert(expr)                                                          \
-        (!(expr))?                                                                \
-            (printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
-            fflush(NULL),                                                         \
-            migi_crash())                                                         \
+    #define assert(expr)                                                                   \
+        (!(expr))?                                                                         \
+            (fprintf(stderr, "%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
+            migi_crash())                                                                  \
         : (void)0
 
-    #define assertf(expr, ...)                                                      \
-        (!(expr))?                                                                  \
-            (printf("%s:%d: assertion `%s` failed: \"", __FILE__, __LINE__, #expr), \
-            printf(__VA_ARGS__),                                                    \
-            putchar('"'),                                                           \
-            putchar('\n'),                                                          \
-            fflush(NULL),                                                           \
-            migi_crash())                                                           \
+    #define assertf(expr, ...)                                                               \
+        (!(expr))?                                                                           \
+            (fprintf(stderr, "%s:%d: assertion `%s` failed: \"", __FILE__, __LINE__, #expr), \
+            fprintf(stderr, __VA_ARGS__),                                                    \
+            fprintf(stderr, "\"\n"),                                                         \
+            migi_crash())                                                                    \
         : (void)0
 
 // NOTE: Use avow when the application should fail even if asserts are disabled
@@ -63,10 +60,10 @@ typedef uint8_t byte;
     #define assertf(expr, ...) ((void)(expr))
 
 // fallback to slightly simpler implementation when asserts are disabled
-   #define avow(expr, ...)                                                      \
-        (!(expr)                                                                \
-         ? printf("%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
-           migi_crash()                                                         \
+   #define avow(expr, ...)                                                               \
+        (!(expr)                                                                         \
+         ? fprintf(stderr, "%s:%d: assertion `%s` failed\n", __FILE__, __LINE__, #expr), \
+           migi_crash()                                                                  \
          : (void)0)
 #endif
 
@@ -84,11 +81,10 @@ typedef uint8_t byte;
     #endif
 #endif
 
-#define crash_with_message(...)             \
-    (printf("%s:%d: ", __FILE__, __LINE__), \
-    printf(__VA_ARGS__),                    \
-    putchar('\n'),                          \
-    fflush(NULL),                           \
+#define crash_with_message(...)                      \
+    (fprintf(stderr, "%s:%d: ", __FILE__, __LINE__), \
+    fprintf(stderr, __VA_ARGS__),                    \
+    fprintf(stderr, "\n"),                           \
     migi_crash())
 
 #define todo() crash_with_message("%s: not yet implemented!", __func__)
@@ -180,15 +176,15 @@ do {                                                    \
 } while (0)
 
 
-#define list_print(head, type, ...)                 \
+#define list_print(head, type, item, ...)           \
 do {                                                \
     printf("[");                                    \
-    type *node = (head);                            \
-    for (; node && node->next; node = node->next) { \
+    type *item = (head);                            \
+    for (; item && item->next; item = item->next) { \
         printf(__VA_ARGS__);                        \
         printf(", ");                               \
     }                                               \
-    if (node) printf(__VA_ARGS__);                  \
+    if (item) printf(__VA_ARGS__);                  \
     printf("]\n");                                  \
 } while (0)
 
@@ -257,16 +253,13 @@ typedef enum {
     Log_Count,
 } LogLevel;
 
-static struct {
-    const char *name;
-    const char *colour_code;
-} MIGI_LOG_LEVELS[] = {
-    [Log_Debug]   = { "DEBUG",   "\x1b[35m" },
-    [Log_Info]    = { "INFO",    "\x1b[32m" },
-    [Log_Warning] = { "WARNING", "\x1b[33m" },
-    [Log_Error]   = { "ERROR",   "\x1b[31m" },
+const char *global_log_level_names[] = {
+    [Log_Debug]   = "DEBUG",
+    [Log_Info]    = "INFO",
+    [Log_Warning] = "WARNING",
+    [Log_Error]   = "ERROR",
 };
-static_assert(array_len(MIGI_LOG_LEVELS) == Log_Count, "the number of log levels has changed");
+static_assert(array_len(global_log_level_names) == Log_Count, "the number of log levels has changed");
 
 #ifdef MIGI_DEBUG_LOGS
     threadvar LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Debug;
@@ -275,25 +268,18 @@ static_assert(array_len(MIGI_LOG_LEVELS) == Log_Count, "the number of log levels
 #endif
 
 // `context` is usually the name of the function (passed in as __func__) calling migi_log
+// If it's NULL then it is not printed
 migi_printf_format(5, 6)
-static void migi_log_ex(LogLevel level, const char *file, int line, const char *context, const char *fmt, ...) {
+static void migi_log_opt(LogLevel level, const char *file, int line, const char *context, const char *fmt, ...) {
     if (level < MIGI_GLOBAL_LOG_LEVEL) return;
 
     if (level == Log_Debug) {
         fprintf(stderr, "%s:%d: ", file, line);
     }
 
-    const char *bold_code  = "\x1b[1m";
-    const char *reset_code = "\x1b[0m";
-    fprintf(stderr, "%s%s[%s]%s", bold_code, MIGI_LOG_LEVELS[level].colour_code,
-            MIGI_LOG_LEVELS[level].name, reset_code);
+    fprintf(stderr, "[%s] ", global_log_level_names[level]);
 
-    // Dont show context for info logs
-    if (level == Log_Info) {
-        fprintf(stderr, " ");
-    } else {
-        fprintf(stderr, " %s: ", context);
-    }
+    if (context) fprintf(stderr, "%s: ", context);
 
     va_list args;
     va_start(args, fmt);
@@ -302,6 +288,8 @@ static void migi_log_ex(LogLevel level, const char *file, int line, const char *
     va_end(args);
 }
 
-#define migi_log(level, ...) migi_log_ex(level, __FILE__, __LINE__, __func__, __VA_ARGS__)
+// migi_log_with_ctx will print the name of the function where the logger was called
+#define migi_log_with_ctx(level, ...) migi_log_opt(level, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define migi_log(level, ...) migi_log_opt(level, __FILE__, __LINE__, NULL, __VA_ARGS__)
 
 #endif // MIGI_CORE_H

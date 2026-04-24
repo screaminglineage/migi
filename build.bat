@@ -22,7 +22,7 @@ set "BuildFolder=build"
 set "Debug=1"
 REM set "Sanitizer=/fsanitize=address"
 
-set "CFlags=/nologo /W4 /wd4200 /wd4146 /wd4127 /wd4034 /wd4201 /I../src"
+set "CFlags=/nologo /W4 /wd4200 /wd4146 /wd4127 /wd4034 /wd4201 /I../src /std:c11"
 set "LinkFlags=/link /INCREMENTAL:NO"
 
 if "%Debug%"=="1" (
