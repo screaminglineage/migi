@@ -1330,7 +1330,7 @@ void test_doubly_linked_list() {
         n->x = -0.5;
         dll_insert_before(head, tail, mid, n);
 
-        list_print(head, FloatNode, "%.1f", node->x);
+        list_print(head, FloatNode, node, "%.1f", node->x);
     }
 
     {
@@ -1350,7 +1350,7 @@ void test_doubly_linked_list() {
         n = arena_new(a, IntNode);
         n->x = 1000;
         dll_replace(head, tail, mid, n);
-        list_print(head, IntNode, "%d", node->x);
+        list_print(head, IntNode, node, "%d", node->x);
     }
 
     {
@@ -1364,14 +1364,14 @@ void test_doubly_linked_list() {
             IntNode *n = arena_new(a, IntNode);
             dll_push_tail(head, tail, n)->x = i;
         }
-        list_print(head, IntNode, "%d", node->x);
+        list_print(head, IntNode, node, "%d", node->x);
         dll_remove(head, tail, mid);
         dll_remove(head, tail, mid); // removing mid again does nothing
 
         // mid still has next and prev pointers
         dll_remove(head, tail, mid->next);
         dll_remove(head, tail, mid->prev);
-        list_print(head, IntNode, "%d", node->x);
+        list_print(head, IntNode, node, "%d", node->x);
     }
 }
 

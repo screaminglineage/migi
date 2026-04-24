@@ -176,15 +176,15 @@ do {                                                    \
 } while (0)
 
 
-#define list_print(head, type, ...)                 \
+#define list_print(head, type, item, ...)           \
 do {                                                \
     printf("[");                                    \
-    type *node = (head);                            \
-    for (; node && node->next; node = node->next) { \
+    type *item = (head);                            \
+    for (; item && item->next; item = item->next) { \
         printf(__VA_ARGS__);                        \
         printf(", ");                               \
     }                                               \
-    if (node) printf(__VA_ARGS__);                  \
+    if (item) printf(__VA_ARGS__);                  \
     printf("]\n");                                  \
 } while (0)
 
