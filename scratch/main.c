@@ -810,6 +810,25 @@ void test_string() {
         assert(str_find_ex(S("aaaaa"),  S("aa"), Find_Reverse) == 3);
     }
 
+    // str_find (ignore case)
+    {
+        assert(str_find_ex(S("hello"),  S("HE"), Find_IgnoreCase)     == 0);
+        assert(str_find_ex(S("HELlo"),  S("llo"), Find_IgnoreCase)    == 2);
+        assert(str_find_ex(S("aBCAbc"), S("Cab"), Find_IgnoreCase)    == 2);
+        assert(str_find_ex(S("aBCAbc"), S("Cab"), 0)                  == 6);
+        assert(str_find_ex(S(""),       S(""), Find_IgnoreCase)       == 0);
+        assert(str_find_ex(S("abc"),    S(""), Find_IgnoreCase)       == 0);
+        assert(str_find_ex(S(""),       S("a"), Find_IgnoreCase)      == 0);
+    }
+
+    // str_find (reverse|ignore case)
+    {
+        assert(str_find_ex(S("HEllo"),  S("he"),  Find_Reverse|Find_IgnoreCase) == 0);
+        assert(str_find_ex(S("hellO"),  S("LLo"), Find_Reverse|Find_IgnoreCase) == 2);
+        assert(str_find_ex(S("ABCabc"),  S("ABC"), Find_Reverse|Find_IgnoreCase) == 3);
+        assert(str_find_ex(S("ABCabc"),  S("ABC"), Find_IgnoreCase) == 0);
+    }
+
     // str_starts_with
     {
         assert(str_starts_with(S("hello"),  S("he"))     == true);

@@ -73,11 +73,11 @@ static Str str_skip(Str str, size_t amount);
 // str_take("abcde", 2) => "ab"
 static Str str_take(Str str, size_t amount);
 
-// TODO: find where these two can be used
-
 // Drop `amount` characters from end of string
 // str_drop("abcde", 2) => "abc"
 static Str str_drop(Str str, size_t amount);
+
+// TODO: find where this can be used
 
 // Lift `amount` characters from end of string
 // str_lift("abcde", 2) => "de"
@@ -87,7 +87,7 @@ static Str str_lift(Str str, size_t amount);
 
 typedef enum {
     Find_Reverse         = (1 << 0),
-    Find_IgnoreCase      = (1 << 1), // TODO: implement this
+    Find_IgnoreCase      = (1 << 1),
 
     // Treat needle as a sequence of chars, and 
     // return index of the first match of any of them
@@ -262,6 +262,14 @@ bool str_eq_any_slice(Str to_match, StrSlice matches) {
     return false;
 }
 
+static bool str__eq_ignore_case(const char *a, const char *b, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+        if (char_to_upper(a[i]) != char_to_upper(b[i])) {
+            return false;
+        }
+    }
+    return true;
+}
 
 static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
     if (needle.length == 0 && haystack.length == 0) return 0;
@@ -281,15 +289,19 @@ static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
     if (flags & Find_Reverse) {
         int64_t i = haystack.length - needle.length;
         for (; i >= 0; i--) {
-            if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
-                return i;
+            if (flags & Find_IgnoreCase) {
+                if (str__eq_ignore_case(haystack.data + i, needle.data, needle.length)) return i;
+            } else {
+                if (mem_eq_array(haystack.data + i, needle.data, needle.length)) return i;
             }
         }
         return i;
     } else {
         for (int64_t i = 0; i <= (int64_t)haystack.length - (int64_t)needle.length; i++) {
-            if (mem_eq_array(haystack.data + i, needle.data, needle.length)) {
-                return i;
+            if (flags & Find_IgnoreCase) {
+                if (str__eq_ignore_case(haystack.data + i, needle.data, needle.length)) return i;
+            } else {
+                if (mem_eq_array(haystack.data + i, needle.data, needle.length)) return i;
             }
         }
         return haystack.length;
