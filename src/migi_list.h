@@ -292,6 +292,7 @@ static Str strlist_pop(StrList *list) {
 }
 
 static Str strlist_join(Arena *a, StrList *list, Str join_with) {
+    if (list->length == 0) return (Str){0};
     size_t total_size = list->total_size + (list->length - 1) * join_with.length;
     char *mem = arena_push_nonzero(a, char, total_size);
 
