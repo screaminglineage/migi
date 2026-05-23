@@ -101,7 +101,7 @@ typedef uint8_t byte;
 
 #define unused(a) ((void)a)
 
-#define macro__concat(A, B) (A ## B)
+#define macro__concat(A, B) A ## B
 #define macro_concat(A, B) macro__concat(A, B)
 #define make_unique(a) macro_concat(a, __LINE__)
 
