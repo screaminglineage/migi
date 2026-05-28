@@ -534,7 +534,7 @@ void profile_hashmap_lookup_times() {
     printf("capacity,missing key lookup time (ns)\n");
     for (size_t i = HASHMAP_INIT_CAP; i <= max_capacity; i*=2) {
         hashmap_free(&map);
-        arena_free(a);
+        arena_reset(a);
         profile_hashmap_iteration(a, &map, i, cpu_freq, true);
     }
     printf("Load Factor = %.2f\nWith Prefaulting\n", HASHMAP_LOAD_FACTOR);
@@ -544,7 +544,7 @@ void profile_hashmap_lookup_times() {
 
 
 void profile_hashmap_deletion_times() {
-    Arena *a = arena_init();
+    Arena *a = arena_init(.type = Arena_Chained);
     MapIntInt map = {0};
 
     uint64_t cpu_freq = estimate_cpu_timer_freq();
@@ -556,7 +556,7 @@ void profile_hashmap_deletion_times() {
 
     for (size_t capacity = HASHMAP_INIT_CAP; capacity <= max_capacity; capacity*=2) {
         hashmap_free(&map);
-        arena_free(a);
+        arena_reset(a);
 
         size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
         if (max_size == 0) continue;

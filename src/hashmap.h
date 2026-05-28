@@ -1,6 +1,9 @@
 #ifndef MIGI_HASHMAP_H
 #define MIGI_HASHMAP_H
 
+// TODO: go back to the version with only 2 arrays (key and value shares the same struct)
+// Do some more benchmarks before and after
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -70,6 +73,7 @@ static bool eq_str(void *a, void *b, size_t size) {
 #ifndef HASHMAP_LOAD_FACTOR
    #define HASHMAP_LOAD_FACTOR 0.75
 #endif
+static_assert(HASHMAP_LOAD_FACTOR > 0.0 && HASHMAP_LOAD_FACTOR < 1.0, "load factor must be in the range (0.0, 1.0) (both exclusive)");
 
 // Index of default key value pair in the table
 #define HASHMAP_DEFAULT_INDEX 0
