@@ -1421,6 +1421,18 @@ void test_filepath() {
 
     Str path, c;
 
+    path = S("");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    assert(str_eq(c, S("")));
+
+    path = S("/");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    assert(str_eq(c, S("/")));
+
+    path = S("C:\\");
+    c = path_cannonicalize(tmp.arena, path, S("\\"));
+    assert(str_eq(c, S("C:\\")));
+
     path = S("/home/aditya//Programming//../../../.././root");
     c = path_cannonicalize(tmp.arena, path, S("/"));
     assert(str_eq(c, S("/root")));
@@ -1429,10 +1441,20 @@ void test_filepath() {
     c = path_cannonicalize(tmp.arena, path, S("\\"));
     assert(str_eq(c, S("C:\\Windows")));
 
-    // TODO: wtf
-    path = S("/home/aditya/D:\\foo/abcd/bar");
+    path = S("file:///foo/bar/baz/");
     c = path_cannonicalize(tmp.arena, path, S("/"));
-    printf("%.*s\n", SArg(c));
+    assert(str_eq(c, S("file:///foo/bar/baz/")));
+
+    path = S("/a/b/c/../../../..");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    assert(str_eq(c, S("/")));
+
+    path = S("/home");
+    path = path_push(tmp.arena, path, S("/"), S("aditya"));
+    path = path_push(tmp.arena, path, S("/"), S("Programming"));
+    path = path_push(tmp.arena, path, S("/"), S("C"));
+    path = path_push(tmp.arena, path, S("/"), S("migi"));
+    assert(str_eq(path, S("/home/aditya/Programming/C/migi")));
 
     arena_temp_release(tmp);
 }

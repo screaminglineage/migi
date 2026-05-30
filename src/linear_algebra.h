@@ -2,6 +2,8 @@
 #define MIGI_LINEAR_ALGEBRA_H
 
 // Linear Algebra types and functions
+// TODO: add (mat3x3, mat4x4)_invert
+// TODO: rename matnxn to simply matn, like how vec works?
 
 #include <stdint.h>
 #include <stdbool.h>

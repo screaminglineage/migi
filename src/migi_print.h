@@ -1,3 +1,6 @@
+#ifndef MIGI_PRINTF_H
+#define MIGI_PRINTF_H
+
 #include "migi.h"
 
 // Type safe variadic (somewhat) printf
@@ -232,3 +235,4 @@ do {                                                                            
     mprintf_impl(out, S(fmt), (MPrint[]){ apply_all(get_mprint_type, __VA_ARGS__)}, va_args_count(__VA_ARGS__)); \
 } while (0)
 
+#endif // ifndef MIGI_PRINTF_H

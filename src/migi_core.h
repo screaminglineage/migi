@@ -244,6 +244,13 @@ do {                                                \
         return val;                         \
     }
 
+// Set `result` to a value and goto `end` label
+// Useful for cleaning up stuff before exiting
+#define return_with(expr) \
+    result = expr;        \
+    goto end;
+
+
 typedef enum {
     Log_Debug,
     Log_Info,

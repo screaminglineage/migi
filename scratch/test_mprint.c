@@ -1,4 +1,4 @@
-#include "mprint.h"
+#include "migi_print.h"
 
 int main(int argc, char **argv) {
     const char *a = "abcd";

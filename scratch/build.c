@@ -36,7 +36,7 @@ static int run_command(StrList *command) {
     pid_t ret = fork();
     switch (ret) {
         case -1: {
-            migi_log(Log_Error, "Failed to create child process: %s\n", strerror(errno));
+            migi_log(Log_Error, "Failed to create child process: %s", strerror(errno));
         } break;
 
         case 0: {
@@ -46,7 +46,7 @@ static int run_command(StrList *command) {
 
             int ret = execvp(command_args[0], command_args);
             if (ret == -1) {
-                migi_log(Log_Error, "Failed to run `%s`: %s\n", command_args[0], strerror(errno));
+                migi_log(Log_Error, "Failed to run `%s`: %s", command_args[0], strerror(errno));
                 exit(1);
             }
             migi_unreachable();
@@ -56,12 +56,12 @@ static int run_command(StrList *command) {
             int wstatus;
             pid_t child_pid = waitpid(ret, &wstatus, 0);
             if (child_pid == -1) {
-                migi_log(Log_Error, "Failed to wait on child process: %s\n", strerror(errno));
+                migi_log(Log_Error, "Failed to wait on child process: %s", strerror(errno));
             } else {
                 if (WIFEXITED(wstatus)) {
                     child_exit_code = WEXITSTATUS(wstatus);
                 } else if (WIFSIGNALED(wstatus)) {
-                    migi_log(Log_Error, "Child process killed by: %s\n", strsignal(WTERMSIG(wstatus)));
+                    migi_log(Log_Error, "Child process killed by: %s", strsignal(WTERMSIG(wstatus)));
                 }
             }
         } break;

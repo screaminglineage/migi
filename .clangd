@@ -1,5 +1,5 @@
 CompileFlags:
-  Add: [-x, c-header, -I../src, -Wno-override-init]
+  Add: [-x, c-header, -I../src, -I../, -Wno-override-init]
 Completion:
   HeaderInsertion: Never
 
