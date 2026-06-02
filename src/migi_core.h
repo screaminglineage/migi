@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>    // needed for mem_* functions
-#include <math.h>
 
 typedef uint8_t byte;
 

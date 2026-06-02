@@ -5,6 +5,13 @@
     #define DYNAMIC_ARRAY_INIT_CAP 4
 #endif
 
+#define Array(T)         \
+    struct {             \
+        T *data;         \
+        size_t length;   \
+        size_t capacity; \
+    }
+
 #include "migi_core.h"
 
 #ifdef DYNAMIC_ARRAY_USE_ARENA

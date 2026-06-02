@@ -32,9 +32,6 @@
 #include "dynamic_string.h"
 #include "string_builder.h"
 
-#define POOL_ALLOC_COUNT_ALLOCATIONS
-#include "pool_allocator.h"
-
 #include "dynamic_deque.h"
 
 #include "smol_map.h"
@@ -417,14 +414,8 @@ void test_random() {
 }
 
 void test_dynamic_array() {
-    typedef struct {
-        int *data;
-        size_t length;
-        size_t capacity;
-    } Ints;
-
-    Ints ints = {0};
-    Ints ints_new = {0};
+    Array(int) ints = {0};
+    Array(int) ints_new = {0};
 
 #ifdef DYNAMIC_ARRAY_USE_ARENA
     Arena *a = arena_init();
@@ -1064,63 +1055,6 @@ void test_return_slice() {
     IntSlice slice = return_slice(a);
     int arr[] = {1,2,3,4,5};
     assert(slice.length == array_len(arr) && mem_eq_array(slice.data, arr, slice.length));
-}
-
-
-typedef struct {
-    int foo[512];
-    float bar[512];
-    char baz[512];
-} LargeStruct;
-
-typedef PoolAllocator(LargeStruct) StructPool;
-
-void test_pool_allocator_impl(StructPool *p) {
-    LargeStruct *allocs[10] = {0};
-    for (size_t i = 0; i < array_len(allocs); i++) {
-        allocs[i] = pool_alloc(p);
-        rand_fill_bytes(&allocs[i]->foo, sizeof(allocs[i]->foo));
-        rand_fill_bytes(&allocs[i]->bar, sizeof(allocs[i]->bar));
-        rand_fill_bytes(&allocs[i]->baz, sizeof(allocs[i]->baz));
-    }
-    assert(p->p.length == 10);
-
-    pool_free(p, allocs[1]);
-    pool_free(p, allocs[9]);
-    pool_free(p, allocs[4]);
-    pool_free(p, allocs[0]);
-    assert(p->p.length == 6);
-
-
-    LargeStruct *a1 = pool_alloc(p);
-    LargeStruct *a2 = pool_alloc(p);
-    LargeStruct *a3 = pool_alloc(p);
-    LargeStruct *a4 = pool_alloc(p);
-
-    assert(a4 == allocs[1]);
-    assert(a3 == allocs[9]);
-    assert(a2 == allocs[4]);
-    assert(a1 == allocs[0]);
-    assert(p->p.length == 10);
-}
-
-void test_pool_allocator() {
-    StructPool p = {0};
-    test_pool_allocator_impl(&p);
-    assert(p.p.length == 10);
-    pool_reset(&p.p);
-    assert(p.p.length == 0 && p.p.free_list == NULL && p.p.arena->current->position == sizeof(Arena));
-
-    LargeStruct *s1 = pool_alloc(&p);
-    rand_fill_bytes(s1, sizeof(*s1));
-    assert(p.p.length == 1);
-
-    pool_free(&p, s1);
-    assert(p.p.length == 0);
-
-    LargeStruct *s2 = pool_alloc(&p);
-    rand_fill_bytes(s2, sizeof(*s2));
-    assertf(s1 == s2, "s1 reallocated as s2 from free list");
 }
 
 
