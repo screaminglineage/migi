@@ -134,11 +134,11 @@ typedef uint8_t byte;
 #endif
 
 
-#define mem_swap(type, a, b) \
-do {                         \
-    type temp = a;           \
-    a = b;                   \
-    b = temp;                \
+#define mem_swap(a, b)  \
+do {                    \
+    typeof(a) temp = a; \
+    a = b;              \
+    b = temp;           \
 } while(0)
 
 // Incrementally shift command line arguments

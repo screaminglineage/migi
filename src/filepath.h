@@ -75,7 +75,7 @@ static Str path_cannonicalize(Arena *a, Str path, Str dir_sep) {
         result = str_cat(a, result, dir_sep);
     }
 
-    list_foreach(head, StrNodeDll, comp) {
+    list_foreach(head, comp) {
         result = str_cat(a, result, comp->string);
         if (comp->next || trailing_slash) {
             result = str_cat(a, result, dir_sep);

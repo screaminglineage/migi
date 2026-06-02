@@ -408,7 +408,7 @@ static void walker_free(DirWalker *w) {
 
     // if stop_on_error was enabled, then all open directory handles might not have been closed
     if (w->stop_on_error) {
-        list_foreach(w->dir_handles, DirectoryNode, dir_handle) {
+        list_foreach(w->dir_handles, dir_handle) {
             walker__close_dir(dir_handle->dir);
         }
         walker__close_dir(w->dir);

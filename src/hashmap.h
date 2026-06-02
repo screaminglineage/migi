@@ -259,7 +259,7 @@ static void hm_internal_insert_entry(HashmapHeader *header, HashmapHashEntry ent
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
         if (cur_dist < dist) {
-            mem_swap(HashmapHashEntry, entry, header->entries[i]);
+            mem_swap(entry, header->entries[i]);
             dist = cur_dist;
         }
 

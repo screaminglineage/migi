@@ -127,7 +127,7 @@ void rack__dump_node(Arena *arena, StrList *list, RackNode node) {
 bool rack_dump(Rack *rack, Str filepath) {
     StrList list = {0};
     Temp tmp = arena_temp();
-    list_foreach(rack->pairs, RackPair, pair) {
+    list_foreach(rack->pairs, pair) {
         rack__dump_node(tmp.arena, &list, pair->key);
         rack__dump_node(tmp.arena, &list, pair->value);
     }
@@ -260,7 +260,7 @@ int main() {
 
     Rack rack1 = {0};
     rack_load(tmp.arena, &rack1, filepath);
-    list_foreach(rack1.pairs, RackPair, pair) {
+    list_foreach(rack1.pairs, pair) {
         rack__print_node(pair->key);
         printf(": ");
         rack__print_node(pair->value);

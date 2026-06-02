@@ -1025,7 +1025,7 @@ void test_string() {
 
 void test_swap() {
     int a = 1, b = 2;
-    mem_swap(int, a, b);
+    mem_swap(a, b);
     assertf(b == 1 && a == 2, "swapping things work");
 
     typedef struct {
@@ -1034,7 +1034,7 @@ void test_swap() {
     } Foo;
 
     Foo f1 = {1, 2, 'a'}, f2 = {3, 4, 'b'};
-    mem_swap(Foo, f1, f2);
+    mem_swap(f1, f2);
     assertf(f1.a == 3 && f1.b == 4 && f1.c == 'b' && f2.a == 1 && f2.b == 2 &&
                 f2.c == 'a',
             "swapping things work");

@@ -3,8 +3,6 @@
 
 #include "arena.h"
 #include "migi_core.h"
-#include "migi_string.h"
-#include "migi_random.h"
 
 #define POOL_ALLOC_ACTIVE (PoolItem *)0x1
 

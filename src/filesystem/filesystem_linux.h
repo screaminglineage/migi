@@ -6,7 +6,6 @@
 #include <limits.h>
 
 #include "migi_core.h"
-#include "migi_string.h"
 #include "filesystem/filesystem_inc.h"
 
 FileType file_type(Str filepath) {
