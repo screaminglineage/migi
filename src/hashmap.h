@@ -69,7 +69,7 @@ static bool eq_str(void *a, void *b, size_t size) {
 // Any number in the range (0, 1.0) (both exclusive) should work
 // A load factor of 1.0 is not supported as atleast 1 empty spot must
 // exist at the end, for hashmap_pop to use it as a temporary variable
-// for swap-removal
+// for swap-removal and then return to caller
 #ifndef HASHMAP_LOAD_FACTOR
    #define HASHMAP_LOAD_FACTOR 0.75
 #endif
