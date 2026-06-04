@@ -131,8 +131,8 @@
 
 
 // Iterate over a linked list
-#define list_foreach(head, type, item) \
-    for (type *(item) = (head); (item); (item) = (item)->next)
+#define list_foreach(head, item) \
+    for (typeof(head) (item) = (head); (item); (item) = (item)->next)
 
 
 // StrList (Linked List of Strings)
@@ -158,7 +158,7 @@ migi_printf_format(3, 4) static void strlist_pushf(Arena *a, StrList *list, cons
 static void strlist_extend(StrList *list, StrList *extend_with);
 static Str strlist_pop(StrList *list);
 
-#define strlist_foreach(strlist, node) list_foreach((strlist)->head, StrNode, (node))
+#define strlist_foreach(strlist, node) list_foreach((strlist)->head, (node))
 
 static Str strlist_to_string(Arena *a, StrList *list);
 static Str strlist_join(Arena *a, StrList *list, Str join_with);
@@ -292,6 +292,7 @@ static Str strlist_pop(StrList *list) {
 }
 
 static Str strlist_join(Arena *a, StrList *list, Str join_with) {
+    if (list->length == 0) return (Str){0};
     size_t total_size = list->total_size + (list->length - 1) * join_with.length;
     char *mem = arena_push_nonzero(a, char, total_size);
 

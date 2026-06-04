@@ -1,4 +1,5 @@
 #include "migi.h"
+#include "file.h"
 
 void test_arena_functions() {
     typedef struct {

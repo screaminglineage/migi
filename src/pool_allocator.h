@@ -1,20 +1,14 @@
 #ifndef MIGI_POOL_ALLOC_H
 #define MIGI_POOL_ALLOC_H
 
-// TODO: add a freelist allocator that doesnt hold its own arena, then reimplement
-// this allocator on top of that with the arena included
-
-// TODO: make the allocater based on the size of allocation and not the type
-// The first allocation will store the block size, and every subsequent allocation
-// should assert that the allocation size is the same.
-
-// POOL_ALLOC_COUNT_ALLOCATIONS can be defined before including count the current number of allocated items
-
-#include <stddef.h>
-
 #include "arena.h"
 #include "migi_core.h"
 
+#define POOL_ALLOC_ACTIVE (PoolItem *)0x1
+
+#ifndef POOL_ALLOC_DEFAULT_CAP
+    #define POOL_ALLOC_DEFAULT_CAP 256
+#endif
 
 typedef struct PoolItem PoolItem;
 struct PoolItem {
@@ -22,73 +16,91 @@ struct PoolItem {
     byte data[];
 };
 
-typedef struct {
-    Arena *arena;
-    PoolItem *free_list;
-#ifdef POOL_ALLOC_COUNT_ALLOCATIONS
-    size_t length;
-#endif
-} PoolAllocator;
-
-
-static byte *pool_alloc_bytes(PoolAllocator *p, size_t count);
-static void pool_free_bytes(PoolAllocator *p, byte *item);
-
-// Free all allocations
-static void pool_reset(PoolAllocator *p);
-
-
-static byte *pool_alloc_bytes(PoolAllocator *p, size_t size) {
-    // TODO: add a pool_alloc_init function instead maybe?
-    if (!p->arena) {
-        p->arena = arena_init(.type = Arena_Chained);
+// Used to create a pool allocator for storing a particular type
+#define PoolAlloc(T)             \
+    union {                      \
+        T *_item;                \
+        struct {                 \
+            PoolItem *data;      \
+            size_t length;       \
+            size_t capacity;     \
+            PoolItem *free_list; \
+        };                       \
     }
+
+static void *pool_alloc_bytes(Arena *arena, size_t capacity, size_t elem_size,
+                       PoolItem **free_list, size_t *length, PoolItem **data);
+
+#define pool_alloc(arena, pool)                                                             \
+    (typeof((pool)->_item)) pool__alloc((arena), sizeof(*(pool)->_item), &(pool)->capacity, \
+                                        &(pool)->free_list, &(pool)->length, &(pool)->data)
+
+#define pool_dealloc(pool, elem) \
+    *((typeof((pool)->_item)) pool__dealloc(elem, &(pool)->free_list, &(pool)->length))
+
+#define pool_reset(pool) \
+    pool__reset((byte *)(pool)->data, sizeof(*(pool)->_item), (pool)->capacity, &(pool)->free_list, &(pool)->length)
+
+#define pool_foreach(pool, elem)                                                                         \
+    for (typeof((pool)->_item) elem = (typeof((pool)->_item))(pool)->data->data;                         \
+        pool__item(elem) < pool__item_index((pool)->data, sizeof(*(pool)->_item), (pool)->capacity);     \
+        elem = (typeof((pool)->_item))(pool__item_next(pool__item(elem), sizeof(*(pool)->_item)))->data) \
+        if ((pool__item(elem))->next == POOL_ALLOC_ACTIVE)
+
+// Internal implementation macros
+#define pool__item(elem)                          (PoolItem *)((uintptr_t)(elem) - offsetof(PoolItem, data))
+#define pool__item_size(elem_size)                align_up_pow2(sizeof(PoolItem) + (elem_size), align_of(PoolItem))
+#define pool__item_index(start, elem_size, index) (PoolItem *)((uintptr_t)(start) + pool__item_size((elem_size))*(index)) 
+#define pool__item_next(pool_item, elem_size)     (PoolItem *)((uintptr_t)(pool_item) + pool__item_size((elem_size)))
+
+
+static void *pool__alloc(Arena *arena, size_t elem_size, size_t *capacity,
+                              PoolItem **free_list, size_t *length, PoolItem **data) {
+    if (*data == NULL) {
+        if (*capacity == 0) {
+            *capacity = POOL_ALLOC_DEFAULT_CAP;
+        }
+        *data = arena_push_bytes(arena, pool__item_size(elem_size) * *capacity, align_of(PoolItem), false);
+    }
+
+    assertf(*length < *capacity, "pool_alloc_bytes: pool out of capacity");
 
     PoolItem *item = NULL;
-    if (p->free_list) {
-        item = p->free_list;
-        p->free_list = p->free_list->next;
+    if (*free_list) {
+        item = *free_list;
+        *free_list = (*free_list)->next;
     } else {
-        item = arena_push_bytes(p->arena, sizeof(PoolItem) + size, align_of(PoolItem), true);
+        item = pool__item_index(*data, elem_size, *length);
     }
-    item->next = NULL;
+    // used in pool_foreach to check whether the `pool_item` is active or not
+    item->next = POOL_ALLOC_ACTIVE;
 
-#ifdef POOL_ALLOC_COUNT_ALLOCATIONS
-    p->length++;
-#endif
+    (*length)++;
+    mem_clear_array(item->data, elem_size);
     return item->data;
 }
 
-static void pool_free_bytes(PoolAllocator *p, byte *item) {
-    PoolItem *pool_item = (PoolItem *)((uintptr_t)item - offsetof(PoolItem, data));
-    pool_item->next = p->free_list;
-    p->free_list = pool_item;
-#ifdef POOL_ALLOC_COUNT_ALLOCATIONS
-    p->length--;
-#endif
-}
-
-
-static void pool_reset(PoolAllocator *p) {
-    arena_reset(p->arena);
-    p->free_list = NULL;
-#ifdef POOL_ALLOC_COUNT_ALLOCATIONS
-    p->length = 0;
-#endif
-}
-
-// Used to create a pool allocator for storing a particular type
-#define PoolAllocator(type) \
-    union {                 \
-        PoolAllocator p;    \
-        type *type_var;     \
+static void *pool__dealloc(void *elem, PoolItem **free_list, size_t *length) {
+    if (elem == NULL || *length == 0) {
+        return NULL;
     }
 
-#define pool_alloc(pool) \
-    ((__typeof__((pool)->type_var)) pool_alloc_bytes(&(pool)->p, sizeof(*(pool)->type_var)))
+    PoolItem *pool_item = pool__item(elem);
+    assertf(pool_item->next == POOL_ALLOC_ACTIVE, "pool_dealloc_bytes: double free");
 
-#define pool_free(pool, item) \
-    (pool_free_bytes(&(pool)->p, (byte *)(1? (item): (pool)->type_var)))
+    pool_item->next = *free_list;
+    *free_list = pool_item;
+    (*length)--;
+
+    return pool_item->data;
+}
+
+static void pool__reset(byte *data, size_t elem_size, size_t capacity, PoolItem **free_list, size_t *length) {
+    *free_list = NULL;
+    *length = 0;
+    mem_clear_array(data, pool__item_size(elem_size)*capacity);
+}
+
 
 
 #endif // MIGI_POOL_ALLOC_H

@@ -1,6 +1,9 @@
 #ifndef MIGI_HASHMAP_H
 #define MIGI_HASHMAP_H
 
+// TODO: go back to the version with only 2 arrays (key and value shares the same struct)
+// Do some more benchmarks before and after
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -66,10 +69,11 @@ static bool eq_str(void *a, void *b, size_t size) {
 // Any number in the range (0, 1.0) (both exclusive) should work
 // A load factor of 1.0 is not supported as atleast 1 empty spot must
 // exist at the end, for hashmap_pop to use it as a temporary variable
-// for swap-removal
+// for swap-removal and then return to caller
 #ifndef HASHMAP_LOAD_FACTOR
    #define HASHMAP_LOAD_FACTOR 0.75
 #endif
+static_assert(HASHMAP_LOAD_FACTOR > 0.0 && HASHMAP_LOAD_FACTOR < 1.0, "load factor must be in the range (0.0, 1.0) (both exclusive)");
 
 // Index of default key value pair in the table
 #define HASHMAP_DEFAULT_INDEX 0
@@ -255,7 +259,7 @@ static void hm_internal_insert_entry(HashmapHeader *header, HashmapHashEntry ent
         size_t cur_dist = (i + header->capacity - cur_desired) & (header->capacity - 1);
 
         if (cur_dist < dist) {
-            mem_swap(HashmapHashEntry, entry, header->entries[i]);
+            mem_swap(entry, header->entries[i]);
             dist = cur_dist;
         }
 

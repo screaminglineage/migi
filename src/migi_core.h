@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>    // needed for mem_* functions
-#include <math.h>
 
 typedef uint8_t byte;
 
@@ -101,7 +100,7 @@ typedef uint8_t byte;
 
 #define unused(a) ((void)a)
 
-#define macro__concat(A, B) (A ## B)
+#define macro__concat(A, B) A ## B
 #define macro_concat(A, B) macro__concat(A, B)
 #define make_unique(a) macro_concat(a, __LINE__)
 
@@ -135,11 +134,11 @@ typedef uint8_t byte;
 #endif
 
 
-#define mem_swap(type, a, b) \
-do {                         \
-    type temp = a;           \
-    a = b;                   \
-    b = temp;                \
+#define mem_swap(a, b)  \
+do {                    \
+    typeof(a) temp = a; \
+    a = b;              \
+    b = temp;           \
 } while(0)
 
 // Incrementally shift command line arguments
@@ -243,6 +242,13 @@ do {                                                \
         __VA_ARGS__;                        \
         return val;                         \
     }
+
+// Set `result` to a value and goto `end` label
+// Useful for cleaning up stuff before exiting
+#define return_with(expr) \
+    result = expr;        \
+    goto end;
+
 
 typedef enum {
     Log_Debug,

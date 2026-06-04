@@ -266,7 +266,7 @@ int main() {
     test_mul();
 
     Vec4F v = v4f(1, 2, 3, 4);
-    mem_swap(Vec3F, v.xyz, v.yzw);
+    mem_swap(v.xyz, v.yzw);
 
     printf("%f %f %f %f\n", v.x, v.y, v.z, v.w);
 

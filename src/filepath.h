@@ -7,6 +7,7 @@
 
 static Str path_dirname(Str path);
 static Str path_basename(Str path);
+static Str path_push(Arena *a, Str path, Str dir_sep, Str new_elem);
 static Str path_cannonicalize(Arena *arena, Str path, Str dir_sep);
 
 static Str path_basename(Str path) {
@@ -19,16 +20,43 @@ static Str path_dirname(Str path) {
     return cut.found? cut.tail: S("/");
 }
 
-typedef struct StringNodeDll StringNodeDll;
-struct StringNodeDll {
+static Str path_push(Arena *a, Str path, Str dir_sep, Str new_elem) {
+    path = str_cat(a, path, dir_sep);
+    return str_cat(a, path, new_elem);
+}
+
+typedef struct StrNodeDll StrNodeDll;
+struct StrNodeDll {
     Str string;
-    StringNodeDll *next, *prev;
+    StrNodeDll *next, *prev;
 };
 
 static Str path_cannonicalize(Arena *a, Str path, Str dir_sep) {
+    if (path.length == 0) return path;
+
+    Str header = {0};        // Windows drive letter, or `file:`, `http:`, etc.
+    Str drive_sep = S(":");  // Windows drive seperator, should also work for URLs
+    for (size_t i = 0; i < path.length; i++) {
+        if (path.data[i] == dir_sep.data[0]) break;
+
+        if (path.data[i] == drive_sep.data[0]) {
+            header = str_take(path, i + drive_sep.length);
+            path = str_skip(path, i + drive_sep.length);
+            break;
+        }
+    }
+
+    bool trailing_slash = str_ends_with(path, dir_sep);
+
+    int leading_slashes = 0;
+    while (path.length > 0 && path.data[0] == dir_sep.data[0]) {
+        leading_slashes += 1;
+        path = str_skip(path, 1);
+    }
+
     Temp tmp = arena_temp_excl(a);
 
-    StringNodeDll *head = NULL, *tail = NULL;
+    StrNodeDll *head = NULL, *tail = NULL;
     strcut_foreach(path, dir_sep, 0, comp) {
         if (comp.split.length == 0 || str_eq(comp.split, S("."))) continue;
 
@@ -37,25 +65,21 @@ static Str path_cannonicalize(Arena *a, Str path, Str dir_sep) {
             continue;
         }
 
-        StringNodeDll *node = arena_new(tmp.arena, StringNodeDll);
+        StrNodeDll *node = arena_new(tmp.arena, StrNodeDll);
         node->string = comp.split;
         dll_push_tail(head, tail, node);
     }
 
-    Str result = S("/");
-
-    // Handling Windows drive separator
-    // TODO: what will happen if a unix-like path has a ":\" in it (wtf?)
-    Str drive_sep = S(":\\");
-    StrCut cut = str_cut(path, drive_sep);
-    if (cut.found) {
-        result = cut.head;
-        result = str_cat(a, result, drive_sep);
+    Str result = header;
+    for (int i = 0; i < leading_slashes; i++) {
+        result = str_cat(a, result, dir_sep);
     }
 
-    list_foreach(head, StringNodeDll, comp) {
+    list_foreach(head, comp) {
         result = str_cat(a, result, comp->string);
-        result = str_cat(a, result, dir_sep);
+        if (comp->next || trailing_slash) {
+            result = str_cat(a, result, dir_sep);
+        }
     }
     arena_temp_release(tmp);
 

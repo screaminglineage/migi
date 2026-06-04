@@ -19,7 +19,7 @@ int main() {
         arrlist_add(a, &ints, IntNode, i);
     }
 
-    list_foreach(ints.head, IntNode, array) {
+    list_foreach(ints.head, array) {
         array_print(array->data, array->length, "%d");
     }
 

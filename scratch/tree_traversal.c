@@ -55,7 +55,7 @@ int main() {
         push_child(a, root, stringf(a, "root-child-%zu", i));
     }
 
-    list_foreach(root->first_child, Node, child) {
+    list_foreach(root->first_child, child) {
         for (size_t i = 0; i < 3; i++) {
             push_child(a, child, stringf(a, "%.*s-child-%zu", SArg(child->name), i));
         }

@@ -32,9 +32,6 @@
 #include "dynamic_string.h"
 #include "string_builder.h"
 
-#define POOL_ALLOC_COUNT_ALLOCATIONS
-#include "pool_allocator.h"
-
 #include "dynamic_deque.h"
 
 #include "smol_map.h"
@@ -417,14 +414,8 @@ void test_random() {
 }
 
 void test_dynamic_array() {
-    typedef struct {
-        int *data;
-        size_t length;
-        size_t capacity;
-    } Ints;
-
-    Ints ints = {0};
-    Ints ints_new = {0};
+    Array(int) ints = {0};
+    Array(int) ints_new = {0};
 
 #ifdef DYNAMIC_ARRAY_USE_ARENA
     Arena *a = arena_init();
@@ -1034,7 +1025,7 @@ void test_string() {
 
 void test_swap() {
     int a = 1, b = 2;
-    mem_swap(int, a, b);
+    mem_swap(a, b);
     assertf(b == 1 && a == 2, "swapping things work");
 
     typedef struct {
@@ -1043,7 +1034,7 @@ void test_swap() {
     } Foo;
 
     Foo f1 = {1, 2, 'a'}, f2 = {3, 4, 'b'};
-    mem_swap(Foo, f1, f2);
+    mem_swap(f1, f2);
     assertf(f1.a == 3 && f1.b == 4 && f1.c == 'b' && f2.a == 1 && f2.b == 2 &&
                 f2.c == 'a',
             "swapping things work");
@@ -1064,63 +1055,6 @@ void test_return_slice() {
     IntSlice slice = return_slice(a);
     int arr[] = {1,2,3,4,5};
     assert(slice.length == array_len(arr) && mem_eq_array(slice.data, arr, slice.length));
-}
-
-
-typedef struct {
-    int foo[512];
-    float bar[512];
-    char baz[512];
-} LargeStruct;
-
-typedef PoolAllocator(LargeStruct) StructPool;
-
-void test_pool_allocator_impl(StructPool *p) {
-    LargeStruct *allocs[10] = {0};
-    for (size_t i = 0; i < array_len(allocs); i++) {
-        allocs[i] = pool_alloc(p);
-        rand_fill_bytes(&allocs[i]->foo, sizeof(allocs[i]->foo));
-        rand_fill_bytes(&allocs[i]->bar, sizeof(allocs[i]->bar));
-        rand_fill_bytes(&allocs[i]->baz, sizeof(allocs[i]->baz));
-    }
-    assert(p->p.length == 10);
-
-    pool_free(p, allocs[1]);
-    pool_free(p, allocs[9]);
-    pool_free(p, allocs[4]);
-    pool_free(p, allocs[0]);
-    assert(p->p.length == 6);
-
-
-    LargeStruct *a1 = pool_alloc(p);
-    LargeStruct *a2 = pool_alloc(p);
-    LargeStruct *a3 = pool_alloc(p);
-    LargeStruct *a4 = pool_alloc(p);
-
-    assert(a4 == allocs[1]);
-    assert(a3 == allocs[9]);
-    assert(a2 == allocs[4]);
-    assert(a1 == allocs[0]);
-    assert(p->p.length == 10);
-}
-
-void test_pool_allocator() {
-    StructPool p = {0};
-    test_pool_allocator_impl(&p);
-    assert(p.p.length == 10);
-    pool_reset(&p.p);
-    assert(p.p.length == 0 && p.p.free_list == NULL && p.p.arena->current->position == sizeof(Arena));
-
-    LargeStruct *s1 = pool_alloc(&p);
-    rand_fill_bytes(s1, sizeof(*s1));
-    assert(p.p.length == 1);
-
-    pool_free(&p, s1);
-    assert(p.p.length == 0);
-
-    LargeStruct *s2 = pool_alloc(&p);
-    rand_fill_bytes(s2, sizeof(*s2));
-    assertf(s1 == s2, "s1 reallocated as s2 from free list");
 }
 
 
@@ -1421,6 +1355,18 @@ void test_filepath() {
 
     Str path, c;
 
+    path = S("");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    assert(str_eq(c, S("")));
+
+    path = S("/");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    assert(str_eq(c, S("/")));
+
+    path = S("C:\\");
+    c = path_cannonicalize(tmp.arena, path, S("\\"));
+    assert(str_eq(c, S("C:\\")));
+
     path = S("/home/aditya//Programming//../../../.././root");
     c = path_cannonicalize(tmp.arena, path, S("/"));
     assert(str_eq(c, S("/root")));
@@ -1429,10 +1375,20 @@ void test_filepath() {
     c = path_cannonicalize(tmp.arena, path, S("\\"));
     assert(str_eq(c, S("C:\\Windows")));
 
-    // TODO: wtf
-    path = S("/home/aditya/D:\\foo/abcd/bar");
+    path = S("file:///foo/bar/baz/");
     c = path_cannonicalize(tmp.arena, path, S("/"));
-    printf("%.*s\n", SArg(c));
+    assert(str_eq(c, S("file:///foo/bar/baz/")));
+
+    path = S("/a/b/c/../../../..");
+    c = path_cannonicalize(tmp.arena, path, S("/"));
+    assert(str_eq(c, S("/")));
+
+    path = S("/home");
+    path = path_push(tmp.arena, path, S("/"), S("aditya"));
+    path = path_push(tmp.arena, path, S("/"), S("Programming"));
+    path = path_push(tmp.arena, path, S("/"), S("C"));
+    path = path_push(tmp.arena, path, S("/"), S("migi"));
+    assert(str_eq(path, S("/home/aditya/Programming/C/migi")));
 
     arena_temp_release(tmp);
 }

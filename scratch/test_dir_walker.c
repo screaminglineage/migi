@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
     Temp tmp = arena_temp();
     DirIterNode *entries = dir_get_all_children(tmp.arena, path);
 
-    list_foreach(entries, DirIterNode, node) {
+    list_foreach(entries, node) {
         printf("%.*s\n", SArg(node->entry.name));
     }
     arena_temp_release(tmp);

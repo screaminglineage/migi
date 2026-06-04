@@ -30,7 +30,7 @@ typedef struct {
     size_t length;
 } StrSlice;
 
-#define S(cstr) (Str){(cstr), (sizeof(cstr) - 1)}
+#define S(cstr)  ((Str){(cstr), (sizeof(cstr) - 1)})
 #define SArg(sv) (int)(sv).length, (sv).data
 
 
