@@ -169,9 +169,7 @@ static Arena *arena__init(ArenaOptions opt, void *backing_buffer, size_t backing
     arena->reserved = reserved;
     arena->committed = committed;
 
-    // TODO: Change the default reserve sizes depending on if the arena is
-    // chained or linear. Linear arenas for example should reserve much more
-    // than 1*GB
+    // TODO: Change the default reserve sizes depending on if the arena is chained or linear.
     arena->commit_size  = commit_size;
     arena->reserve_size = reserve_size;
 

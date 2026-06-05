@@ -32,19 +32,19 @@ static void *pool_alloc_bytes(Arena *arena, size_t capacity, size_t elem_size,
                        PoolItem **free_list, size_t *length, PoolItem **data);
 
 #define pool_alloc(arena, pool)                                                             \
-    (typeof((pool)->_item)) pool__alloc((arena), sizeof(*(pool)->_item), &(pool)->capacity, \
+    (type_of((pool)->_item)) pool__alloc((arena), sizeof(*(pool)->_item), &(pool)->capacity, \
                                         &(pool)->free_list, &(pool)->length, &(pool)->data)
 
 #define pool_dealloc(pool, elem) \
-    *((typeof((pool)->_item)) pool__dealloc(elem, &(pool)->free_list, &(pool)->length))
+    *((type_of((pool)->_item)) pool__dealloc(elem, &(pool)->free_list, &(pool)->length))
 
 #define pool_reset(pool) \
     pool__reset((byte *)(pool)->data, sizeof(*(pool)->_item), (pool)->capacity, &(pool)->free_list, &(pool)->length)
 
 #define pool_foreach(pool, elem)                                                                         \
-    for (typeof((pool)->_item) elem = (typeof((pool)->_item))(pool)->data->data;                         \
+    for (type_of((pool)->_item) elem = (type_of((pool)->_item))(pool)->data->data;                         \
         pool__item(elem) < pool__item_index((pool)->data, sizeof(*(pool)->_item), (pool)->capacity);     \
-        elem = (typeof((pool)->_item))(pool__item_next(pool__item(elem), sizeof(*(pool)->_item)))->data) \
+        elem = (type_of((pool)->_item))(pool__item_next(pool__item(elem), sizeof(*(pool)->_item)))->data) \
         if ((pool__item(elem))->next == POOL_ALLOC_ACTIVE)
 
 // Internal implementation macros

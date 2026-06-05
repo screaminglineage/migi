@@ -22,6 +22,7 @@ typedef uint8_t byte;
 #define FS (1000ull*PS)
 
 #define align_of(type) _Alignof(type)
+#define type_of(type) __typeof__(type)
 #define bool_to_str(boolean) ((boolean)? S("true"): S("false"))
 
 #if defined(__GNUC__) || defined (__clang__)
@@ -107,8 +108,11 @@ typedef uint8_t byte;
 // Checks that `obj` is a pointer to `type`
 // This can be helpful to typecheck macros which take in a pointer and a type to
 // ensure that they are the same. See `ring_buffer.h` for an example
-// Use like: check_type(int, int_arr)
+// NOTE: Use like: check_type(int, int_arr)
 #define check_type(type, obj) (1 == 0)? (type *)0: (obj)
+
+// Same as check_type but uses the value to compare instead
+#define check_type_value(type, obj) (void)((1 == 0)? (type){0}: (obj))
 
 
 // Allows typechecking of printf-like format arguments
@@ -136,7 +140,7 @@ typedef uint8_t byte;
 
 #define mem_swap(a, b)  \
 do {                    \
-    typeof(a) temp = a; \
+    type_of(a) temp = a; \
     a = b;              \
     b = temp;           \
 } while(0)

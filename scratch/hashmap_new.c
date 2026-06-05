@@ -2,28 +2,33 @@
 #include "arena.h"
 
 // NOTE: HASHMAP_INIT_CAP *must* always be a power of two or bad things will happen
-// TODO: describe exactly what will happen if the capacity is not a power of 2
 #ifndef HASHMAP_INIT_CAP
    #define HASHMAP_INIT_CAP 256
 #endif
+static_assert(HASHMAP_INIT_CAP != 0 && (HASHMAP_INIT_CAP & (HASHMAP_INIT_CAP - 1)) == 0, "HASHMAP_INIT_CAP must be a nonzero power of 2");
 
 // Any number in the range (0, 1.0) (both exclusive) should work
 // A load factor of 1.0 is not supported as atleast 1 empty spot must
 // exist at the end, for hashmap_pop to use it as a temporary variable
 // for swap-removal and then return to caller
 #ifndef HASHMAP_LOAD_FACTOR
-   #define HASHMAP_LOAD_FACTOR 0.75
+   #define HASHMAP_LOAD_FACTOR 0.70
 #endif
-static_assert(HASHMAP_LOAD_FACTOR > 0.0 && HASHMAP_LOAD_FACTOR < 1.0, "load factor must be in the range (0.0, 1.0) (both exclusive)");
+static_assert(HASHMAP_LOAD_FACTOR > 0.0 && HASHMAP_LOAD_FACTOR < 1.0, "HASHMAP_LOAD_FACTOR must be in the range (0.0, 1.0) (both exclusive)");
 
-
-typedef uint64_t (*HashMapHashFn)(void *data, size_t size);
-typedef bool (*HashMapEqFn)(void *a, void *b, size_t size);
+// Optional tracking of maximum probe length for statistics
+#ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
+    threadvar size_t hashmap__max_probe_length = 0;
+    threadvar size_t hashmap__probes = 0;
+#endif
 
 typedef struct {
     uint64_t hash;
     uint64_t index;
 } HashMapEntry;
+
+typedef uint64_t (*HashMapHashFn)(void *data, size_t size);
+typedef bool (*HashMapEqFn)(void *a, void *b, size_t size);
 
 #define HASHMAP__HEADER    \
     HashMapEntry *entries; \
@@ -56,46 +61,41 @@ typedef enum {
     HashMapKey_Other
 } HashMapKeyType;
 
-typedef struct {
-    HashMapKeyType key_type;
-    size_t key_size;
-    size_t key_offset;
-    size_t value_size;
-    size_t value_offset;
-    size_t elem_size;
-    size_t elem_align;
-} HashMapGeneric;
-
-#define hashmap__generic(hashmap)                                   \
-    (HashMapGeneric){                                               \
-        .key_type     = hashmap__key_type((hashmap)->pairs->key),   \
-        .key_size     = sizeof((hashmap)->pairs->key),              \
-        .key_offset   = offsetof(typeof(*(hashmap)->pairs), key),   \
-        .value_size   = sizeof((hashmap)->pairs->value),            \
-        .value_offset = offsetof(typeof(*(hashmap)->pairs), value), \
-        .elem_size    = sizeof(typeof(*(hashmap)->pairs)),          \
-        .elem_align   = align_of(typeof(*(hashmap)->pairs)),         \
-    }
-
-
-// Array with a single element that decays to a pointer
-// Needed for calls like `hashmap_put(&h, 1, foo)`, since `&1` is invalid
-#define hashmap__addr_of(T, x) ((typeof(T)[1]){x})
-
 // Strings store a pointer and a length which needs to be followed to get the
 // actual data to be hashed, rather than hashing the raw bytes themselves
+// TODO: could also add support for integer keys where it simply uses key itself as the hash function
 #define hashmap__key_type(k)      \
     _Generic((k),                 \
         Str:     HashMapKey_Str,  \
         char *:  HashMapKey_CStr, \
         default: HashMapKey_Other)
 
-typedef struct {
-    uint64_t hash;
-    size_t entry_index;
-    bool is_present;
-} HashMapItem;
 
+typedef struct {
+    HashMapKeyType key_type;
+    uint8_t elem_align;
+    size_t elem_size;
+    size_t key_size;
+} HashMapGeneric;
+
+#define hashmap__generic(hashmap)                                    \
+    (HashMapGeneric){                                                \
+        .key_type     = hashmap__key_type((hashmap)->pairs->key),    \
+        .key_size     = sizeof((hashmap)->pairs->key),               \
+        .elem_size    = sizeof(type_of(*(hashmap)->pairs)),          \
+        .elem_align   = align_of(type_of(*(hashmap)->pairs)),        \
+    }
+
+
+// Array with a single element that decays to a pointer
+// Needed for calls like `hashmap_put(&h, 1, foo)`, since `&1` is invalid
+// NOTE: type_of(x) cannot be used here since if x is a c-string,
+// then this macro returns becomes something like `char[1][LEN(cstr)]` instead of `char**`
+#define hashmap__addr_of(T, x) ((type_of(T)[1]){x})
+
+
+
+// TODO: add some more hash functions
 // Taken from https://nullprogram.com/blog/2025/01/19/
 static uint64_t hash_fnv_bytes(void *d, size_t length) {
     byte *data = d;
@@ -146,7 +146,7 @@ static void hashmap__init(HashMapHeader *h, HashMapKeyType key_type) {
             case HashMapKey_Str:    h->hash_fn = hash_fnv_str;   break;
             case HashMapKey_CStr:   h->hash_fn = hash_fnv_cstr;  break;
             case HashMapKey_Other:  h->hash_fn = hash_fnv_bytes; break;
-            default:                migi_unreachable();               break;
+            default:                migi_unreachable();          break;
         }
     }
     if (h->eq_fn == NULL) {
@@ -154,7 +154,7 @@ static void hashmap__init(HashMapHeader *h, HashMapKeyType key_type) {
             case HashMapKey_Str:    h->eq_fn = eq_str;   break;
             case HashMapKey_CStr:   h->eq_fn = eq_cstr;  break;
             case HashMapKey_Other:  h->eq_fn = eq_bytes; break;
-            default:                migi_unreachable();       break;
+            default:                migi_unreachable();  break;
         }
     }
     return;
@@ -197,7 +197,7 @@ static void *hashmap__grow(Arena *a, HashMapHeader *h, HashMapGeneric g, void *p
     }
     // grow the required amount
     if (at_least > 0) {
-        size_t required_capacity = at_least * (1 + HASHMAP_LOAD_FACTOR);
+        size_t required_capacity = (size_t)(at_least * (1 + HASHMAP_LOAD_FACTOR));
         if (required_capacity > old_capacity) {
             h->capacity = next_power_of_two(required_capacity);
         }
@@ -222,9 +222,14 @@ static void *hashmap__grow(Arena *a, HashMapHeader *h, HashMapGeneric g, void *p
     return new_pairs;
 }
 
+typedef struct {
+    uint64_t hash;
+    int64_t entry_index;  // -1 means item was not found
+} HashMapItem;
+
 static HashMapItem hashmap__index_of(HashMapHeader *h, HashMapGeneric g, void *pairs, void *key) {
     TIME_FUNCTION;
-    HashMapItem result = {0};
+    HashMapItem result = { .entry_index = -1 };
     result.hash = h->hash_fn(key, g.key_size);
     size_t i = result.hash & (h->capacity - 1);
     size_t dist = 0;
@@ -235,14 +240,12 @@ static HashMapItem hashmap__index_of(HashMapHeader *h, HashMapGeneric g, void *p
 
     while (true) {
         if (h->entries[i].index == 0) {
-            result.is_present = false;
             break;
         }
 
         // return if key was found
         byte *map_key = (byte *)pairs + (h->entries[i].index * g.elem_size);
         if (h->eq_fn(key, map_key, g.key_size)) {
-            result.is_present = true;
             result.entry_index = i;
             break;
         }
@@ -250,7 +253,7 @@ static HashMapItem hashmap__index_of(HashMapHeader *h, HashMapGeneric g, void *p
         size_t cur_desired = h->entries[i].hash & (h->capacity - 1);
         size_t cur_dist = (i + h->capacity - cur_desired) & (h->capacity - 1);
         if (cur_dist < dist) {
-            result.is_present = false;
+            break;
         }
 
 #ifdef HASHMAP_TRACK_MAX_PROBE_LENGTH
@@ -273,7 +276,7 @@ static void *hashmap__put(Arena *a, HashMapHeader *h, HashMapGeneric g, void *pa
     }
 
     HashMapItem item = hashmap__index_of(h, g, pairs, key);
-    if (!item.is_present) {
+    if (item.entry_index == -1) {
         // new items are always inserted at the end of the table
         h->size++;
         hashmap__insert_entry(h, (HashMapEntry){ .hash = item.hash, .index = h->size });
@@ -287,7 +290,7 @@ static void *hashmap__put(Arena *a, HashMapHeader *h, HashMapGeneric g, void *pa
 
 static void hashmap__get(HashMapHeader *h, HashMapGeneric g, void *pairs, void *key) {
     HashMapItem item = hashmap__index_of(h, g, pairs, key);
-    if (item.is_present) {
+    if (item.entry_index != -1) {
         h->_temp_index = h->entries[item.entry_index].index;
     } else {
         h->_temp_index = 0;
@@ -297,7 +300,7 @@ static void hashmap__get(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
 // Backshift Erasure (https://thenumb.at/Hashtables/#erase-backward-shift)
 // Move elements back until theres an empty entry or the entry is already
 // in its desired (best possible) position
-static void hashmap__delete_entry(HashMapHeader *h, size_t start) {
+static void hashmap__del_entry(HashMapHeader *h, size_t start) {
     TIME_FUNCTION;
     size_t current = start;
     while (true) {
@@ -314,14 +317,14 @@ static void hashmap__delete_entry(HashMapHeader *h, size_t start) {
     }
 }
 
-static void hashmap__delete(HashMapHeader *h, HashMapGeneric g, void *pairs, void *key) {
+static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *key) {
     TIME_FUNCTION;
     if (h->capacity == 0) {
         h->_temp_index = 0;
         return;
     }
     HashMapItem item = hashmap__index_of(h, g, pairs, key);
-    if (!item.is_present) {
+    if (item.entry_index == -1) {
         h->_temp_index = 0;
         return;
     }
@@ -329,112 +332,105 @@ static void hashmap__delete(HashMapHeader *h, HashMapGeneric g, void *pairs, voi
     // Update the entry of the last key in the hashmap data array to its new index
     byte *last_key = (byte *)pairs + (h->size * g.elem_size);
     HashMapItem last_item = hashmap__index_of(h, g, pairs, last_key);
-    assertf(last_item.is_present, "hashmap should always have a last entry");
+    assertf(last_item.entry_index != -1, "hashmap should always have a last entry");
 
     h->entries[last_item.entry_index].index = h->entries[item.entry_index].index;
     h->_temp_index = h->entries[item.entry_index].index;
     assertf(h->_temp_index != 0, "nothing can map to the 0 value of the data array");
 
     h->size--;
-    hashmap__delete_entry(h, item.entry_index);
+    hashmap__del_entry(h, item.entry_index);
 }
 
 
 // Reserve space for insertion of `count` elements into the hashmap without growing
-#define hashmap_reserve(arena, hashmap, amount)                                                                           \
-    (void)(                                                                                                               \
-        hashmap__init(&(hashmap)->h, hashmap__key_type(hashmap)),                                                         \
-        (hashmap)->pairs = hashmap__grow((arena), &(hashmap)->h, hashmap__generic(hashmap),  &(hashmap)->pairs, (amount)) \
+#define hashmap_reserve(arena, hashmap, amount)                      \
+    (void)(                                                          \
+        (hashmap)->pairs = hashmap__grow((arena), &(hashmap)->h,     \
+                                        hashmap__generic(hashmap),   \
+                                        &(hashmap)->pairs, (amount)) \
     )
 
-#define hashmap_put(arena, hashmap, k, v)                                                                                                                   \
-    (void)(                                                                                                                                                 \
-        (hashmap)->pairs = hashmap__put((arena), &(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
-        (hashmap)->pairs[(hashmap)->_temp_index].key = (k),                                                                                                 \
-        (hashmap)->pairs[(hashmap)->_temp_index].value = (v)                                                                                                \
+
+#define hashmap_put(arena, hashmap, k, v)                                                              \
+    (void)(                                                                                            \
+        (hashmap)->pairs = hashmap__put((arena), &(hashmap)->h, hashmap__generic((hashmap)),           \
+                                        (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
+        (hashmap)->pairs[(hashmap)->_temp_index].key = (k),                                            \
+        (hashmap)->pairs[(hashmap)->_temp_index].value = (v)                                           \
     )
+
 
 // Sets the default values of the hashmap
 #define hashmap_set_default(arena, hashmap, k, v) \
-    (((hashmap)->capacity == 0                    \
-        ? hashmap__init(arena, hashmap), (void)0  \
-        : (void)0),                               \
-    ((hashmap)->keys[0] = (k),                    \
-    (hashmap)->values[0] = (v)), (void)0)
+    (void)(                                       \
+        hashmap_reserve((arena), (hashmap), 0),   \
+        (hashmap)->pairs[0].key = (k),            \
+        (hashmap)->pairs[0].value = (v)           \
+    )
 
-#define hashmap_entry(arena, hashmap, k)                                                                                                                 \
-    ((hashmap)->pairs = hashmap__put((arena), &(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
-    (hashmap)->pairs[(hashmap)->_temp_index].key = (k),                                                                                                  \
+
+#define hashmap_entry(arena, hashmap, k)                                                           \
+    ((hashmap)->pairs = hashmap__put((arena), &(hashmap)->h, hashmap__generic((hashmap)),          \
+                                    (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
+    (hashmap)->pairs[(hashmap)->_temp_index].key = (k),                                            \
     &(hashmap)->pairs[(hashmap)->_temp_index].value)
 
-// TODO: make this type safe on the type of the key
-// check_type macro needs to be modified a bit to get it to work
-#define hashmap_get(hashmap, k)                                                                                              \
-    ((hashmap__get(&(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
-    (hashmap)->pairs[(hashmap)->_temp_index].value))                                                                         \
 
-// TODO: make this type safe on the type of the key
-// check_type macro needs to be modified a bit to get it to work
-#define hashmap_at(hashmap, k)                                                                                                \
-    ((hashmap__get(&(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
-    (hashmap)->_temp_index == 0                                                                                               \
-        ? NULL                                                                                                                \
+// Get the type of the pairs for the hashmap
+// NOTE: this is required as the pair type itself is an unnamed struct type declared by the HashMap() macro
+#define hashmap_pair_type(hashmap) \
+    type_of((hashmap)->pairs)
+
+
+// Get the pair from a pointer to a value
+// For example `hashmap_pair(&h, hashmap_at(&h, "world"))->key`
+#define hashmap_pair(hashmap, v_ptr)                                                                      \
+    ((v_ptr)                                                                                              \
+        ? ((type_of((hashmap)->pairs))((uintptr_t)(v_ptr) - offsetof(type_of(*(hashmap)->pairs), value))) \
+        : NULL)
+
+
+#define hashmap_get(hashmap, k)                                                 \
+    (check_type_value(type_of((hashmap)->pairs->key), (k)),                     \
+    (hashmap__get(&(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs, \
+                   hashmap__addr_of((hashmap)->pairs->key, k)),                 \
+    (hashmap)->pairs[(hashmap)->_temp_index].value))                            \
+
+
+#define hashmap_at(hashmap, k)                                                  \
+    (check_type_value(type_of((hashmap)->pairs->key), (k)),                     \
+    (hashmap__get(&(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs, \
+                   hashmap__addr_of((hashmap)->pairs->key, k)),                 \
+    (hashmap)->_temp_index == 0                                                 \
+        ? NULL                                                                  \
         : (&(hashmap)->pairs[(hashmap)->_temp_index].value)))
 
-#define hashmap_foreach(hashmap, pair)                         \
-    for (typeof((hashmap)->pairs) pair = (hashmap)->pairs + 1; \
-        pair <= (hashmap)->pairs + (hashmap)->size;            \
+
+#define hashmap_foreach(hashmap, pair)                          \
+    for (type_of((hashmap)->pairs) pair = (hashmap)->pairs + 1; \
+        pair <= (hashmap)->pairs + (hashmap)->size;             \
         pair++)
 
-// TODO: make this type safe on the type of the key
-// check_type macro needs to be modified a bit to get it to work
-#define hashmap_delete(hashmap, k)                                                                                             \
-    (hashmap__delete(&(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
-    (hashmap)->_temp_index == 0                                                                                                \
-      ? (hashmap)->pairs[0].value                                                                                              \
-      : ((hashmap)->pairs[(hashmap)->size + 2] = (hashmap)->pairs[(hashmap)->_temp_index],                                     \
-        (hashmap)->pairs[(hashmap)->_temp_index] = (hashmap)->pairs[(hashmap)->size + 1],                                      \
+
+#define hashmap_del(hashmap, k)                                                            \
+    (check_type_value(type_of((hashmap)->pairs->key), (k)),                                \
+    hashmap__del(&(hashmap)->h, hashmap__generic((hashmap)), (hashmap)->pairs,             \
+                  hashmap__addr_of((hashmap)->pairs->key, k)),                             \
+    (hashmap)->_temp_index == 0                                                            \
+      ? (hashmap)->pairs[0].value                                                          \
+      : ((hashmap)->pairs[(hashmap)->size + 2] = (hashmap)->pairs[(hashmap)->_temp_index], \
+        (hashmap)->pairs[(hashmap)->_temp_index] = (hashmap)->pairs[(hashmap)->size + 1],  \
         (hashmap)->pairs[(hashmap)->size + 2].value))
 
 
-#if 1
-int main(void) {
-    Temp tmp = arena_temp();
-    Arena *a = tmp.arena;
-
-    HashMap(char *, int) h = {0};
-
-    #define RESERVE 0
-    if (RESERVE) {
-        hashmap_reserve(a, &h, 1024);
-    }
-
-    hashmap_put(a, &h, "hello", 1);
-    *hashmap_entry(a, &h, "world") = 2;
-
-    int v = hashmap_get(&h, "hello");
-    printf("v = %d\n", v);
-    int *p = hashmap_at(&h, "world");
-    printf("*p = %d\n", *p);
-    *p = 3;
-    printf("*p = %d\n", *p);
-
-    hashmap_foreach(&h, pair) {
-        printf("%s => %d\n", pair->key, pair->value);
-    }
-
-    int n = hashmap_delete(&h, "hello");
-    printf("%d", n);
-
-    arena_temp_release(tmp);
-    return 0;
-}
-#else
-int main(void) {
+int str_key() {
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
 
     HashMap(Str, int) h = {0};
+
+    hashmap_set_default(a, &h, S("EMPTY"), 0xFF);
 
     #define RESERVE 0
     if (RESERVE) {
@@ -454,11 +450,111 @@ int main(void) {
     hashmap_foreach(&h, pair) {
         printf("%.*s => %d\n", SArg(pair->key), pair->value);
     }
+    printf("size: %zu\ncapacity: %zu\n", h.size, h.capacity);
 
-    int n = hashmap_delete(&h, S("hello"));
-    printf("%d", n);
+    int n = hashmap_del(&h, S("hello"));
+    printf("Deleted: %d\n", n);
 
+    int default_value = hashmap_get(&h, S("hello"));
+    printf("%X\n", default_value);
+
+    printf("%.*s\n", SArg(hashmap_pair(&h, hashmap_at(&h, S("world")))->key));
+
+    printf("\n\n");
     arena_temp_release(tmp);
     return 0;
 }
-#endif
+
+int cstr_key() {
+    Temp tmp = arena_temp();
+    Arena *a = tmp.arena;
+
+    HashMap(char *, int) h = {0};
+
+    hashmap_set_default(a, &h, "EMPTY", 0xFF);
+
+    #define RESERVE 0
+    if (RESERVE) {
+        hashmap_reserve(a, &h, 1024);
+    }
+
+    hashmap_put(a, &h, "hello", 1);
+    *hashmap_entry(a, &h, "world") = 2;
+
+    int v = hashmap_get(&h, "hello");
+    printf("v = %d\n", v);
+    int *p = hashmap_at(&h, "world");
+    printf("*p = %d\n", *p);
+    *p = 3;
+    printf("*p = %d\n", *p);
+
+    hashmap_foreach(&h, pair) {
+        printf("%s => %d\n", pair->key, pair->value);
+    }
+    printf("size: %zu\ncapacity: %zu\n", h.size, h.capacity);
+
+    int n = hashmap_del(&h, "hello");
+    printf("Deleted: %d\n", n);
+
+    int default_value = hashmap_get(&h, "hello");
+    printf("%X\n", default_value);
+
+    printf("%s\n", hashmap_pair(&h, hashmap_at(&h, "world"))->key);
+
+    printf("\n\n");
+    arena_temp_release(tmp);
+    return 0;
+}
+
+int custom_key() {
+    Temp tmp = arena_temp();
+    Arena *a = tmp.arena;
+
+    typedef struct {
+        int x, y;
+    } Point;
+
+    HashMap(Point, int) h = {0};
+
+    hashmap_set_default(a, &h, ((Point){-1,-1}), 0xFF);
+
+    #define RESERVE 0
+    if (RESERVE) {
+        hashmap_reserve(a, &h, 1024);
+    }
+
+    hashmap_put(a, &h, ((Point){12,24}), 1);
+    *hashmap_entry(a, &h, ((Point){80,-145})) = 2;
+
+    int v = hashmap_get(&h, ((Point){12,24}));
+    printf("v = %d\n", v);
+    int *p = hashmap_at(&h, ((Point){80,-145}));
+    printf("*p = %d\n", *p);
+    *p = 3;
+    printf("*p = %d\n", *p);
+
+    hashmap_foreach(&h, pair) {
+        printf("(%d %d) => %d\n", pair->key.x, pair->key.y, pair->value);
+    }
+    printf("size: %zu\ncapacity: %zu\n", h.size, h.capacity);
+
+    int n = hashmap_del(&h, ((Point){12,24}));
+    printf("Deleted %d\n", n);
+
+    int default_value = hashmap_get(&h, ((Point){12,24}));
+    printf("%X\n", default_value);
+
+    hashmap_pair_type(&h) pair = hashmap_pair(&h, hashmap_at(&h, ((Point){80,-145})));
+    printf("(%d %d)\n", pair->key.x, pair->key.y);
+
+    printf("\n\n");
+    arena_temp_release(tmp);
+    return 0;
+}
+
+int main() {
+    str_key();
+    cstr_key();
+    custom_key();
+    return 0;
+}

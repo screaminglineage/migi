@@ -132,7 +132,7 @@
 
 // Iterate over a linked list
 #define list_foreach(head, item) \
-    for (typeof(head) (item) = (head); (item); (item) = (item)->next)
+    for (type_of(head) (item) = (head); (item); (item) = (item)->next)
 
 
 // StrList (Linked List of Strings)
