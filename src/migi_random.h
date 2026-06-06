@@ -211,6 +211,9 @@ static uint64_t splitmix64(uint64_t x) {
 
 
 static uint64_t randr_random(Rng *rng) {
+#ifndef MIGI_DONT_AUTO_SEED_RNG
+    if (!MIGI_GLOBAL_RNG.is_seeded) rand_rng_seed(time(NULL));
+#endif
     return xoshiro256_starstar(rng->state);
 }
 
@@ -222,6 +225,9 @@ static uint64_t rand_random() {
 }
 
 static float randr_float(Rng *rng) {
+#ifndef MIGI_DONT_AUTO_SEED_RNG
+    if (!MIGI_GLOBAL_RNG.is_seeded) rand_rng_seed(time(NULL));
+#endif
     return (float)xoshiro256_plus(rng->state) / (float)UINT64_MAX;
 }
 
@@ -233,6 +239,9 @@ static float rand_float() {
 }
 
 static double randr_double(Rng *rng) {
+#ifndef MIGI_DONT_AUTO_SEED_RNG
+    if (!MIGI_GLOBAL_RNG.is_seeded) rand_rng_seed(time(NULL));
+#endif
     return (double)xoshiro256_plus(rng->state) / (double)UINT64_MAX;
 }
 

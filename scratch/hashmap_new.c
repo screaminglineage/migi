@@ -1,5 +1,6 @@
 #include "migi_string.h"
 #include "arena.h"
+#include "migi_random.h"
 
 // NOTE: HASHMAP_INIT_CAP *must* always be a power of two or bad things will happen
 #ifndef HASHMAP_INIT_CAP
@@ -424,7 +425,12 @@ static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
         (hashmap)->pairs[(hashmap)->size + 2].value))
 
 
-int str_key() {
+// Clear hashmap state, doesn't free keys or values,
+// since those are separately allocated on an arena
+#define hashmap_free(hashmap) (mem_clear((hashmap)))
+
+
+static int str_key() {
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
 
@@ -465,7 +471,7 @@ int str_key() {
     return 0;
 }
 
-int cstr_key() {
+static int cstr_key() {
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
 
@@ -506,7 +512,7 @@ int cstr_key() {
     return 0;
 }
 
-int custom_key() {
+static int custom_key() {
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
 
@@ -552,9 +558,53 @@ int custom_key() {
     return 0;
 }
 
+static Str random_string(Arena *a, size_t length) {
+    char *chars = arena_push(a, char, length);
+
+    for (size_t i = 0; i < length; i++) {
+        chars[i] = (char)rand_range('a', 'z');
+    }
+    return (Str){.data = chars, .length = length};
+}
+
+typedef HashMap(Str, int) StrMap;
+
+static void put_strings(Arena *a, Arena *str_arena, StrMap *map, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        Str rand_str = random_string(str_arena, 16);
+        hashmap_put(a, map, rand_str, (int)rand_range(0, 10000));
+    }
+}
+
+static void reserve() {
+    Arena *a = arena_init();
+    Arena *str_arena = arena_init();
+
+    size_t n = 1000;
+    for (size_t i = 0; i < 2; i++) {
+        StrMap map = {0};
+
+        if (i == 1) hashmap_reserve(a, &map, n);
+
+        put_strings(a, str_arena, &map, n);
+
+        printf("%s:\n", i == 1? "WITH RESERVE": "WITHOUT RESERVE");
+        printf("size: %zu\n", map.size);
+        printf("capacity: %zu\n", map.capacity);
+        printf("arena allocated: %zu\n\n", a->position);
+        arena_reset(str_arena);
+        arena_reset(a);
+    }
+
+    arena_free(a);
+    arena_free(str_arena);
+}
+
+
 int main() {
     str_key();
     cstr_key();
     custom_key();
+    reserve();
     return 0;
 }

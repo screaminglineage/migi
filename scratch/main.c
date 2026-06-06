@@ -1476,6 +1476,9 @@ void test_ring_buffer() {
 int main() {
     Arena *a = arena_init();
 
+    for (size_t i = 0; i < 10; i++) {
+        printf("%d\n", bit(i));
+    }
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

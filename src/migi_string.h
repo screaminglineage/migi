@@ -46,7 +46,7 @@ static Str str_copy(Arena *arena, Str str);
 static Str str_cat(Arena *arena, Str head, Str tail);
 
 typedef enum {
-    Eq_IgnoreCase = (1 << 0),
+    Eq_IgnoreCase = bit(0),
 } StrEqOpt;
 
 static bool str_eq_ex(Str a, Str b, StrEqOpt flags);
@@ -86,12 +86,12 @@ static Str str_lift(Str str, size_t amount);
 
 
 typedef enum {
-    Find_Reverse         = (1 << 0),
-    Find_IgnoreCase      = (1 << 1),
+    Find_Reverse         = bit(0),
+    Find_IgnoreCase      = bit(1),
 
     // Treat needle as a sequence of chars, and 
     // return index of the first match of any of them
-    Find_AsChars         = (1 << 2),
+    Find_AsChars         = bit(2),
 } StrFindOpt;
 
 // Find `needle` within `haystack`
@@ -120,7 +120,7 @@ typedef bool (str_skip_while_func) (char ch, void *data);
 
 
 typedef enum {
-    SkipWhile_Reverse = (1 << 0),
+    SkipWhile_Reverse = bit(0),
 } SkipWhileOpt;
 
 // Skips characters from start (or end) of string as long as the passed in function returns true
@@ -151,12 +151,12 @@ typedef struct {
 
 typedef enum {
     // Start search from the end instead
-    Cut_Reverse   = (1 << 0),
+    Cut_Reverse   = bit(0),
 
     // Splits up to the first occurrence of any of the characters of delimiter
     // Always returns the nearest match if multiple characters are found
     // Eg: str_split_chars_next("a+-b", "-+") will return "a", then "", and finally "b"
-    Cut_AsChars   = (1 << 1)
+    Cut_AsChars   = bit(1),
 } StrCutOpt;
 
 // Cuts string into `head` and `tail` by splitting at the first occurence of `cut_at`

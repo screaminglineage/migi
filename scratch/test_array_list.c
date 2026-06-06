@@ -14,9 +14,9 @@ struct IntNode {
 int main() {
     Arena *a = arena_init();
     ArrayList(IntNode) ints = {0};
-    // arrlist_init_capacity(a, &ints, IntNode, 32);
+    // arrlist_init_capacity(a, &ints, 32);
     for (int i = 0; i < 100; i++) {
-        arrlist_add(a, &ints, IntNode, i);
+        arrlist_add(a, &ints, i);
     }
 
     list_foreach(ints.head, array) {

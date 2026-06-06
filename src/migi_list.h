@@ -166,11 +166,11 @@ static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with)
 
 typedef enum {
     // Skip empty strings
-    Split_SkipEmpty = (1 << 0),
+    Split_SkipEmpty = bit(0),
 
     // Treat delimiter as a list of characters, where
     // splitting is done any time one of them appear
-    Split_AsChars   = (1 << 1),
+    Split_AsChars   = bit(1),
 } SplitOpt;
 
 // Splits a string by delimiter, pushing each chunk onto a StrList
@@ -193,29 +193,29 @@ struct {                 \
     size_t total_length; \
 }
 
-#define arrlist_init_capacity(arena, list, node_type, cap)              \
-do {                                                                    \
-    node_type *next = arena_new((arena), node_type);                    \
-    next->data = arena_push_bytes((arena), sizeof(next->data[0])*(cap), \
-                                 ARRAYLIST_ALIGN, true);                \
-    next->capacity = (cap);                                             \
-    queue_push((list)->head, (list)->tail, next);                       \
+#define arrlist_init_capacity(arena, list, cap)                              \
+do {                                                                         \
+    type_of((list)->head) next = arena_new((arena), type_of(*(list)->head)); \
+    next->data = arena_push_bytes((arena), sizeof(next->data[0])*(cap),      \
+                                 ARRAYLIST_ALIGN, true);                     \
+    next->capacity = (cap);                                                  \
+    queue_push((list)->head, (list)->tail, next);                            \
 } while(0)
 
 
-#define arrlist_add(arena, list, node_type, n)                       \
-do {                                                                 \
-    node_type *tail = (list)->tail;                                  \
-                                                                     \
-    if (!tail || tail->length >= tail->capacity) {                   \
-        size_t capacity = ARRAYLIST_DEFAULT_CAP;                     \
-        if (tail && tail->capacity != 0) capacity = tail->capacity;  \
-                                                                     \
-        arrlist_init_capacity((arena), (list), node_type, capacity); \
-        tail = (list)->tail;                                         \
-    }                                                                \
-    tail->data[tail->length++] = n;                                  \
-    (list)->total_length++;                                          \
+#define arrlist_add(arena, list, n)                                 \
+do {                                                                \
+    type_of((list)->tail) tail = (list)->tail;                      \
+                                                                    \
+    if (!tail || tail->length >= tail->capacity) {                  \
+        size_t capacity = ARRAYLIST_DEFAULT_CAP;                    \
+        if (tail && tail->capacity != 0) capacity = tail->capacity; \
+                                                                    \
+        arrlist_init_capacity((arena), (list), capacity);           \
+        tail = (list)->tail;                                        \
+    }                                                               \
+    tail->data[tail->length++] = n;                                 \
+    (list)->total_length++;                                         \
 } while (0)
 
 

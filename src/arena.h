@@ -122,7 +122,7 @@ static void arena_rewind(Temp checkpoint);
 // Thread local global arenas
 // Each is alternated between being the "main" and "temporary" storage
 // 2 arenas are enough for most cases
-threadvar Arena *GLOBAL_TEMP_ARENAS[2] = {0};
+threadvar Arena *MIGI_GLOBAL_TEMP_ARENAS[2] = {0};
 static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length);
 static void arena_temp_release(Temp c);
 
@@ -354,10 +354,10 @@ static void arena_rewind(Temp tmp) {
 
 static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length) {
     int64_t index = -1;
-    for (int64_t i = 0; i < (int64_t)array_len(GLOBAL_TEMP_ARENAS); i++) {
+    for (int64_t i = 0; i < (int64_t)array_len(MIGI_GLOBAL_TEMP_ARENAS); i++) {
         bool has_conflict = false;
         for (size_t j = 0; j < conflicts_length; j++) {
-            if (GLOBAL_TEMP_ARENAS[i] == conflicts[j]) {
+            if (MIGI_GLOBAL_TEMP_ARENAS[i] == conflicts[j]) {
                 has_conflict = true;
                 break;
             }
@@ -372,7 +372,7 @@ static Temp arena_temp_excluding(Arena **conflicts, size_t conflicts_length) {
         return (Temp){0};
     }
 
-    Arena **selected = &GLOBAL_TEMP_ARENAS[index];
+    Arena **selected = &MIGI_GLOBAL_TEMP_ARENAS[index];
     if (!*selected) {
         *selected = arena_init();
     }
