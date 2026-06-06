@@ -215,7 +215,7 @@ void test_chained_arena() {
 }
 
 void test_string_builder_formatted() {
-    StringBuilder sb = sb_init();
+    StrBuilder sb = sb_init();
     sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99),
              "what is this even doing????");
     assert(sb_length(&sb) == 67);
@@ -224,7 +224,7 @@ void test_string_builder_formatted() {
     assert(sb_length(&sb) == 67 + 67);
 
     {
-        StringBuilder sb1 = sb_init();
+        StrBuilder sb1 = sb_init();
         sb_push(&sb1, S("foo"));
         sb_push(&sb1, S("bar"));
         sb_push(&sb1, S("baz"));
@@ -248,7 +248,7 @@ void test_string_builder_formatted() {
     {
 
         char buffer[2048] = {0};
-        StringBuilder sb_static = sb_init_static(buffer, sizeof(buffer));
+        StrBuilder sb_static = sb_init_static(buffer, sizeof(buffer));
         sb_pushf(&sb_static, "%.*s/%s:%d\n", SArg(S("FILE PATH")), __FILE__, __LINE__);
         printf("%.*s", SArg(sb_to_string(&sb_static)));
     }
@@ -257,12 +257,19 @@ void test_string_builder_formatted() {
 void test_string_builder() {
     test_string_builder_formatted();
 
-    StringBuilder sb = sb_init();
+    StrBuilder sb = sb_init();
     defer_block(sb_reset(&sb)) {
-        sb_push(&sb, S("hello"));
-        sb_push(&sb, S("foo"));
-        sb_push(&sb, S("bar"));
-        sb_push(&sb, S("baz"));
+        sb_push(&sb, S("foo-bar-baz"));
+        sb_push(&sb, " ");
+        sb_push(&sb, -1234);
+        sb_push(&sb, " ");
+        sb_push(&sb, bit_fill(62));
+        sb_push(&sb, " ");
+        sb_push(&sb, -1.234567);
+        sb_push(&sb, " ");
+        sb_push(&sb, 1e99);
+        sb_push(&sb, " ");
+        sb_push(&sb, &sb);
 
         printf("%s\n", sb_to_cstr(&sb));
         printf("len: %zu\n", sb_length(&sb));
@@ -1472,13 +1479,10 @@ void test_ring_buffer() {
 }
 
 
-
 int main() {
     Arena *a = arena_init();
 
-    for (size_t i = 0; i < 10; i++) {
-        printf("%d\n", bit(i));
-    }
+    test_string_builder();
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

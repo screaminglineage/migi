@@ -135,7 +135,7 @@ bool parse_struct_members(Lexer *lexer, StructDef *struct_def) {
     return true;
 }
 
-void generate_string_printer(StringBuilder *sb) {
+void generate_string_printer(StrBuilder *sb) {
     // `level` is never used in `print_String,` but still present as a parameter
     // so that it can be called just like the other `_print_*` functions
     sb_push_cstr(sb, "static void _print_String(Str var_name, int level) {\n");
@@ -145,7 +145,7 @@ void generate_string_printer(StringBuilder *sb) {
 }
 
 
-void generate_member_printer(StringBuilder *sb, Member member, int indent_count, int max_name_length, bool is_slice) {
+void generate_member_printer(StrBuilder *sb, Member member, int indent_count, int max_name_length, bool is_slice) {
     // indent member sufficiently according to the level
     sb_pushf(sb, "    printf(\"%%*s\", (level + 1) * %d, \"\");\n", indent_count);
 
@@ -186,7 +186,7 @@ void generate_member_printer(StringBuilder *sb, Member member, int indent_count,
 }
 
 
-void generate_struct_printer(StringBuilder *sb, StructDef struct_def, int indent_count) {
+void generate_struct_printer(StrBuilder *sb, StructDef struct_def, int indent_count) {
     // generate print function with indentation level
     sb_pushf(sb, "static void _print_%.*s(%.*s var_name, int level) {\n",
             SArg(struct_def.name), SArg(struct_def.name));
@@ -247,7 +247,7 @@ int main(int argc, char *argv[]) {
         output_dir = shift_args(argc, argv);
     }
 
-    StringBuilder reader = sb_init();
+    StrBuilder reader = sb_init();
     sb_push_file(&reader, input_file);
     Str file_data = sb_to_string(&reader);
 
@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    StringBuilder writer = sb_init();
+    StrBuilder writer = sb_init();
 
     generate_string_printer(&writer);
     Str filename_string = stringf(tmp.arena, "%s/String_printer.gen.c", output_dir);

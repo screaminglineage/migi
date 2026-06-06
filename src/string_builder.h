@@ -12,74 +12,201 @@
 
 typedef struct {
     Arena *arena;
-} StringBuilder;
+} StrBuilder;
 
-migi_printf_format(2, 3) static void sb_pushf(StringBuilder *sb, const char *fmt, ...);
 
-static StringBuilder sb_init() {
+static StrBuilder sb_init();
+static StrBuilder sb_init_static(char *buf, size_t buf_size);
+static size_t sb_length(StrBuilder *sb);
+
+
+// Convenience function which allows pushing in any supported type
+// NOTE: sb_push_char cannot be handled this way since char and int are not differentiated by C
+#define sb_push(sb, elem)       \
+    _Generic((elem),            \
+        Str:      sb_push_str,  \
+        char *:   sb_push_cstr, \
+        float:    sb_push_f64,  \
+        double:   sb_push_f64,  \
+        int8_t:   sb_push_i64,  \
+        int16_t:  sb_push_i64,  \
+        int32_t:  sb_push_i64,  \
+        int64_t:  sb_push_i64,  \
+        uint8_t:  sb_push_u64,  \
+        uint16_t: sb_push_u64,  \
+        uint32_t: sb_push_u64,  \
+        uint64_t: sb_push_u64,  \
+        void *:   sb_push_ptr,  \
+        default:  sb_push_ptr   \
+    )((sb), (elem))
+
+static void sb_push_char(StrBuilder *sb, char to_push);
+static void sb_push_i64(StrBuilder *sb, int64_t to_push);
+static void sb_push_u64(StrBuilder *sb, uint64_t to_push);
+static void sb_push_f64(StrBuilder *sb, double to_push);
+static void sb_push_str(StrBuilder *sb, Str string);
+static void sb_push_cstr(StrBuilder *sb, char *cstr);
+static void sb_push_ptr(StrBuilder *sb, void *ptr);
+static void sb_push_buffer(StrBuilder *sb, char *buf, size_t length);
+static void sb_push_file(StrBuilder *sb, Str filename);
+migi_printf_format(2, 3) static void sb_pushf(StrBuilder *sb, const char *fmt, ...);
+
+static StrBuilder sb_from_string(Str string);
+static Str sb_to_string(StrBuilder *sb);
+static bool sb_to_file(StrBuilder *sb, Str filename);
+
+void sb_reset(StrBuilder *sb);
+void sb_free(StrBuilder *sb);
+
+
+
+
+
+
+static StrBuilder sb_init() {
     Arena *a = arena_init(.type = Arena_Linear);
-    return (StringBuilder){
+    return (StrBuilder){
         .arena = a
     };
 }
 
-static StringBuilder sb_init_static(char *buf, size_t buf_size) {
+static StrBuilder sb_init_static(char *buf, size_t buf_size) {
     Arena *a = arena_init_static(buf, buf_size);
-    return (StringBuilder){
+    return (StrBuilder){
         .arena = a
     };
 }
 
-static size_t sb_length(StringBuilder *sb) {
+static size_t sb_length(StrBuilder *sb) {
     return sb->arena->position - sizeof(Arena);
 }
 
-static void sb_push_char(StringBuilder *sb, char to_push) {
+// This needs to be a function (and not a macro) due to the weird rules on _Generic
+static void sb__push_no_match(StrBuilder *sb, void *elem) {
+    unused(sb);
+    unused(elem);
+    crash_with_message("sb_push: no types matched");
+}
+
+static void sb_push_i64(StrBuilder *sb, int64_t to_push) {
+    char tmp[64];
+    size_t i = array_len(tmp);
+
+    int64_t num = to_push > 0? to_push: -to_push;
+    do {
+        tmp[--i] = '0' + num % 10;
+        num /= 10;
+    } while (num > 0);
+
+    if (to_push < 0) {
+        tmp[--i] = '-';
+    }
+    sb_push_buffer(sb, &tmp[i], array_len(tmp) - i);
+}
+
+static void sb_push_u64(StrBuilder *sb, uint64_t to_push) {
+    char tmp[64];
+    size_t i = array_len(tmp);
+
+    do {
+        tmp[--i] = '0' + to_push % 10;
+        to_push /= 10;
+    } while (to_push > 0);
+
+    sb_push_buffer(sb, &tmp[i], array_len(tmp) - i);
+}
+
+static void sb_push_hex(StrBuilder *sb, uint64_t to_push) {
+    char tmp[64];
+    size_t i = array_len(tmp);
+
+    static char *digits = "0123456789ABCDEF";
+    do {
+        tmp[--i] = digits[to_push % 16];
+        to_push /= 16;
+    } while (to_push > 0);
+
+    sb_push_buffer(sb, &tmp[i], array_len(tmp) - i);
+}
+
+
+// Taken from: https://nullprogram.com/blog/2023/02/13/#float-formatting
+static void sb_push_f64(StrBuilder *sb, double to_push) {
+    int64_t prec = 1000000;  // i.e. 6 decimals
+
+    if (to_push < 0) {
+        sb_push_char(sb, '-');
+        to_push = -to_push;
+    }
+
+    to_push += 0.5 / prec;  // round last decimal
+    if (to_push >= (double)(-1UL>>1)) {  // out of long range?
+        sb_push_str(sb, S("inf"));
+    } else {
+        long integral = to_push;
+        long fractional = (to_push - integral)*prec;
+        sb_push_i64(sb, integral);
+        sb_push_char(sb, '.');
+        for (long i = prec/10; i > 1; i /= 10) {
+            if (i > fractional) {
+                sb_push_char(sb, '0');
+            }
+        }
+        sb_push_i64(sb, fractional);
+    }
+}
+
+static void sb_push_char(StrBuilder *sb, char to_push) {
     *arena_push(sb->arena, char, 1) = to_push;
 }
 
-static void sb_push(StringBuilder *sb, Str string) {
-    memcpy(arena_push(sb->arena, char, string.length), string.data, string.length);
+static void sb_push_str(StrBuilder *sb, Str string) {
+    arena_copy(sb->arena, char, string.data, string.length);
 }
 
-static void sb_push_cstr(StringBuilder *sb, char *cstr) {
+static void sb_push_cstr(StrBuilder *sb, char *cstr) {
     size_t length = strlen(cstr);
     arena_copy(sb->arena, char, cstr, length);
 }
 
-static void sb_push_buffer(StringBuilder *sb, char *buf, size_t length) {
+static void sb_push_buffer(StrBuilder *sb, char *buf, size_t length) {
     arena_copy(sb->arena, char, buf, length);
+}
+
+static void sb_push_ptr(StrBuilder *sb, void *ptr) {
+    sb_push_str(sb, S("0x"));
+    sb_push_hex(sb, (uintptr_t)ptr);
 }
 
 // NOTE: sb_pushf doesnt append a null terminator at the end
 // of the format string unlike regular sprintf
-static void sb_pushf(StringBuilder *sb, const char *fmt, ...) {
+static void sb_pushf(StrBuilder *sb, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     str__format(sb->arena, fmt, args);
     va_end(args);
 }
 
-static void sb_push_file(StringBuilder *sb, Str filename) {
+static void sb_push_file(StrBuilder *sb, Str filename) {
     str_from_file(sb->arena, filename);
 }
 
-void sb_reset(StringBuilder *sb) {
+void sb_reset(StrBuilder *sb) {
     arena_reset(sb->arena);
 }
 
-void sb_free(StringBuilder *sb) {
+void sb_free(StrBuilder *sb) {
     arena_free(sb->arena);
     mem_clear(sb);
 }
 
-static StringBuilder sb_from_string(Str string) {
-    StringBuilder sb = {0};
+static StrBuilder sb_from_string(Str string) {
+    StrBuilder sb = {0};
     sb_push(&sb, string);
     return sb;
 }
 
-static Str sb_to_string(StringBuilder *sb) {
+static Str sb_to_string(StrBuilder *sb) {
     return (Str){
         .data = (char *)sb->arena->data,
         .length = sb_length(sb)
@@ -88,14 +215,14 @@ static Str sb_to_string(StringBuilder *sb) {
 
 // NOTE: The cstring returned from this function is not separately allocated
 // and is destroyed after a subsequent push onto the string builder
-static const char *sb_to_cstr(StringBuilder *sb) {
+static const char *sb_to_cstr(StrBuilder *sb) {
     sb_push_char(sb, 0);
     const char *cstr = (const char *)sb->arena->data;
     arena_pop(sb->arena, char, 1);
     return cstr;
 }
 
-static bool sb_to_file(StringBuilder *sb, Str filename) {
+static bool sb_to_file(StrBuilder *sb, Str filename) {
     return str_to_file(sb_to_string(sb), filename);
 }
 

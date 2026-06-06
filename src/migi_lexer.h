@@ -1,3 +1,8 @@
+// TODO: This entire file hasnt been touched in a long time and needs to be completely rewritten
+// Probably should be a C lexer specifically instead of trying to be general purpose
+// TODO: could try an alternate method of lexing where it has infinite lookahead by simply lexing an entire file
+// at once rather than trying to do it lazily like currently.
+
 #ifndef MIGI_LEXER_H
 #define MIGI_LEXER_H
 
@@ -60,7 +65,7 @@ typedef enum {
     Tok_Modulo,
 
     Tok_Count
-} TokenType;
+} LexerTokenType;
 
 static Str TOKEN_STRINGS[] = {
     [Tok_Invalid]             = S("invalid token"),
@@ -105,7 +110,7 @@ static Str TOKEN_STRINGS[] = {
 static_assert(array_len(TOKEN_STRINGS) == Tok_Count, "Token Strings is not the same size as the number of tokens");
 
 typedef struct {
-    TokenType type;
+    LexerTokenType type;
     Str string;
     union {
         double floating;
@@ -141,15 +146,15 @@ static inline bool peek_token(Lexer *lexer, Token *tok);
 //
 // Check if the next token is the same as expected and consume it
 // The next token is always consumed even if it doesn't match
-static inline bool expect_token(Lexer *lexer, TokenType expected);
-static inline bool expect_token_str(Lexer *lexer, TokenType expected, Str str);
+static inline bool expect_token(Lexer *lexer, LexerTokenType expected);
+static inline bool expect_token_str(Lexer *lexer, LexerTokenType expected, Str str);
 
 // Check if the next token is the same as expected
-static inline bool match_token(Lexer *lexer, TokenType expected);
-static inline bool match_token_str(Lexer *lexer, TokenType expected, Str token_str);
+static inline bool match_token(Lexer *lexer, LexerTokenType expected);
+static inline bool match_token_str(Lexer *lexer, LexerTokenType expected, Str token_str);
 
 // Check if the next token is one of the passed in tokens
-// bool match_token_any(Lexer *lexer, (TokenType[]){ ... })
+// bool match_token_any(Lexer *lexer, (LexerTokenType[]){ ... })
 #define match_token_any(lexer, ...) \
     (match_token_any_slice((lexer), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
@@ -484,7 +489,7 @@ static inline bool peek_token(Lexer *lexer, Token *tok) {
     return lexer->token_buf[1].type != Tok_Eof;
 }
 
-static inline bool match_token(Lexer *lexer, TokenType expected) {
+static inline bool match_token(Lexer *lexer, LexerTokenType expected) {
     Token tok = {0};
     if (!peek_token(lexer, &tok)) return false;
     if (tok.type != expected) {
@@ -493,7 +498,7 @@ static inline bool match_token(Lexer *lexer, TokenType expected) {
     return true;
 }
 
-static inline bool match_token_any_slice(Lexer *lexer, TokenType *expected, size_t expected_len) {
+static inline bool match_token_any_slice(Lexer *lexer, LexerTokenType *expected, size_t expected_len) {
     Token tok = {0};
     if (!peek_token(lexer, &tok)) return false;
     for (size_t i = 0; i < expected_len; i++) {
@@ -504,21 +509,21 @@ static inline bool match_token_any_slice(Lexer *lexer, TokenType *expected, size
     return false;
 }
 
-static inline bool match_token_str(Lexer *lexer, TokenType expected, Str token_str) {
+static inline bool match_token_str(Lexer *lexer, LexerTokenType expected, Str token_str) {
     Token tok = {0};
     if (!peek_token(lexer, &tok)) return false;
     if (tok.type != expected) return false;
-    if (!string_eq(tok.string, token_str)) return false;
+    if (!str_eq(tok.string, token_str)) return false;
     return true;
 }
 
-static inline bool expect_token(Lexer *lexer, TokenType expected) {
+static inline bool expect_token(Lexer *lexer, LexerTokenType expected) {
     bool matches = match_token(lexer, expected);
     next_token(lexer);
     return matches;
 }
 
-static inline bool expect_token_str(Lexer *lexer, TokenType expected, Str str) {
+static inline bool expect_token_str(Lexer *lexer, LexerTokenType expected, Str str) {
     bool matches = match_token_str(lexer, expected, str);
     next_token(lexer);
     return matches;

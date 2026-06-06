@@ -101,8 +101,12 @@ typedef uint8_t byte;
 
 #define unused(a) ((void)a)
 
-// Useful for defining bit flags
-#define bit(n) (1 << (n))
+// Useful for defining bit flags or selecting a particular bit
+#define bit(n) (1ULL << (n))
+
+// Fill n bits (Eg. bit_fill(4) == 0b1111)
+// TODO: bit_fill(63) will overflow since it will try to do (1 << 64)
+#define bit_fill(n) (assertf(n < 63, "bit_fill: number must be lower than 63"), (1ULL << (n + 1ULL)) - 1ULL)
 
 #define macro__concat(A, B) A ## B
 #define macro_concat(A, B) macro__concat(A, B)

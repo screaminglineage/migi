@@ -1,7 +1,7 @@
 #include "migi.h"
 #include "string_builder.h"
 
-void html_begin(StringBuilder *html) {
+void html_begin(StrBuilder *html) {
     sb_push(html,
         S("<!DOCTYPE html>\n"
           "<html lang=\"en\">\n"
@@ -16,7 +16,7 @@ void html_begin(StringBuilder *html) {
           "        <script src=\"https://cdn.jsdelivr.net/npm/prismjs/components/prism-c.min.js\"></script>"));
 }
 
-void html_end(StringBuilder *html) {
+void html_end(StrBuilder *html) {
     sb_push(html,
         S("    </body>\n"
           "</html>\n"));
@@ -44,9 +44,9 @@ Str escape_html(Arena *a, Str str) {
     return escaped;
 }
 
-void html_push_text(StringBuilder *html, Str str);
+void html_push_text(StrBuilder *html, Str str);
 
-Str parse_link(StringBuilder *html, Str str, bool image) {
+Str parse_link(StrBuilder *html, Str str, bool image) {
     Str link = str;
 
     size_t link_text_end = str_find(link, S("]"));
@@ -91,7 +91,7 @@ Str parse_link(StringBuilder *html, Str str, bool image) {
 // then treat it as a regular character rather than formatting
 //
 // parse inline elements into html
-void html_push_text(StringBuilder *html, Str str) {
+void html_push_text(StrBuilder *html, Str str) {
     bool parsing_strong = false;
     bool parsing_em     = false;
 
@@ -184,14 +184,14 @@ void html_push_text(StringBuilder *html, Str str) {
 #define HTML_INDENT 4
 
 // TODO: maybe call escape_html in this function itself
-void html_push_tag_text(StringBuilder *html, int indent_level, Str tag, Str text) {
+void html_push_tag_text(StrBuilder *html, int indent_level, Str tag, Str text) {
     sb_pushf(html, "%*s", HTML_INDENT * indent_level, "");
     sb_pushf(html, "<%.*s>", SArg(tag));
     html_push_text(html, text);
     sb_pushf(html, "</%.*s>\n", SArg(tag));
 }
 
-void html_push_text_raw(StringBuilder *html, int indent_level, Str text) {
+void html_push_text_raw(StrBuilder *html, int indent_level, Str text) {
     sb_pushf(html, "%*s", HTML_INDENT * indent_level, "");
     sb_pushf(html, "%.*s", SArg(text));
 }
@@ -202,7 +202,7 @@ typedef struct {
   bool no_newline;
 } PushTagOpt;
 
-void html_push_tag_opt(StringBuilder *html, int indent_level, Str tag, PushTagOpt opt) {
+void html_push_tag_opt(StrBuilder *html, int indent_level, Str tag, PushTagOpt opt) {
     const char *newline_str = opt.no_newline? "": "\n";
 
     if (!opt.closing) {
@@ -237,7 +237,7 @@ bool line_is_ol(Str line, int *digits_at_start) {
 // TODO: add blockquotes parsing
 // TODO: merge ul and ol parsing into a single function
 // TODO: add support for automatic compilation of the code blocks
-void html_render_md(StringBuilder *html, Str md) {
+void html_render_md(StrBuilder *html, Str md) {
     Temp tmp = arena_temp();
 
     int ul_level         = 0;
@@ -464,7 +464,7 @@ int main() {
 
     Str md = str_from_file(a, input_file);
 
-    StringBuilder html = sb_init();
+    StrBuilder html = sb_init();
     html_begin(&html);
     html_render_md(&html, md);
     html_end(&html);
