@@ -169,7 +169,7 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags);
 // Loop through each split, (accessed by `cut.split`) of repeated `str_cut`s
 // until there are no more matches
 #define strcut_foreach(str, delim, flags, cut)                      \
-    for (struct { StrCut _cut; int _count; Str split; }          \
+    for (struct { StrCut _cut; int _count; Str split; }             \
         cut = {str_cut_ex((str), (delim), (flags)), 0, {0}};        \
         cut.split = cut._cut.head, cut._count < 1;                  \
         cut._cut.found                                              \
