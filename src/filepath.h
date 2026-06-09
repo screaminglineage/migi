@@ -11,12 +11,12 @@ static Str path_push(Arena *a, Str path, Str dir_sep, Str new_elem);
 static Str path_cannonicalize(Arena *arena, Str path, Str dir_sep);
 
 static Str path_basename(Str path) {
-    StrCut cut = str_cut_ex(path, S("/\\"), Cut_AsChars|Cut_Reverse);
+    StrCut cut = str_cut_ex(path, S("/\\"), Cut_Any|Cut_Reverse);
     return cut.head;
 }
 
 static Str path_dirname(Str path) {
-    StrCut cut = str_cut_ex(path, S("/\\"), Cut_AsChars|Cut_Reverse);
+    StrCut cut = str_cut_ex(path, S("/\\"), Cut_Any|Cut_Reverse);
     return cut.found? cut.tail: S("/");
 }
 

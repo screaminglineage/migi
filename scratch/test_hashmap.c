@@ -124,7 +124,7 @@ void frequency_analysis() {
     MapStrInt map = {0};
     printf("Inserting items:\n");
     begin_profiling();
-    strcut_foreach(contents, S(" \n"), Cut_AsChars, it) {
+    strcut_foreach(contents, S(" \n"), Cut_Any, it) {
         Str key = str_to_lower(a, str_trim(it.split));
         *hashmap_entry(a, &map, key) += 1;
     }

@@ -547,15 +547,15 @@ void test_str_split_and_join() {
         },
         {
             .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S("03"), S("23"), S("59"), S("")),
-            .actual = str_split_ex(a, S("2020-11-03 23:59@"), S("- :@"), Split_AsChars)
+            .actual = str_split_ex(a, S("2020-11-03 23:59@"), S("- :@"), Split_Any)
         },
         {
             .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S("03"), S("23"), S("59")),
-            .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_SkipEmpty|Split_AsChars)
+            .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_SkipEmpty|Split_Any)
         },
         {
             .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S(""), S("03"), S("23"), S("59"), S("")),
-            .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_AsChars)
+            .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any)
         },
     };
 
@@ -563,7 +563,7 @@ void test_str_split_and_join() {
         assert_str_split(splits[i]);
     }
 
-    StrList list = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_AsChars|Split_SkipEmpty);
+    StrList list = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any|Split_SkipEmpty);
     Str expected = strlist_join(a, &list, S("-"));
     assert(str_eq(expected, S("2020-11-03-23-59")));
 
@@ -993,11 +993,11 @@ void test_string() {
 
         }
 
-        // Cut_AsChars
+        // Cut_Any
         {
 
             Str str1 = S("2020-11--03 23:59@");
-            strcut_foreach(str1, S("- :@"), Cut_AsChars, it) {
+            strcut_foreach(str1, S("- :@"), Cut_Any, it) {
                 printf("=> `%.*s`\n", SArg(it.split));
             }
             assertf(str_eq(str1, S("2020-11--03 23:59@")), "original string remains intact");
@@ -1011,15 +1011,15 @@ void test_string() {
             {
                 Str c = S("a+-b");
                 Str delims = S("-+");
-                StrCut cut = str_cut_ex(c, delims, Cut_AsChars);
+                StrCut cut = str_cut_ex(c, delims, Cut_Any);
                 assert(cut.found);
                 assert(str_eq(cut.head, S("a")));
 
-                cut = str_cut_ex(cut.tail, delims, Cut_AsChars);
+                cut = str_cut_ex(cut.tail, delims, Cut_Any);
                 assert(cut.found);
                 assert(str_eq(cut.head, S("")));
 
-                cut = str_cut_ex(cut.tail, delims, Cut_AsChars);
+                cut = str_cut_ex(cut.tail, delims, Cut_Any);
                 assert(!cut.found);
                 assert(str_eq(cut.head, S("b")));
             }

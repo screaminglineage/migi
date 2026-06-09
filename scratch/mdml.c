@@ -168,7 +168,7 @@ void html_push_text(StrBuilder *html, Str str) {
         }
 
 
-        int64_t markup_end = str_find_ex(str, S("\\*_`[!"), Find_AsChars);
+        int64_t markup_end = str_find_ex(str, S("\\*_`[!"), Find_Any);
         sb_push(html, str_take(str, markup_end));
         str = str_skip(str, markup_end);
     }

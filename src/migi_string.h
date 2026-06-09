@@ -19,6 +19,7 @@
 #endif // ifdef _WIN32
 
 // TODO: add string styling (camelcase/snakecase/etc. conversions)
+// TODO: add to_lower_inline and to_upper_inline
 
 typedef struct {
     const char *data;
@@ -91,7 +92,7 @@ typedef enum {
 
     // Treat needle as a sequence of chars, and 
     // return index of the first match of any of them
-    Find_AsChars         = bit(2),
+    Find_Any         = bit(2),
 } StrFindOpt;
 
 // Find `needle` within `haystack`
@@ -156,7 +157,7 @@ typedef enum {
     // Splits up to the first occurrence of any of the characters of delimiter
     // Always returns the nearest match if multiple characters are found
     // Eg: str_split_chars_next("a+-b", "-+") will return "a", then "", and finally "b"
-    Cut_AsChars   = bit(1),
+    Cut_Any   = bit(1),
 } StrCutOpt;
 
 // Cuts string into `head` and `tail` by splitting at the first occurence of `cut_at`
@@ -274,12 +275,12 @@ static bool str__eq_ignore_case(const char *a, const char *b, size_t length) {
 static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
-    if (flags & Find_AsChars) {
+    if (flags & Find_Any) {
         int64_t first_match = INT64_MAX;
         int64_t last_match = INT64_MIN;
         for (size_t i = 0; i < needle.length; i++) {
             Str ch = (Str){.data = &needle.data[i], .length = 1};
-            int64_t index = str_find_ex(haystack, ch, flags & ~Find_AsChars);
+            int64_t index = str_find_ex(haystack, ch, flags & ~Find_Any);
             last_match = max_of(last_match, index);
             first_match = min_of(first_match, index);
         }
@@ -484,8 +485,8 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags) {
     int64_t cut_index = 0;
     int64_t cut_length = 0;
 
-    if (flags & Cut_AsChars) {
-        cut_index = str_find_ex(str, cut_at, find_flags|Find_AsChars);
+    if (flags & Cut_Any) {
+        cut_index = str_find_ex(str, cut_at, find_flags|Find_Any);
         cut_length = 1;
     } else {
         cut_index = str_find_ex(str, cut_at, find_flags);

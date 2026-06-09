@@ -170,7 +170,7 @@ typedef enum {
 
     // Treat delimiter as a list of characters, where
     // splitting is done any time one of them appear
-    Split_AsChars   = bit(1),
+    Split_Any   = bit(1),
 } SplitOpt;
 
 // Splits a string by delimiter, pushing each chunk onto a StrList
@@ -319,7 +319,7 @@ static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
         return strings;
     }
 
-    StrCutOpt cut_flags = (flags & Split_AsChars)? Cut_AsChars: 0;
+    StrCutOpt cut_flags = (flags & Split_Any)? Cut_Any: 0;
     strcut_foreach(str, delimiter, cut_flags, cut) {
         if (cut.split.length != 0 || !(flags & Split_SkipEmpty)) {
             strlist_push(a, &strings, cut.split);
