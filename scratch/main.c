@@ -269,6 +269,8 @@ void test_string_builder() {
         sb_push(&sb, " ");
         sb_push(&sb, 1e99);
         sb_push(&sb, " ");
+        sb_push(&sb, false);
+        sb_push(&sb, " ");
         sb_push(&sb, &sb);
 
         printf("%s\n", sb_to_cstr(&sb));
@@ -1482,7 +1484,6 @@ void test_ring_buffer() {
 int main() {
     Arena *a = arena_init();
 
-    test_string_builder();
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

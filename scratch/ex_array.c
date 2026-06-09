@@ -60,7 +60,7 @@ void **exarr__push(Arena *arena, ExArrayHeader *h, void **arrays, size_t elem_si
 // Needed for calls like `hashmap_put(&h, 1, foo)`, since `&1` is invalid
 // NOTE: type_of(x) cannot be used here since if x is a c-string,
 // then type_of(x) returns `char[1][LEN(cstr)]` instead of `char**`
-// TODO: since hashmap and exponential_array both use this, this should be moved into migi_core
+// TODO: since hashmap, exponential_array, and search all use this, this should be moved into migi_core
 #define exarr__addr_of(T, x) ((type_of(T)[1]){x})
 
 

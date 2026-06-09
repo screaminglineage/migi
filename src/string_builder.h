@@ -21,25 +21,32 @@ static size_t sb_length(StrBuilder *sb);
 
 
 // Convenience function which allows pushing in any supported type
-// NOTE: sb_push_char cannot be handled this way since char and int are not differentiated by C
-#define sb_push(sb, elem)       \
-    _Generic((elem),            \
-        Str:      sb_push_str,  \
-        char *:   sb_push_cstr, \
-        float:    sb_push_f64,  \
-        double:   sb_push_f64,  \
-        int8_t:   sb_push_i64,  \
-        int16_t:  sb_push_i64,  \
-        int32_t:  sb_push_i64,  \
-        int64_t:  sb_push_i64,  \
-        uint8_t:  sb_push_u64,  \
-        uint16_t: sb_push_u64,  \
-        uint32_t: sb_push_u64,  \
-        uint64_t: sb_push_u64,  \
-        void *:   sb_push_ptr,  \
-        default:  sb_push_ptr   \
+// TODO: check if sb_push_bool and sb_push_char work on MSVC
+#define sb_push(sb, elem)                 \
+    _Generic((elem),                      \
+        Str:                sb_push_str,  \
+        char *:             sb_push_cstr, \
+        bool:               sb_push_bool, \
+        char:               sb_push_char, \
+        signed char:        sb_push_i64,  \
+        unsigned char:      sb_push_u64,  \
+        short:              sb_push_i64,  \
+        unsigned short:     sb_push_u64,  \
+        int:                sb_push_i64,  \
+        unsigned int:       sb_push_u64,  \
+        long:               sb_push_i64,  \
+        unsigned long:      sb_push_u64,  \
+        long long:          sb_push_i64,  \
+        unsigned long long: sb_push_u64,  \
+        float:              sb_push_f64,  \
+        double:             sb_push_f64,  \
+        void *:             sb_push_ptr,  \
+        default:            sb_push_ptr   \
     )((sb), (elem))
 
+
+
+static void sb_push_bool(StrBuilder *sb, bool to_push);
 static void sb_push_char(StrBuilder *sb, char to_push);
 static void sb_push_i64(StrBuilder *sb, int64_t to_push);
 static void sb_push_u64(StrBuilder *sb, uint64_t to_push);
@@ -156,6 +163,14 @@ static void sb_push_f64(StrBuilder *sb, double to_push) {
     }
 }
 
+static void sb_push_bool(StrBuilder *sb, bool to_push) {
+    if (to_push) {
+        sb_push_str(sb, S("true"));
+    } else {
+        sb_push_str(sb, S("false"));
+    }
+}
+
 static void sb_push_char(StrBuilder *sb, char to_push) {
     *arena_push(sb->arena, char, 1) = to_push;
 }
@@ -202,7 +217,7 @@ void sb_free(StrBuilder *sb) {
 
 static StrBuilder sb_from_string(Str string) {
     StrBuilder sb = {0};
-    sb_push(&sb, string);
+    sb_push_str(&sb, string);
     return sb;
 }
 
