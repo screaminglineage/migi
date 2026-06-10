@@ -1,12 +1,6 @@
 #include "migi.h"
 #include "migi_random.h"
 
-typedef enum {
-    Ordering_Eq =  0, // left == right
-    Ordering_Gt =  1, // left > right
-    Ordering_Lt = -1, // left < right
-} Ordering;
-
 typedef int (*BinSearchCompFn)(void *left, void *right, void *user_data);
 
 typedef struct {
@@ -62,35 +56,6 @@ static int compare_str(void *left, void *right, void *user_data);
 static int compare_cstr(void *left, void *right, void *user_data);
 static int compare_char(void *left, void *right, void *user_data);
 
-
-
-
-// TODO: can the logic be simplified further?
-// Since Ordering is an int, the value itself doesnt matter
-// TODO: move this into migi_string.h
-static int str_cmp(Str a, Str b, StrEqOpt flags) {
-    // Prevents using memcmp with NULL pointers
-    if ( a.data && !b.data)  return Ordering_Gt;
-    if (!a.data &&  b.data)  return Ordering_Lt;
-    if (!a.data && !b.data)  return Ordering_Eq;
-
-    // TODO: should this be called StrEq_IgnoreCase instead?
-    if (!(flags & Eq_IgnoreCase)) return memcmp(a.data, b.data, a.length);
-
-    for (size_t i = 0; i < min_of(a.length, b.length); i++) {
-        char a_char = char_to_lower(a.data[i]);
-        char b_char = char_to_lower(b.data[i]);
-        if (a_char > b_char) {
-            return Ordering_Gt;
-        } else if (a_char < b_char) {
-            return Ordering_Lt;
-        }
-    }
-
-    if (a.length > b.length) return Ordering_Gt;
-    if (a.length < b.length) return Ordering_Lt;
-    return Ordering_Eq;
-}
 
 
 static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size_t field_offset, void *key, SearchOpt opt) {

@@ -21,7 +21,7 @@
 // TODO: add string styling (camelcase/snakecase/etc. conversions)
 
 typedef struct {
-    const char *data;
+    char *data;
     size_t length;
 } Str;
 
@@ -52,6 +52,9 @@ typedef enum {
 static bool str_eq_ex(Str a, Str b, StrEqOpt flags);
 #define str_eq(a, b) str_eq_ex((a), (b), 0)
 static bool str_eq_cstr(Str a, const char *b, StrEqOpt flags);
+
+// Returns a negative number if a < b, a positive number if a > b, and 0 if equal
+static int str_cmp(Str a, Str b, StrEqOpt flags);
 
 // Check if string matches any element of an array
 // NOTE: __VA_ARGS__ cannot be empty in str_eq_any for msvc compatibility
@@ -91,7 +94,7 @@ typedef enum {
 
     // Treat needle as a sequence of chars, and 
     // return index of the first match of any of them
-    Find_AsChars         = bit(2),
+    Find_Any         = bit(2),
 } StrFindOpt;
 
 // Find `needle` within `haystack`
@@ -139,6 +142,8 @@ char char_to_lower(char ch);
 
 static Str str_to_lower(Arena *arena, Str str);
 static Str str_to_upper(Arena *arena, Str str);
+static Str str_to_lower_inline(Str *str);
+static Str str_to_upper_inline(Str *str);
 static Str str_reverse(Arena *arena, Str str);
 static Str str_replace(Arena *arena, Str str, Str find, Str replace_with);
 
@@ -156,7 +161,7 @@ typedef enum {
     // Splits up to the first occurrence of any of the characters of delimiter
     // Always returns the nearest match if multiple characters are found
     // Eg: str_split_chars_next("a+-b", "-+") will return "a", then "", and finally "b"
-    Cut_AsChars   = bit(1),
+    Cut_Any   = bit(1),
 } StrCutOpt;
 
 // Cuts string into `head` and `tail` by splitting at the first occurence of `cut_at`
@@ -194,7 +199,7 @@ static Str str_from_span(char *start, char *end) {
 
 static Str str_from_cstr(const char *cstr) {
     return (Str){
-        .data = cstr,
+        .data   = (char *)cstr,
         .length = (cstr == NULL)? 0: strlen(cstr)
     };
 }
@@ -249,6 +254,41 @@ static bool str_eq_ex(Str a, Str b, StrEqOpt flags) {
     return true;
 }
 
+// TODO: can the logic be simplified further?
+// Since Ordering is an int, the value itself doesnt matter
+static int str_cmp(Str a, Str b, StrEqOpt flags) {
+    // Prevents using memcmp with NULL pointers
+    if ( a.data && !b.data)  return Ordering_Gt;
+    if (!a.data &&  b.data)  return Ordering_Lt;
+    if (!a.data && !b.data)  return Ordering_Eq;
+
+    // TODO: should this be called StrEq_IgnoreCase instead?
+    if (!(flags & Eq_IgnoreCase)) {
+        if (a.length == b.length) return memcmp(a.data, b.data, a.length);
+    }
+
+    for (size_t i = 0; i < min_of(a.length, b.length); i++) {
+        char a_char, b_char;
+        if (flags & Eq_IgnoreCase) {
+            a_char = char_to_lower(a.data[i]);
+            b_char = char_to_lower(b.data[i]);
+        } else {
+            a_char = a.data[i];
+            b_char = b.data[i];
+        }
+
+        if (a_char > b_char) {
+            return Ordering_Gt;
+        } else if (a_char < b_char) {
+            return Ordering_Lt;
+        }
+    }
+
+    if (a.length > b.length) return Ordering_Gt;
+    if (a.length < b.length) return Ordering_Lt;
+    return Ordering_Eq;
+}
+
 static bool str_eq_cstr(Str a, const char *b, StrEqOpt flags) {
     return str_eq_ex(a, str_from_cstr(b), flags);
 }
@@ -274,12 +314,12 @@ static bool str__eq_ignore_case(const char *a, const char *b, size_t length) {
 static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
-    if (flags & Find_AsChars) {
+    if (flags & Find_Any) {
         int64_t first_match = INT64_MAX;
         int64_t last_match = INT64_MIN;
         for (size_t i = 0; i < needle.length; i++) {
             Str ch = (Str){.data = &needle.data[i], .length = 1};
-            int64_t index = str_find_ex(haystack, ch, flags & ~Find_AsChars);
+            int64_t index = str_find_ex(haystack, ch, flags & ~Find_Any);
             last_match = max_of(last_match, index);
             first_match = min_of(first_match, index);
         }
@@ -409,7 +449,7 @@ static Str str_trim(Str str) {
 static Str str_to_lower(Arena *arena, Str str) {
     char *lower = arena_push_nonzero(arena, char, str.length);
     for (size_t i = 0; i < str.length; i++) {
-        if (str.data[i] >= 'A' && str.data[i] <= 'Z') {
+        if (between(str.data[i], 'A', 'Z')) {
             lower[i] = str.data[i] + 32;
         } else {
             lower[i] = str.data[i];
@@ -421,7 +461,7 @@ static Str str_to_lower(Arena *arena, Str str) {
 static Str str_to_upper(Arena *arena, Str str) {
     char *upper = arena_push_nonzero(arena, char, str.length);
     for (size_t i = 0; i < str.length; i++) {
-        if (str.data[i] >= 'a' && str.data[i] <= 'z') {
+        if (between(str.data[i], 'a', 'z')) {
             upper[i] = str.data[i] - 32;
         } else {
             upper[i] = str.data[i];
@@ -429,6 +469,29 @@ static Str str_to_upper(Arena *arena, Str str) {
     }
     return (Str){upper, str.length};
 }
+
+static Str str_to_lower_inline(Str *str) {
+    for (size_t i = 0; i < str->length; i++) {
+        if (between(str->data[i], 'A', 'Z')) {
+            str->data[i] = str->data[i] + 32;
+        } else {
+            str->data[i] = str->data[i];
+        }
+    }
+    return *str;
+}
+
+static Str str_to_upper_inline(Str *str) {
+    for (size_t i = 0; i < str->length; i++) {
+        if (between(str->data[i], 'a', 'z')) {
+            str->data[i] = str->data[i] - 32;
+        } else {
+            str->data[i] = str->data[i];
+        }
+    }
+    return *str;
+}
+
 
 static Str str_reverse(Arena *arena, Str str) {
     char *reversed = arena_push_nonzero(arena, char, str.length);
@@ -484,8 +547,8 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags) {
     int64_t cut_index = 0;
     int64_t cut_length = 0;
 
-    if (flags & Cut_AsChars) {
-        cut_index = str_find_ex(str, cut_at, find_flags|Find_AsChars);
+    if (flags & Cut_Any) {
+        cut_index = str_find_ex(str, cut_at, find_flags|Find_Any);
         cut_length = 1;
     } else {
         cut_index = str_find_ex(str, cut_at, find_flags);

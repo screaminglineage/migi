@@ -117,15 +117,15 @@ void frequency_analysis() {
     printf("\n%s\n------------------------------------\n", __FUNCTION__);
     Arena *a = arena_init();
 
-    Str contents = str_from_file(a, S("shakespeare.txt"));
-    // read_file(&sb, S("gatsby.txt"));
-    // read_file(&sb, S("hashmap_test.txt"));
+    // Str contents = str_from_file(a, S("shakespeare.txt"));
+    Str contents = str_from_file(a, S("scratch/main.c"));
 
     MapStrInt map = {0};
     printf("Inserting items:\n");
     begin_profiling();
-    strcut_foreach(contents, S(" \n"), Cut_AsChars, it) {
-        Str key = str_to_lower(a, str_trim(it.split));
+    strcut_foreach(contents, S(" \n"), Cut_Any, it) {
+        Str key = str_trim(it.split);
+        str_to_lower_inline(&key);
         *hashmap_entry(a, &map, key) += 1;
     }
 

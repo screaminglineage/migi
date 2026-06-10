@@ -108,6 +108,14 @@ typedef uint8_t byte;
 // TODO: bit_fill(63) will overflow since it will try to do (1 << 64)
 #define bit_fill(n) (assertf(n < 63, "bit_fill: number must be lower than 63"), (1ULL << (n + 1ULL)) - 1ULL)
 
+
+typedef enum {
+    Ordering_Eq =  0, // left == right
+    Ordering_Gt =  1, // left > right
+    Ordering_Lt = -1, // left < right
+} Ordering;
+
+
 #define macro__concat(A, B) A ## B
 #define macro_concat(A, B) macro__concat(A, B)
 #define make_unique(a) macro_concat(a, __LINE__)
