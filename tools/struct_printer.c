@@ -288,14 +288,14 @@ int main(int argc, char *argv[]) {
     StrBuilder writer = sb_init();
 
     generate_string_printer(&writer);
-    Str filename_string = stringf(tmp.arena, "%s/String_printer.gen.c", output_dir);
+    Str filename_string = strf(tmp.arena, "%s/String_printer.gen.c", output_dir);
     sb_to_file(&writer, filename_string);
     printf("Generated printer for `Str`: `%.*s`\n", SArg(filename_string));
     sb_reset(&writer);
 
     array_foreach(&structs, StructDef, struct_def) {
         generate_struct_printer(&writer, *struct_def, DEFAULT_INDENT_LEVEL);
-        Str filename_struct = stringf(tmp.arena, "%s/%.*s_printer.gen.c", output_dir, SArg(struct_def->name));
+        Str filename_struct = strf(tmp.arena, "%s/%.*s_printer.gen.c", output_dir, SArg(struct_def->name));
         sb_to_file(&writer, filename_struct);
         printf("Generated printer for `%.*s`: `%.*s`\n",
                 SArg(struct_def->name), SArg(filename_struct));

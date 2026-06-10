@@ -52,12 +52,12 @@ int main() {
     root->name = S("root");
 
     for (size_t i = 0; i < 5; i++) {
-        push_child(a, root, stringf(a, "root-child-%zu", i));
+        push_child(a, root, strf(a, "root-child-%zu", i));
     }
 
     list_foreach(root->first_child, child) {
         for (size_t i = 0; i < 3; i++) {
-            push_child(a, child, stringf(a, "%.*s-child-%zu", SArg(child->name), i));
+            push_child(a, child, strf(a, "%.*s-child-%zu", SArg(child->name), i));
         }
     }
 

@@ -26,7 +26,6 @@
 // #define MIGI_DONT_AUTO_SEED_RNG
 #include "migi_random.h"
 
-// #define DYNAMIC_ARRAY_USE_ARENA
 #include "dynamic_array.h"
 
 #include "dynamic_string.h"
@@ -422,50 +421,6 @@ void test_random() {
     arena_temp_release(tmp);
 }
 
-void test_dynamic_array() {
-    Array(int) ints = {0};
-    Array(int) ints_new = {0};
-
-#ifdef DYNAMIC_ARRAY_USE_ARENA
-    Arena *a = arena_init();
-#endif
-
-#ifdef DYNAMIC_ARRAY_USE_ARENA
-    for (size_t i = 0; i < 100; i++) {
-        array_push(a, &ints, i);
-    }
-
-    array_reserve(a, &ints_new, 100);
-    for (size_t i = 0; i < 100; i++) {
-        array_push(a, &ints_new, 2 * i);
-    }
-    array_extend(a, &ints_new, &ints);
-#else
-    for (int i = 0; i < 100; i++) {
-        array_push(&ints, i);
-    }
-
-    array_reserve(&ints_new, 100);
-    for (int i = 0; i < 100; i++) {
-        array_push(&ints_new, 2 * i);
-    }
-    array_extend(&ints_new, &ints);
-#endif
-
-    array_swap_remove(&ints_new, 50);
-    printf("ints = %zu, new_ints = %zu\n", ints.length, ints_new.length);
-
-
-    array_foreach(&ints_new, int, i) {
-        printf("%d ", *i);
-    }
-#ifdef DYNAMIC_ARRAY_USE_ARENA
-    arena_free(a);
-#else
-    free(ints.data);
-    free(ints_new.data);
-#endif
-}
 
 void test_repetition_tester() {
     size_t size = 1 * MB;
@@ -1140,12 +1095,6 @@ void test_dynamic_deque() {
 }
 
 void test_smol_map() {
-    typedef struct {
-        int *data;
-        size_t length;
-        size_t capacity;
-    } Ints;
-
     Arena *arena = arena_init();
     SmolMap shm = {0};
 
@@ -1161,7 +1110,7 @@ void test_smol_map() {
         { S("557w49"), 132 },
     };
 
-    Ints values = {0};
+    Array(int) values = {0};
     array_push(&values, 0); // reserving the 0th index
     for (size_t i = 0; i < array_len(data); i++) {
         smol_lookup(arena, &shm, str_hash(data[i].a), values.length);
@@ -1169,10 +1118,10 @@ void test_smol_map() {
     }
 
     uint64_t x = 0;
-    x = values.data[smol_lookup(0, &shm, str_hash(S("World")), 0)];   assert (x == 123);
+    x = values.data[smol_lookup(0, &shm, str_hash(S("World")),  0)];  assert (x == 123);
     x = values.data[smol_lookup(0, &shm, str_hash(S("random")), 0)];  assert (x == 0);
-    x = values.data[smol_lookup(0, &shm, str_hash(S("Bar")), 0)];     assert (x == 124);
-    x = values.data[smol_lookup(0, &shm, str_hash(S("12345")), 0)];   assert (x == 99);
+    x = values.data[smol_lookup(0, &shm, str_hash(S("Bar")),    0)];  assert (x == 124);
+    x = values.data[smol_lookup(0, &shm, str_hash(S("12345")),  0)];  assert (x == 99);
 
     smol_lookup(arena, &shm, str_hash(S("World")), 1000);
     x = smol_lookup(0, &shm, str_hash(S("World")), 1000);
@@ -1512,7 +1461,6 @@ void test_ring_buffer() {
 
 int main() {
     Arena *a = arena_init();
-
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

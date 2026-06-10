@@ -115,7 +115,7 @@ Str filename_to_output_path(Arena *arena, Str filename, Str build_folder) {
     int64_t basename_start = str_find_ex(output_name, S("/"), Find_Reverse);
     output_name = str_skip(output_name, basename_start + 1);
 
-    return stringf(arena,"%.*s/%.*s", SArg(build_folder), SArg(output_name));
+    return strf(arena,"%.*s/%.*s", SArg(build_folder), SArg(output_name));
 }
 
 int main(int argc, char **argv) {

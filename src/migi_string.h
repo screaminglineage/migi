@@ -186,7 +186,7 @@ static uint64_t str_hash_fnv(Str string, uint64_t seed);
 static uint64_t str_hash(Str string);
 
 // Create formatted string on an arena
-migi_printf_format(2, 3) static Str stringf(Arena *arena, const char *fmt, ...);
+migi_printf_format(2, 3) static Str strf(Arena *arena, const char *fmt, ...);
 
 
 
@@ -609,7 +609,7 @@ static Str str__format(Arena *arena, const char *fmt, va_list args) {
     return (Str){ .data = mem, .length = actual - 1 };
 }
 
-migi_printf_format(2, 3) static Str stringf(Arena *arena, const char *fmt, ...) {
+migi_printf_format(2, 3) static Str strf(Arena *arena, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     Str result = str__format(arena, fmt, args);

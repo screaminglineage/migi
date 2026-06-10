@@ -5,7 +5,7 @@ Str file_type_str(Arena *a, DirIter entry) {
     if (!entry.is_dir && !entry.is_symlink && !entry.is_hidden) {
         return S("Regular");
     } else {
-        return stringf(a, "[%c%c%c]",
+        return strf(a, "[%c%c%c]",
             entry.is_dir? 'D': '_',
             entry.is_symlink? 'S': '_',
             entry.is_hidden? 'H': '_');

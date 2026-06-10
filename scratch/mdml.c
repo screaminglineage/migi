@@ -383,7 +383,7 @@ void html_render_md(StrBuilder *html, Str md) {
 
             if (space_before_heading) {
                 line = escape_html(tmp.arena, str_trim_left(line));
-                Str header_tag = stringf(tmp.arena, "h%d", header_count);
+                Str header_tag = strf(tmp.arena, "h%d", header_count);
                 html_push_tag_text(html, html_indent, header_tag, line);
             } else {
                 parse_as_plain_text = true;
@@ -394,7 +394,7 @@ void html_render_md(StrBuilder *html, Str md) {
 
             html_push_tag(html, html_indent, S("pre"));
             html_push_tag(html, html_indent + 1, S("code"), 
-                         .class=stringf(tmp.arena, "language-%.*s", SArg(lang)));
+                         .class=strf(tmp.arena, "language-%.*s", SArg(lang)));
             parsing_code_block = true;
 
         } else if (line_is_ul(line)) {

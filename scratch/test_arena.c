@@ -152,7 +152,7 @@ void test_arena_functions() {
 
 Str bar(Arena *a) {
     Temp tmp = arena_temp_excl(a);
-    Str foo = stringf(a, "hello world %d %f, %.*s\n", 123, 4.51, SArg(S("testing!!!")));
+    Str foo = strf(a, "hello world %d %f, %.*s\n", 123, 4.51, SArg(S("testing!!!")));
 
     int *temp = arena_push(tmp.arena, int, 64);
     for (int i = 0; i < 64; i++) {

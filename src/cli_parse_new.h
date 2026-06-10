@@ -613,7 +613,7 @@ static Str cli_help_text(Arena *arena, Cli *cli) {
     Temp tmp = arena_temp_excl(arena);
     Str help_text = {0};
 
-    help_text = str_cat(arena, help_text, stringf(tmp.arena, "usage: %.*s [OPTIONS]\n", SArg(cli->executable)));
+    help_text = str_cat(arena, help_text, strf(tmp.arena, "usage: %.*s [OPTIONS]\n", SArg(cli->executable)));
 
     if (cli->help.length > 0) {
         help_text = str_cat(arena, help_text, S("\n"));
@@ -627,9 +627,9 @@ static Str cli_help_text(Arena *arena, Cli *cli) {
             // TODO: improve the alignment of options and help
             help_text = str_cat(arena, help_text, S("  "));
             if (arg->alias.length != 0) {
-                help_text = str_cat(arena, help_text, stringf(tmp.arena, "-%.*s, ", SArg(arg->alias)));
+                help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s, ", SArg(arg->alias)));
             }
-            help_text = str_cat(arena, help_text, stringf(tmp.arena, "--%.*s      %.*s\n", SArg(arg->name), SArg(arg->help)));
+            help_text = str_cat(arena, help_text, strf(tmp.arena, "--%.*s      %.*s\n", SArg(arg->name), SArg(arg->help)));
         }
     }
     help_text = str_cat(arena, help_text, S("\n"));
