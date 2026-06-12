@@ -25,7 +25,7 @@ void test_dynamic_array() {
     assert(ints_new.data[50] == 99);
 
 
-    array_foreach(&ints_new, int, i) {
+    array_foreach(&ints_new, i) {
         printf("%d ", *i);
     }
 

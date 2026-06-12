@@ -125,7 +125,7 @@ void frequency_analysis() {
     begin_profiling();
     strcut_foreach(contents, S(" \n"), Cut_Any, it) {
         Str key = str_trim(it.split);
-        str_to_lower_inline(&key);
+        str_to_lower_inplace(&key);
         *hashmap_entry(a, &map, key) += 1;
     }
 

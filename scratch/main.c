@@ -711,8 +711,8 @@ void test_string() {
 
         Str s1 = str_copy(a, S("HELLO world!!!"));
         Str s2 = str_copy(a, S("FOO bar baz!"));
-        assert(str_eq(str_to_lower_inline(&s1), S("hello world!!!")));
-        assert(str_eq(str_to_upper_inline(&s2), S("FOO BAR BAZ!")));
+        assert(str_eq(str_to_lower_inplace(&s1), S("hello world!!!")));
+        assert(str_eq(str_to_upper_inplace(&s2), S("FOO BAR BAZ!")));
     }
 
     // str_cmp

@@ -142,8 +142,8 @@ char char_to_lower(char ch);
 
 static Str str_to_lower(Arena *arena, Str str);
 static Str str_to_upper(Arena *arena, Str str);
-static Str str_to_lower_inline(Str *str);
-static Str str_to_upper_inline(Str *str);
+static Str str_to_lower_inplace(Str *str);
+static Str str_to_upper_inplace(Str *str);
 static Str str_reverse(Arena *arena, Str str);
 static Str str_replace(Arena *arena, Str str, Str find, Str replace_with);
 
@@ -470,7 +470,7 @@ static Str str_to_upper(Arena *arena, Str str) {
     return (Str){upper, str.length};
 }
 
-static Str str_to_lower_inline(Str *str) {
+static Str str_to_lower_inplace(Str *str) {
     for (size_t i = 0; i < str->length; i++) {
         if (between(str->data[i], 'A', 'Z')) {
             str->data[i] = str->data[i] + 32;
@@ -481,7 +481,7 @@ static Str str_to_lower_inline(Str *str) {
     return *str;
 }
 
-static Str str_to_upper_inline(Str *str) {
+static Str str_to_upper_inplace(Str *str) {
     for (size_t i = 0; i < str->length; i++) {
         if (between(str->data[i], 'a', 'z')) {
             str->data[i] = str->data[i] - 32;
@@ -508,7 +508,7 @@ static Str str_replace(Arena *arena, Str str, Str find, Str replace_with) {
     char *replaced_at = replaced;
 
     if (find.length == 0) {
-        array_foreach(&str, const char, ch) {
+        array_foreach(&str, ch) {
             memcpy(replaced_at, replace_with.data, replace_with.length);
             replaced_at += replace_with.length;
             memcpy(replaced_at, ch, 1);

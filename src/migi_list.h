@@ -163,6 +163,7 @@ static Str strlist_pop(StrList *list);
 static Str strlist_to_string(Arena *a, StrList *list);
 static Str strlist_join(Arena *a, StrList *list, Str join_with);
 static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with);
+static void strlist_reset(StrList *list);
 
 typedef enum {
     // Skip empty strings
@@ -404,6 +405,10 @@ static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with)
     }
     list->total_size = total_size;
     list->length = length;
+}
+
+static void strlist_reset(StrList *list) {
+    mem_clear(list);
 }
 
 #endif // MIGI_LISTS_H

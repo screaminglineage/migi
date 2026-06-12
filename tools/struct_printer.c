@@ -293,7 +293,7 @@ int main(int argc, char *argv[]) {
     printf("Generated printer for `Str`: `%.*s`\n", SArg(filename_string));
     sb_reset(&writer);
 
-    array_foreach(&structs, StructDef, struct_def) {
+    array_foreach(&structs, struct_def) {
         generate_struct_printer(&writer, *struct_def, DEFAULT_INDENT_LEVEL);
         Str filename_struct = strf(tmp.arena, "%s/%.*s_printer.gen.c", output_dir, SArg(struct_def->name));
         sb_to_file(&writer, filename_struct);

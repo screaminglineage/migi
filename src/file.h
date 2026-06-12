@@ -5,6 +5,7 @@
 #include "migi_string.h"
 
 // TODO: split into file_win32 and file_posix rather than the #ifdef hell
+// TODO: complete the parts with todo()'s;
 
 #ifdef _WIN32
     typedef HANDLE File;
@@ -35,15 +36,56 @@ typedef struct {
     bool ok;
 } StrResult;
 
+static int64_t file_length(File file);
+static int64_t file_pos(File file);
+static bool file_set_pos(File file, size_t new_pos);
+
 // NOTE: These are lower level functions that do not log the error
 // Either use `str_from/to_file` instead or manually call `str_last_error`
-static StrResult file_read(Arena *arena, File file);
-static bool file_write(File file, Str str);
+static bool file_read(Arena *arena, File file, char *buffer, size_t length);
+static StrResult file_read_all(Arena *arena, File file);
+static bool file_write_all(File file, Str str);
+
 
 static Str str_from_file(Arena *arena, Str filepath);
 static bool str_to_file(Str string, Str filepath);
 
 
+
+static int64_t file_length(File file) {
+#ifdef _WIN32
+    DWORD size_high = 0;
+    DWORD size_low = GetFileSize(file, &size_high);
+    // TODO: check if GetFileSize can return an error
+    LARGE_INTEGER filesize = {
+        .LowPart = size_low,
+        .HighPart = size_high
+    };
+    return filesize.QuadPart;
+#else
+    off_t length = lseek(file, 0, SEEK_END);
+    if (length != -1) {
+        lseek(file, 0, SEEK_SET);
+    }
+    return length;
+#endif // ifdef _WIN32
+}
+
+static int64_t file_pos(File file) {
+#ifdef _WIN32
+    todof("get current file position");
+#else
+    return lseek(file, 0, SEEK_CUR);
+#endif // ifdef _WIN32
+}
+
+static bool file_set_pos(File file, size_t new_pos) {
+#ifdef _WIN32
+    todof("set file position");
+#else
+    return lseek(file, new_pos, SEEK_SET) != -1;
+#endif // ifdef _WIN32
+}
 
 
 
@@ -118,17 +160,16 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
     return file;
 }
 
-static StrResult file_read(Arena *arena, File file) {
+static bool file_read(Arena *arena, File file, char *buffer, size_t length) {
+    todof("read length bytes from file");
+}
+
+static StrResult file_read_all(Arena *arena, File file) {
     StrResult result = {0};
 #ifdef _WIN32
-    DWORD size_high = 0;
-    DWORD size_low = GetFileSize(file, &size_high);
-    LARGE_INTEGER filesize = {
-        .LowPart = size_low,
-        .HighPart = size_high
-    };
     // file position cannot be negative at this point
-    size_t length = filesize.QuadPart;
+    // TODO: check if GetFileSize can return an error which is negative
+    int64_t length = file_length(file);
     char *buf = arena_push(arena, char, length);
 
     char *buf_start = buf;
@@ -142,11 +183,10 @@ static StrResult file_read(Arena *arena, File file) {
         buf += n;
     }
 #else
-    off_t length = lseek(file, 0, SEEK_END);
+    int64_t length = file_length(file);
     if (length == -1) {
         return result;
     }
-    lseek(file, 0, SEEK_SET);
 
     // file position cannot be negative at this point
     char *buf = arena_push(arena, char, length);
@@ -171,7 +211,7 @@ static StrResult file_read(Arena *arena, File file) {
 }
 
 
-static bool file_write(File file, Str str) {
+static bool file_write_all(File file, Str str) {
 #ifdef _WIN32
     while (str.length > 0) {
         DWORD n = 0;
@@ -246,7 +286,7 @@ static Str str_from_file(Arena *arena, Str filepath) {
         return str;
     }
 
-    StrResult result = file_read(arena, file);
+    StrResult result = file_read_all(arena, file);
     if (!result.ok) {
         migi_log(Log_Error, "failed to read from file `%.*s`: %.*s",
                 SArg(filepath), SArg(str_last_error(tmp.arena)));
@@ -267,7 +307,7 @@ static bool str_to_file(Str string, Str filepath) {
         return false;
     }
 
-    bool ok = file_write(file, string);
+    bool ok = file_write_all(file, string);
     if (!ok) {
         migi_log(Log_Error, "failed to write to file `%.*s`: %.*s", 
                 SArg(filepath), SArg(str_last_error(tmp.arena)));

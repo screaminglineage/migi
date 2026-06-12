@@ -167,18 +167,18 @@ do {                    \
 #define array_len(array) (sizeof(array) / sizeof(*(array)))
 
 // Creates a Slice (any struct with a data and length) from an 
-// array designated initializer and allocate the data on an arena
-#define slice_new(arena, type, slice, ...)                                                                     \
-    (slice){                                                                                                   \
-        .data = arena_copy_bytes(arena, (type[]){__VA_ARGS__}, sizeof((type[]){__VA_ARGS__}), align_of(type)), \
-        .length = sizeof((type[]){__VA_ARGS__}) / sizeof(type),                                                \
+// array designated initializer and allocates the data on an arena
+#define slice_new(arena, T, SliceT, ...)                                                              \
+    (SliceT){                                                                                         \
+        .data = arena_copy_bytes(arena, (T[]){__VA_ARGS__}, sizeof((T[]){__VA_ARGS__}), align_of(T)), \
+        .length = sizeof((T[]){__VA_ARGS__}) / sizeof(T),                                             \
     }
 
 // Creates a Slice (any struct with a data and length) from an array designated initializer
-#define slice_from(type, slice, ...)                            \
-    (slice){                                                    \
-        .data = (type[]){__VA_ARGS__},                          \
-        .length = sizeof((type[]){__VA_ARGS__}) / sizeof(type), \
+#define slice_from(T, SliceT, ...)                        \
+    (SliceT){                                             \
+        .data = (T[]){__VA_ARGS__},                       \
+        .length = sizeof((T[]){__VA_ARGS__}) / sizeof(T), \
     }
 
 // Print an array with a pointer and a length. The printf
@@ -223,11 +223,11 @@ do {                                                \
 
 
 // Iterate over a dynamic array *by reference*
-// Should be used like array_foreach(&array, int, i) { ... }
+// Should be used like array_foreach(&array, i) { ... }
 // NOTE: Get the current index using `item - array->data`
-#define array_foreach(array, type, item)        \
-    for (type *(item) = (array)->data;          \
-        item < (array)->data + (array)->length; \
+#define array_foreach(array, item)                      \
+    for (type_of((array)->data) (item) = (array)->data; \
+        item < (array)->data + (array)->length;         \
         item++)
 
 
