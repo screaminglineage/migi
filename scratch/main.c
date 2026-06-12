@@ -39,6 +39,7 @@
 
 #include "file.h"
 
+
 #ifdef __GNUC__
     #pragma GCC diagnostic pop
 #endif
@@ -230,7 +231,7 @@ void test_string_builder_formatted() {
         sb_pushf(&sb1, "\nhello world! %d, %.*s, %f\n", 12, SArg(S("more stuff")), 3.14);
         sb_pushf(&sb1, "abcd efgh 12345678 %x\n", 0xdeadbeef);
 
-        Str str = sb_to_string(&sb1);
+        Str str = sb_to_str(&sb1);
         printf("%.*s\n", SArg(str));
         sb_free(&sb1);
     }
@@ -241,7 +242,7 @@ void test_string_builder_formatted() {
     const char *cstr = str_to_cstr(a, str);
 
     sb_pushf(&sb, "%s\n", cstr);
-    printf("%s", sb_to_cstr(&sb));
+    printf("%s", sb_to_cstr(&sb, .no_reset=true));
     assert(sb_length(&sb) == 67 + 67 + str.length + 1);
 
     {
@@ -249,7 +250,7 @@ void test_string_builder_formatted() {
         char buffer[2048] = {0};
         StrBuilder sb_static = sb_init_static(buffer, sizeof(buffer));
         sb_pushf(&sb_static, "%.*s/%s:%d\n", SArg(S("FILE PATH")), __FILE__, __LINE__);
-        printf("%.*s", SArg(sb_to_string(&sb_static)));
+        printf("%.*s", SArg(sb_to_str(&sb_static)));
     }
 }
 
@@ -272,7 +273,7 @@ void test_string_builder() {
         sb_push(&sb, " ");
         sb_push(&sb, &sb);
 
-        printf("%s\n", sb_to_cstr(&sb));
+        printf("%s\n", sb_to_cstr(&sb, .no_reset=true));
         printf("len: %zu\n", sb_length(&sb));
     }
     printf("len: %zu\n", sb_length(&sb));
@@ -450,6 +451,11 @@ typedef struct {
     StrList actual;
 } StringSplitTest;
 
+#define assert_str_eq(left, right)                                                                                           \
+    (!str_eq((left), (right))                                                                                                \
+        ? crash_with_message("assertion `left == right` failed: left: '%.*s', right: '%.*s'", SArg((left)), SArg((right))) \
+        : (void)0)
+
 static void assert_str_split(StringSplitTest t) {
     size_t count = 0;
     size_t char_count = 0;
@@ -459,8 +465,7 @@ static void assert_str_split(StringSplitTest t) {
             Str actual = node->string;
 
             assert(count < t.expected.length);
-            assertf(str_eq(actual, expected), "expected: `%.*s,` got: `%.*s`",
-                    SArg(expected), SArg(actual));
+            assert_str_eq(actual, expected);
             count++;
             char_count += actual.length;
         }
@@ -468,7 +473,6 @@ static void assert_str_split(StringSplitTest t) {
     assertf(count == t.expected.length, "expected length: %zu, actual length: %zu", t.expected.length, count);
     assert(char_count == t.actual.total_size);
 }
-
 
 void test_str_split_and_join() {
     Arena *a = arena_init();
@@ -522,14 +526,14 @@ void test_str_split_and_join() {
 
     StrList list = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any|Split_SkipEmpty);
     Str expected = strlist_join(a, &list, S("-"));
-    assert(str_eq(expected, S("2020-11-03-23-59")));
+    assert_str_eq(expected, S("2020-11-03-23-59"));
 
     list = str_split(a, S("--foo--bar--baz--"), S("--"));
     expected = strlist_join(a, &list, S("=="));
-    assert(str_eq(expected, S("==foo==bar==baz==")));
+    assert_str_eq(expected, S("==foo==bar==baz=="));
 
     expected = strlist_join(a, &list, S(""));
-    assert(str_eq(expected, S("foobarbaz")));
+    assert_str_eq(expected, S("foobarbaz"));
 }
 
 
@@ -554,8 +558,8 @@ void test_strlist_replace() {
         l = strlist_from_str(a, s);
         strlist_replace(a, &l, S("a"), S("i"));
         assert(l.length == 5);
-        s = strlist_to_string(a, &l);
-        assert(str_eq(s, S("foo bir biz")));
+        s = strlist_to_str(a, &l);
+        assert_str_eq(s, S("foo bir biz"));
     }
 
     {
@@ -563,8 +567,8 @@ void test_strlist_replace() {
         l = strlist_from_str(a, s);
         strlist_replace(a, &l, S("sentence"), S("paragraph!!"));
         assert(l.length == 2);
-        s = strlist_to_string(a, &l);
-        assert(str_eq(s, S("This is an interesting paragraph!!")));
+        s = strlist_to_str(a, &l);
+        assert_str_eq(s, S("This is an interesting paragraph!!"));
     }
 
     {
@@ -572,8 +576,8 @@ void test_strlist_replace() {
         l = strlist_from_str(a, s);
         strlist_replace(a, &l, S("an interesting"), S("a boring"));
         assert(l.length == 3);
-        s = strlist_to_string(a, &l);
-        assert(str_eq(s, S("This is a boring sentence")));
+        s = strlist_to_str(a, &l);
+        assert_str_eq(s, S("This is a boring sentence"));
     }
 
     {
@@ -581,8 +585,8 @@ void test_strlist_replace() {
         l = str_split(a, s, S(" "));
         strlist_replace(a, &l, S("world"), S("warudo"));
         assert(l.length == 2);
-        s = strlist_to_string(a, &l);
-        assert(str_eq(s, S("hellowarudo")));
+        s = strlist_to_str(a, &l);
+        assert_str_eq(s, S("hellowarudo"));
     }
 
     {
@@ -594,7 +598,7 @@ void test_strlist_replace() {
         strlist_replace(a, &l, S("h"), S("H")); assert(l.length == 8);
 
         s = strlist_join(a, &l, S("-"));
-        assert(str_eq(s, S("A-b-c-d-E-f-G-H")));
+        assert_str_eq(s, S("A-b-c-d-E-f-G-H"));
     }
 
     {
@@ -603,7 +607,7 @@ void test_strlist_replace() {
         strlist_replace(a, &l, S("a"), S("A")); assert(l.length == 16);
         strlist_replace(a, &l, S("l"), S("L")); assert(l.length == 22);
         s = strlist_join(a, &l, S("_"));
-        assert(str_eq(s, S("j_A_ck_A_L_c_A_me_L_A_rm_A_di_L_L_o_A_L_L_ig_A_tor")));
+        assert_str_eq(s, S("j_A_ck_A_L_c_A_me_L_A_rm_A_di_L_L_o_A_L_L_ig_A_tor"));
     }
     arena_temp_release(t);
 }
@@ -627,7 +631,7 @@ void test_strlist() {
     strlist_pushf(a, &sl,
                   "%s:%d:%s: %.15f ... and more stuff... blah blah blah",
                   __FILE__, __LINE__, __func__, PI);
-    Str final_str = strlist_to_string(a, &sl);
+    Str final_str = strlist_to_str(a, &sl);
     printf("%.*s", SArg(final_str));
 
 
@@ -677,6 +681,8 @@ bool skip_nums(char ch, void *data) {
     return between(ch, '0', '9');
 }
 
+
+
 void test_string() {
     Temp tmp = arena_temp();
     Arena *a = tmp.arena;
@@ -684,19 +690,19 @@ void test_string() {
 
     // str_eq
     {
-        assert(str_eq(S("abcd"), S("abcd")));
-        assert(str_eq(S(""), S("")));
-        assert(str_eq((Str){0}, (Str){0}));
+        assert_str_eq(S("abcd"), S("abcd"));
+        assert_str_eq(S(""), S(""));
+        assert_str_eq((Str){0}, (Str){0});
 
         assert(str_eq_cstr((Str){0}, "", 0));
         assert(str_eq_cstr((Str){0}, "", 0));
         assert(str_eq_cstr(S("yes!!"), "yes!!", 0));
 
-        assert(str_eq(str_skip(S("1234"), 5), (Str){0}));
-        assert(str_eq((Str){0}, str_skip(S("4567"), 5)));
-        assert(str_eq(str_skip(S("1234"), 5), str_skip(S("4567"), 5)));
-        assert(str_eq(str_take(S("hello"), 0), str_take(S("world"), 0)));
-        assert(str_eq(str_slice(S("hello"), 2, 2), str_slice(S("world"), 2, 2)));
+        assert_str_eq(str_skip(S("1234"), 5), (Str){0});
+        assert_str_eq((Str){0}, str_skip(S("4567"), 5));
+        assert_str_eq(str_skip(S("1234"), 5), str_skip(S("4567"), 5));
+        assert_str_eq(str_take(S("hello"), 0), str_take(S("world"), 0));
+        assert_str_eq(str_slice(S("hello"), 2, 2), str_slice(S("world"), 2, 2));
 
         assert(str_eq_ex(S("STRING"), S("sTRinG"), Eq_IgnoreCase));
         assert(!str_eq_ex(S("foo"),   S("bar"),    Eq_IgnoreCase));
@@ -706,13 +712,13 @@ void test_string() {
 
     // upper/lower
     {
-        assert(str_eq(str_to_lower(a, S("HELLO world!!!")), S("hello world!!!")));
-        assert(str_eq(str_to_upper(a, S("FOO bar baz!")),   S("FOO BAR BAZ!")));
+        assert_str_eq(str_to_lower(a, S("HELLO world!!!")), S("hello world!!!"));
+        assert_str_eq(str_to_upper(a, S("FOO bar baz!")),   S("FOO BAR BAZ!"));
 
         Str s1 = str_copy(a, S("HELLO world!!!"));
         Str s2 = str_copy(a, S("FOO bar baz!"));
-        assert(str_eq(str_to_lower_inplace(&s1), S("hello world!!!")));
-        assert(str_eq(str_to_upper_inplace(&s2), S("FOO BAR BAZ!")));
+        assert_str_eq(str_to_lower_inplace(&s1), S("hello world!!!"));
+        assert_str_eq(str_to_upper_inplace(&s2), S("FOO BAR BAZ!"));
     }
 
     // str_cmp
@@ -741,26 +747,26 @@ void test_string() {
 
     // str_skip_while
     {
-        assert(str_eq(str_skip_while(S("1234abcd"),  skip_nums, NULL, 0),                 S("abcd")));
-        assert(str_eq(str_skip_while(S("1234abcd"),  skip_nums, NULL, SkipWhile_Reverse), S("1234abcd")));
-        assert(str_eq(str_skip_while(S("foo90"),     skip_nums, NULL, SkipWhile_Reverse), S("foo")));
-        assert(str_eq(str_skip_while(S("foo90"),     skip_nums, NULL, 0),                 S("foo90")));
-        assert(str_eq(str_skip_while(S(""),          skip_nums, NULL, 0),                 S("")));
-        assert(str_eq(str_skip_chars(S("abcd"),      S("abd"), 0),                       S("cd")));
-        assert(str_eq(str_skip_chars(S("abcd"),      S("da"), SkipWhile_Reverse),        S("abc")));
+        assert_str_eq(str_skip_while(S("1234abcd"),  skip_nums, NULL, 0),                 S("abcd"));
+        assert_str_eq(str_skip_while(S("1234abcd"),  skip_nums, NULL, SkipWhile_Reverse), S("1234abcd"));
+        assert_str_eq(str_skip_while(S("foo90"),     skip_nums, NULL, SkipWhile_Reverse), S("foo"));
+        assert_str_eq(str_skip_while(S("foo90"),     skip_nums, NULL, 0),                 S("foo90"));
+        assert_str_eq(str_skip_while(S(""),          skip_nums, NULL, 0),                 S(""));
+        assert_str_eq(str_skip_chars(S("abcd"),      S("abd"), 0),                       S("cd"));
+        assert_str_eq(str_skip_chars(S("abcd"),      S("da"), SkipWhile_Reverse),        S("abc"));
     }
 
     // str_trim
     {
         Str str = S("\n    hello       \n");
-        assert(str_eq(str_trim_right(str),       S("\n    hello")));
-        assert(str_eq(str_trim_left(str),        S("hello       \n")));
-        assert(str_eq(str_trim(str),             S("hello")));
-        assert(str_eq(str_trim(S("foo")),       S("foo")));
-        assert(str_eq(str_trim(S("\t\r\nfoo")), S("foo")));
-        assert(str_eq(str_trim(S("foo\r\n\t")), S("foo")));
-        assert(str_eq(str_trim(S(" \r\n\t")),   S("")));
-        assert(str_eq(str_trim(S("")),          S("")));
+        assert_str_eq(str_trim_right(str),       S("\n    hello"));
+        assert_str_eq(str_trim_left(str),        S("hello       \n"));
+        assert_str_eq(str_trim(str),             S("hello"));
+        assert_str_eq(str_trim(S("foo")),       S("foo"));
+        assert_str_eq(str_trim(S("\t\r\nfoo")), S("foo"));
+        assert_str_eq(str_trim(S("foo\r\n\t")), S("foo"));
+        assert_str_eq(str_trim(S(" \r\n\t")),   S(""));
+        assert_str_eq(str_trim(S("")),          S(""));
     }
 
     // str_find
@@ -840,38 +846,48 @@ void test_string() {
 
     // str_slice
     {
-        assert(str_eq(str_slice(S("hello"), 0, 5), S("hello")));
-        assert(str_eq(str_slice(S("hello"), 0, 2), S("he")));
-        assert(str_eq(str_slice(S("hello"), 2, 5), S("llo")));
-        assert(str_eq(str_slice(S("hello"), 1, 4), S("ell")));
-        assert(str_eq(str_slice(S("abc"), 0, 0), S("")));
-        assert(str_eq(str_slice(S("abc"), 1, 1), S("")));
-        assert(str_eq(str_slice(S("abc"), 4, 4), S("")));
-        assert(str_eq(str_slice(S("abc"), 5, 5), S("")));
-        assert(str_eq(str_slice(S(""), 0, 0), S("")));
-        assert(str_eq(str_slice(S(""), 1, 2), S("")));
+        assert_str_eq(str_slice(S("hello"), 0, 5), S("hello"));
+        assert_str_eq(str_slice(S("hello"), 0, 2), S("he"));
+        assert_str_eq(str_slice(S("hello"), 2, 5), S("llo"));
+        assert_str_eq(str_slice(S("hello"), 1, 4), S("ell"));
+        assert_str_eq(str_slice(S("abc"), 0, 0), S(""));
+        assert_str_eq(str_slice(S("abc"), 1, 1), S(""));
+        assert_str_eq(str_slice(S("abc"), 4, 4), S(""));
+        assert_str_eq(str_slice(S("abc"), 5, 5), S(""));
+        assert_str_eq(str_slice(S(""), 0, 0), S(""));
+        assert_str_eq(str_slice(S(""), 1, 2), S(""));
     }
 
     // str_skip
     {
-        assert(str_eq(str_skip(S("hello"), 0), S("hello")));
-        assert(str_eq(str_skip(S("hello"), 3), S("lo")));
-        assert(str_eq(str_skip(S("hello"), 1), S("ello")));
-        assert(str_eq(str_skip(S("hello"), 5), S("")));
-        assert(str_eq(str_skip(S("hello"), 10), S("")));
-        assert(str_eq(str_skip(S(""), 0), S("")));
-        assert(str_eq(str_skip(S(""), 1), S("")));
+        assert_str_eq(str_skip(S("hello"), 0), S("hello"));
+        assert_str_eq(str_skip(S("hello"), 3), S("lo"));
+        assert_str_eq(str_skip(S("hello"), 1), S("ello"));
+        assert_str_eq(str_skip(S("hello"), 5), S(""));
+        assert_str_eq(str_skip(S("hello"), 10), S(""));
+        assert_str_eq(str_skip(S(""), 0), S(""));
+        assert_str_eq(str_skip(S(""), 1), S(""));
     }
 
     // str_take
     {
-        assert(str_eq(str_take(S("hello"), 0), S("")));
-        assert(str_eq(str_take(S("hello"), 3), S("hel")));
-        assert(str_eq(str_take(S("hello"), 1), S("h")));
-        assert(str_eq(str_take(S("hello"), 5), S("hello")));
-        assert(str_eq(str_take(S("hello"), 10), S("hello")));
-        assert(str_eq(str_take(S(""), 0), S("")));
-        assert(str_eq(str_take(S(""), 1), S("")));
+        assert_str_eq(str_take(S("hello"), 0), S(""));
+        assert_str_eq(str_take(S("hello"), 3), S("hel"));
+        assert_str_eq(str_take(S("hello"), 1), S("h"));
+        assert_str_eq(str_take(S("hello"), 5), S("hello"));
+        assert_str_eq(str_take(S("hello"), 10), S("hello"));
+        assert_str_eq(str_take(S(""), 0), S(""));
+        assert_str_eq(str_take(S(""), 1), S(""));
+    }
+
+    // str_advance
+    {
+        Str s = S("hello world!!");
+        assert_str_eq(str_advance(&s, 5), S("hello"));
+        assert_str_eq(s, S(" world!!"));
+
+        assert_str_eq(str_advance(&s, 100), S(" world!!"));
+        assert_str_eq(s, S(""));
     }
 
     // str_find_rev
@@ -893,22 +909,22 @@ void test_string() {
 
     // str_reverse
     {
-        assert(str_eq(str_reverse(a, S("")), S("")));
-        assert(str_eq(str_reverse(a, S("hello world")), S("dlrow olleh")));
+        assert_str_eq(str_reverse(a, S("")), S(""));
+        assert_str_eq(str_reverse(a, S("hello world")), S("dlrow olleh"));
     }
 
     // str_replace
     {
-        assert(str_eq(str_replace(a, S(""),              S(""),      S("")),     S("")));
-        assert(str_eq(str_replace(a, S("foo"),           S(""),      S("bar")),  S("barfbarobarobar")));
-        assert(str_eq(str_replace(a, S("foo"),           S("bar"),   S("")),     S("foo")));
-        assert(str_eq(str_replace(a, S("foo"),           S("foo"),   S("")),     S("")));
-        assert(str_eq(str_replace(a, S("hello world!!"), S("ll"),    S("yy")),   S("heyyo world!!")));
-        assert(str_eq(str_replace(a, S("aaa"),           S("a"),     S("bar")),  S("barbarbar")));
-        assert(str_eq(str_replace(a, S("hello world"),   S("l"),     S("x")),    S("hexxo worxd")));
-        assert(str_eq(str_replace(a, S("start starry starred restart started"),
+        assert_str_eq(str_replace(a, S(""),              S(""),      S("")),     S(""));
+        assert_str_eq(str_replace(a, S("foo"),           S(""),      S("bar")),  S("barfbarobarobar"));
+        assert_str_eq(str_replace(a, S("foo"),           S("bar"),   S("")),     S("foo"));
+        assert_str_eq(str_replace(a, S("foo"),           S("foo"),   S("")),     S(""));
+        assert_str_eq(str_replace(a, S("hello world!!"), S("ll"),    S("yy")),   S("heyyo world!!"));
+        assert_str_eq(str_replace(a, S("aaa"),           S("a"),     S("bar")),  S("barbarbar"));
+        assert_str_eq(str_replace(a, S("hello world"),   S("l"),     S("x")),    S("hexxo worxd"));
+        assert_str_eq(str_replace(a, S("start starry starred restart started"),
                                                                  S("start"), S("part")),
-                                                                                           S("part starry starred repart parted")));
+                                                                                           S("part starry starred repart parted"));
     }
 
     // str_cat
@@ -919,22 +935,22 @@ void test_string() {
         s = str_cat(a, s, S(" baz"));
         s = str_cat(a, s, S(" bing"));
         s = str_cat(a, s, S(" buzz"));
-        assert(str_eq(s, S("foo bar baz bing buzz")));
+        assert_str_eq(s, S("foo bar baz bing buzz"));
 
         Str s0 = S("abcd");
         Str s1 = str_cat(a, s0, S("-efgh"));
         Str s2 = str_cat(a, s1, S("-ijkl"));
         Str s3 = str_cat(a, s2, S("-mnop"));
         Str s4 = str_cat(a, s3, S("-qrst"));
-        assert(str_eq(s4, S("abcd-efgh-ijkl-mnop-qrst")));
+        assert_str_eq(s4, S("abcd-efgh-ijkl-mnop-qrst"));
         assertf(s1.data == s4.data, "allocation was done in place");
 
         Str s5 = str_cat(a, S("hello"), S(" world"));
-        assert(str_eq(s5, S("hello world")));
+        assert_str_eq(s5, S("hello world"));
         Str s6 = str_copy(a, S("different string"));
         unused(s6);
         Str s7 = str_cat(a, s5, S("!!!"));
-        assert(str_eq(s7, S("hello world!!!")));
+        assert_str_eq(s7, S("hello world!!!"));
         assertf(s5.data != s7.data, "allocation was not done in place due to an extra allocation in between");
     }
 
@@ -999,15 +1015,15 @@ void test_string() {
                 Str delims = S("-+");
                 StrCut cut = str_cut_ex(c, delims, Cut_Any);
                 assert(cut.found);
-                assert(str_eq(cut.head, S("a")));
+                assert_str_eq(cut.head, S("a"));
 
                 cut = str_cut_ex(cut.tail, delims, Cut_Any);
                 assert(cut.found);
-                assert(str_eq(cut.head, S("")));
+                assert_str_eq(cut.head, S(""));
 
                 cut = str_cut_ex(cut.tail, delims, Cut_Any);
                 assert(!cut.found);
-                assert(str_eq(cut.head, S("b")));
+                assert_str_eq(cut.head, S("b"));
             }
         }
     }
@@ -1344,38 +1360,38 @@ void test_filepath() {
 
     path = S("");
     c = path_cannonicalize(tmp.arena, path, S("/"));
-    assert(str_eq(c, S("")));
+    assert_str_eq(c, S(""));
 
     path = S("/");
     c = path_cannonicalize(tmp.arena, path, S("/"));
-    assert(str_eq(c, S("/")));
+    assert_str_eq(c, S("/"));
 
     path = S("C:\\");
     c = path_cannonicalize(tmp.arena, path, S("\\"));
-    assert(str_eq(c, S("C:\\")));
+    assert_str_eq(c, S("C:\\"));
 
     path = S("/home/aditya//Programming//../../../.././root");
     c = path_cannonicalize(tmp.arena, path, S("/"));
-    assert(str_eq(c, S("/root")));
+    assert_str_eq(c, S("/root"));
 
     path = S("C:\\home\\aditya\\\\Programming\\\\..\\..\\..\\..\\.\\Windows");
     c = path_cannonicalize(tmp.arena, path, S("\\"));
-    assert(str_eq(c, S("C:\\Windows")));
+    assert_str_eq(c, S("C:\\Windows"));
 
     path = S("file:///foo/bar/baz/");
     c = path_cannonicalize(tmp.arena, path, S("/"));
-    assert(str_eq(c, S("file:///foo/bar/baz/")));
+    assert_str_eq(c, S("file:///foo/bar/baz/"));
 
     path = S("/a/b/c/../../../..");
     c = path_cannonicalize(tmp.arena, path, S("/"));
-    assert(str_eq(c, S("/")));
+    assert_str_eq(c, S("/"));
 
     path = S("/home");
     path = path_push(tmp.arena, path, S("/"), S("aditya"));
     path = path_push(tmp.arena, path, S("/"), S("Programming"));
     path = path_push(tmp.arena, path, S("/"), S("C"));
     path = path_push(tmp.arena, path, S("/"), S("migi"));
-    assert(str_eq(path, S("/home/aditya/Programming/C/migi")));
+    assert_str_eq(path, S("/home/aditya/Programming/C/migi"));
 
     arena_temp_release(tmp);
 }
@@ -1459,8 +1475,10 @@ void test_ring_buffer() {
 }
 
 
+
 int main() {
     Arena *a = arena_init();
+
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

@@ -59,8 +59,18 @@ static void sb_push_file(StrBuilder *sb, Str filename);
 migi_printf_format(2, 3) static void sb_pushf(StrBuilder *sb, const char *fmt, ...);
 
 static StrBuilder sb_from_string(Str string);
-static Str sb_to_string(StrBuilder *sb);
-static bool sb_to_file(StrBuilder *sb, Str filename);
+
+typedef struct {
+    bool no_reset;  // reset the string builder
+} StrBuilderOpt;
+
+static Str sb_to_str_opt(StrBuilder *sb, StrBuilderOpt opt);
+static const char *sb_to_cstr_opt(StrBuilder *sb, StrBuilderOpt opt);
+static bool sb_to_file_opt(StrBuilder *sb, Str filename, StrBuilderOpt opt);
+
+#define sb_to_str(sb, ...)             sb_to_str_opt((sb), (StrBuilderOpt){__VA_ARGS__})
+#define sb_to_cstr(sb, ...)           sb_to_cstr_opt((sb), (StrBuilderOpt){__VA_ARGS__})
+#define sb_to_file(sb, filename, ...) sb_to_file_opt((sb), (filename), (StrBuilderOpt){__VA_ARGS__})
 
 void sb_reset(StrBuilder *sb);
 void sb_free(StrBuilder *sb);
@@ -221,24 +231,27 @@ static StrBuilder sb_from_string(Str string) {
     return sb;
 }
 
-static Str sb_to_string(StrBuilder *sb) {
-    return (Str){
+static Str sb_to_str_opt(StrBuilder *sb, StrBuilderOpt opt) {
+    Str str = {
         .data = (char *)sb->arena->data,
         .length = sb_length(sb)
     };
+    if (!opt.no_reset) sb_reset(sb);
+    return str;
 }
 
 // NOTE: The cstring returned from this function is not separately allocated
 // and is destroyed after a subsequent push onto the string builder
-static const char *sb_to_cstr(StrBuilder *sb) {
+static const char *sb_to_cstr_opt(StrBuilder *sb, StrBuilderOpt opt) {
     sb_push_char(sb, 0);
     const char *cstr = (const char *)sb->arena->data;
     arena_pop(sb->arena, char, 1);
+    if (!opt.no_reset) sb_reset(sb);
     return cstr;
 }
 
-static bool sb_to_file(StrBuilder *sb, Str filename) {
-    return str_to_file(sb_to_string(sb), filename);
+static bool sb_to_file_opt(StrBuilder *sb, Str filename, StrBuilderOpt opt) {
+    return str_to_file(sb_to_str_opt(sb, opt), filename);
 }
 
 #endif // MIGI_STRING_BUILDER_H

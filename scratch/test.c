@@ -132,7 +132,7 @@ bool rack_dump(Rack *rack, Str filepath) {
         rack__dump_node(tmp.arena, &list, pair->value);
     }
 
-    bool res = str_to_file(strlist_to_string(tmp.arena, &list), filepath);
+    bool res = str_to_file(strlist_to_str(tmp.arena, &list), filepath);
     arena_temp_release(tmp);
     return res;
 }

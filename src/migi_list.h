@@ -160,7 +160,7 @@ static Str strlist_pop(StrList *list);
 
 #define strlist_foreach(strlist, node) list_foreach((strlist)->head, (node))
 
-static Str strlist_to_string(Arena *a, StrList *list);
+static Str strlist_to_str(Arena *a, StrList *list);
 static Str strlist_join(Arena *a, StrList *list, Str join_with);
 static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with);
 static void strlist_reset(StrList *list);
@@ -259,7 +259,8 @@ static void strlist_pushf(Arena *a, StrList *list, const char *fmt, ...) {
     strlist_push(a, list, string);
 }
 
-static Str strlist_to_string(Arena *a, StrList *list) {
+// TODO: reset the strlist afterwards
+static Str strlist_to_str(Arena *a, StrList *list) {
     char *mem = arena_push_nonzero(a, char, list->total_size);
     char *dest = mem;
     for (StrNode *node = list->head; node != NULL; node = node->next) {

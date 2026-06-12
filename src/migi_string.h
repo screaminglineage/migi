@@ -18,8 +18,6 @@
 #include <unistd.h>
 #endif // ifdef _WIN32
 
-// TODO: add string styling (camelcase/snakecase/etc. conversions)
-
 typedef struct {
     char *data;
     size_t length;
@@ -87,6 +85,12 @@ static Str str_drop(Str str, size_t amount);
 static Str str_lift(Str str, size_t amount);
 
 
+// Advance `str` by `amount` characters.
+// Returns the cut off portion of `str`.
+// Str str = S("string")
+// str_advance(&str, 3) => S("str"), `str` becomes S("ing")
+static Str str_advance(Str *str, size_t amount);
+
 
 typedef enum {
     Find_Reverse         = bit(0),
@@ -137,16 +141,19 @@ static Str str_trim(Str str);
 static Str str_trim_left(Str str);
 static Str str_trim_right(Str str);
 
+#define char_is_upper(ch) between((ch), 'A', 'Z')
+#define char_is_lower(ch) between((ch), 'a', 'z')
 char char_to_upper(char ch);
 char char_to_lower(char ch);
 
+static bool str_is_lower(Str str);
+static bool str_is_upper(Str str);
 static Str str_to_lower(Arena *arena, Str str);
 static Str str_to_upper(Arena *arena, Str str);
 static Str str_to_lower_inplace(Str *str);
 static Str str_to_upper_inplace(Str *str);
 static Str str_reverse(Arena *arena, Str str);
 static Str str_replace(Arena *arena, Str str, Str find, Str replace_with);
-
 
 typedef struct {
     Str head;
@@ -173,6 +180,7 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags);
 
 // Loop through each split, (accessed by `cut.split`) of repeated `str_cut`s
 // until there are no more matches
+// TODO: rename split to str
 #define strcut_foreach(str, delim, flags, cut)                      \
     for (struct { StrCut _cut; int _count; Str split; }             \
         cut = {str_cut_ex((str), (delim), (flags)), 0, {0}};        \
@@ -351,11 +359,13 @@ static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
 
 static Str str_slice(Str str, size_t start, size_t end) {
     start = clamp_top(start, str.length);
-    end = clamp_top(end, str.length);
-    return (Str){
-        .data = str.data + start,
+    end   = clamp_top(end, str.length);
+    Str result = {
+        .data   = str.data + start,
         .length = end - start
     };
+    assertf(result.length <= str.length, "str_slice: sliced string has greater length, probably due to overflow");
+    return result;
 }
 
 static Str str_skip(Str str, size_t amount) {
@@ -372,6 +382,12 @@ static Str str_drop(Str str, size_t amount) {
 
 static Str str_lift(Str str, size_t amount) {
     return str_slice(str, str.length - amount, str.length);
+}
+
+static Str str_advance(Str *str, size_t amount) {
+    Str result = str_take(*str, amount);
+    *str = str_skip(*str, amount);
+    return result;
 }
 
 static int64_t str_find_suffix(Str str, Str suffix) {
@@ -444,6 +460,21 @@ static Str str_trim_right(Str str) {
 
 static Str str_trim(Str str) {
     return str_trim_left(str_trim_right(str));
+}
+
+
+static bool str_is_lower(Str str) {
+    for (size_t i = 0; i < str.length; i++) {
+        if (!char_is_lower(str.data[i])) return false;
+    }
+    return true;
+}
+
+static bool str_is_upper(Str str) {
+    for (size_t i = 0; i < str.length; i++) {
+        if (!char_is_upper(str.data[i])) return false;
+    }
+    return true;
 }
 
 static Str str_to_lower(Arena *arena, Str str) {
@@ -586,8 +617,6 @@ static Str str__format(Arena *arena, const char *fmt, va_list args) {
     va_list args_saved;
     va_copy(args_saved, args);
 
-    // TODO: change this to simply calling vsnprintf first to get the actual
-    // and then to actually construct the formatted string
     int reserved = 1024;
     char *mem = arena_push(arena, char, reserved);
     int actual = vsnprintf(mem, reserved, fmt, args);
@@ -616,7 +645,6 @@ migi_printf_format(2, 3) static Str strf(Arena *arena, const char *fmt, ...) {
     va_end(args);
     return result;
 }
-
 
 
 #endif // MIGI_STRING_H

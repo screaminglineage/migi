@@ -39,7 +39,7 @@ int main() {
     StrBuilder sb = sb_init();
     sb_push_file(&sb, S("scratch/test_lexer.c"));
 
-    Lexer l = {.string = sb_to_string(&sb)};
+    Lexer l = {.string = sb_to_str(&sb, .no_reset=true)};
 
     while (match_token_any(&l, (LexerTokenType[]){Tok_Identifier, Tok_OpenParen, Tok_CloseParen, Tok_OpenBrace})) {
         Token tok = {0};
@@ -47,7 +47,7 @@ int main() {
         printf("%.*s\n", SArg(tok.string));
     }
     mem_clear(&l);
-    l.string = sb_to_string(&sb);
+    l.string = sb_to_str(&sb);
 
     // return_val_if_false(expect_token_str(&l, Tok_Identifier, S("int")), 1);
     // return_val_if_false(expect_token_str(&l, Tok_Identifier, S("main")), 1);

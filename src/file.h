@@ -161,6 +161,10 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
 }
 
 static bool file_read(Arena *arena, File file, char *buffer, size_t length) {
+    unused(arena);
+    unused(file);
+    unused(buffer);
+    unused(length);
     todof("read length bytes from file");
 }
 

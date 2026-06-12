@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
 
     StrBuilder reader = sb_init();
     sb_push_file(&reader, input_file);
-    Str file_data = sb_to_string(&reader);
+    Str file_data = sb_to_str(&reader);
 
     Lexer lexer = {.string = file_data};
     Token tok = {0};
@@ -289,9 +289,8 @@ int main(int argc, char *argv[]) {
 
     generate_string_printer(&writer);
     Str filename_string = strf(tmp.arena, "%s/String_printer.gen.c", output_dir);
-    sb_to_file(&writer, filename_string);
+    sb_to_file(&writer, filename_string, .no_reset=true);
     printf("Generated printer for `Str`: `%.*s`\n", SArg(filename_string));
-    sb_reset(&writer);
 
     array_foreach(&structs, struct_def) {
         generate_struct_printer(&writer, *struct_def, DEFAULT_INDENT_LEVEL);
@@ -299,7 +298,5 @@ int main(int argc, char *argv[]) {
         sb_to_file(&writer, filename_struct);
         printf("Generated printer for `%.*s`: `%.*s`\n",
                 SArg(struct_def->name), SArg(filename_struct));
-
-        sb_reset(&writer);
     }
 }

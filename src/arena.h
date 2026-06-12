@@ -129,6 +129,13 @@ static void arena_temp_release(Temp c);
 
 // Convenience macros
 // MSVC doesnt support empty compound literals, so these need to be separate
+//
+// TODO: this "convenience" macro has a very high chance of shooting you in the 
+// foot since you forget about passing in a reference to the arena parameter of the
+// current function by always defaulting to using it.
+// However the alternative of always writing (NULL, 0) is both annoying and will also
+// train you to ignore the arena parameter in the cases where you need to pass it in.
+// Think more about what could be done here to make it less error prone
 #define arena_temp() arena_temp_excluding(NULL, 0)
 
 #define arena_temp_excl(...)                         \
