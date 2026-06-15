@@ -1,6 +1,9 @@
 #include "migi.h"
 #include "linear_algebra.h"
 
+
+
+
 void test_determinant() {
     {
         Mat2x2F m;
@@ -8,15 +11,15 @@ void test_determinant() {
             5, 6,
             8, 9
         };
-        assert(isclose(m2x2f_determinant(m), -3.0));
+        assert(isclose(mat_determinant(m), -3.0));
 
         m = (Mat2x2F){
             1, 7,
             9, 8
         };
-        assert(isclose(m2x2f_determinant(m), -55.0));
+        assert(isclose(mat_determinant(m), -55.0));
 
-        assert(isclose(m2x2f_determinant(m2x2f(1)), 1));
+        assert(isclose(mat_determinant(m2x2f(1)), 1));
     }
     {
         Mat3x3F m;
@@ -25,16 +28,16 @@ void test_determinant() {
             4, 5, 6,
             7, 8, 9
         };
-        assert(isclose(m3x3f_determinant(m), 0.0));
+        assert(isclose(mat_determinant(m), 0.0));
 
         m = (Mat3x3F){
             3, 5, 2,
             1, 4, 7,
             9, 6, 8
         };
-        assert(isclose(m3x3f_determinant(m), 185.0));
+        assert(isclose(mat_determinant(m), 185.0));
 
-        assert(isclose(m3x3f_determinant(m3x3f(1)), 1));
+        assert(isclose(mat_determinant(m3x3f(1)), 1));
     }
     {
         Mat4x4F m;
@@ -43,7 +46,7 @@ void test_determinant() {
             5,  6,  7, 8,
             9, 10, 11, 12
         };
-        assert(isclose(m4x4f_determinant(m), 0.0));
+        assert(isclose(mat_determinant(m), 0.0));
 
         m = (Mat4x4F){
             1,  0,  4, -6,
@@ -51,9 +54,9 @@ void test_determinant() {
             -1, 2,  3,  5,
             2,  1, -2,  3
         };
-        assert(isclose(m4x4f_determinant(m), 318.0));
+        assert(isclose(mat_determinant(m), 318.0));
 
-        assert(isclose(m4x4f_determinant(m4x4f(1)), 1));
+        assert(isclose(mat_determinant(m4x4f(1)), 1));
     }
     {
         Mat2x2D m;
@@ -61,15 +64,15 @@ void test_determinant() {
             5, 6,
             8, 9
         };
-        assert(isclose(m2x2d_determinant(m), -3.0));
+        assert(isclose(mat_determinant(m), -3.0));
 
         m = (Mat2x2D){
             1, 7,
             9, 8
         };
-        assert(isclose(m2x2d_determinant(m), -55.0));
+        assert(isclose(mat_determinant(m), -55.0));
 
-        assert(isclose(m2x2d_determinant(m2x2d(1)), 1));
+        assert(isclose(mat_determinant(m2x2d(1)), 1));
     }
     {
         Mat3x3D m;
@@ -78,16 +81,16 @@ void test_determinant() {
             4, 5, 6,
             7, 8, 9
         };
-        assert(isclose(m3x3d_determinant(m), 0.0));
+        assert(isclose(mat_determinant(m), 0.0));
 
         m = (Mat3x3D){
             3, 5, 2,
             1, 4, 7,
             9, 6, 8
         };
-        assert(isclose(m3x3d_determinant(m), 185.0));
+        assert(isclose(mat_determinant(m), 185.0));
 
-        assert(isclose(m3x3d_determinant(m3x3d(1)), 1));
+        assert(isclose(mat_determinant(m3x3d(1)), 1));
     }
     {
         Mat4x4D m;
@@ -96,7 +99,7 @@ void test_determinant() {
             5,  6,  7, 8,
             9, 10, 11, 12
         };
-        assert(isclose(m4x4d_determinant(m), 0.0));
+        assert(isclose(mat_determinant(m), 0.0));
 
         m = (Mat4x4D){
             1,  0,  4, -6,
@@ -104,9 +107,9 @@ void test_determinant() {
             -1, 2,  3,  5,
             2,  1, -2,  3
         };
-        assert(isclose(m4x4d_determinant(m), 318.0));
+        assert(isclose(mat_determinant(m), 318.0));
 
-        assert(isclose(m4x4d_determinant(m4x4d(1)), 1));
+        assert(isclose(mat_determinant(m4x4d(1)), 1));
     }
 }
 
@@ -117,7 +120,7 @@ void test_transform() {
             2, 0,
             0, 3
         };
-        assert(v2_isclose(v2f_transform(v, t), v2f(2, 6)));
+        assert(v2_isclose(vec_transform(v, t), v2f(2, 6)));
     }
 
     {
@@ -127,7 +130,7 @@ void test_transform() {
             0, 2, 0,
             0, 0, 3
         };
-        assert(v3_isclose(v3f_transform(v, t), v3f(1, 4, 9)));
+        assert(v3_isclose(vec_transform(v, t), v3f(1, 4, 9)));
     }
 
     {
@@ -138,7 +141,7 @@ void test_transform() {
             0, 0, 3, 0,
             0, 0, 0, 4
         };
-        assert(v4_isclose(v4f_transform(v, t), v4f(1, 4, 9, 16)));
+        assert(v4_isclose(vec_transform(v, t), v4f(1, 4, 9, 16)));
     }
 
 
@@ -148,7 +151,7 @@ void test_transform() {
             -1, 0,
             0, 5
         };
-        assert(v2_isclose(v2d_transform(v, t), v2d(-1, 10)));
+        assert(v2_isclose(vec_transform(v, t), v2d(-1, 10)));
     }
 
     {
@@ -158,7 +161,7 @@ void test_transform() {
             0, 1, 0,
             0, 0, 0
         };
-        assert(v3_isclose(v3d_transform(v, t), v3d(-1, 2, 0)));
+        assert(v3_isclose(vec_transform(v, t), v3d(-1, 2, 0)));
     }
 
     {
@@ -169,7 +172,7 @@ void test_transform() {
             0,   0,   2.0, 0,
             0,   0,   0,   1.0
         };
-        assert(v4_isclose(v4d_transform(v, t), v4d(0.5, 3.0, 6.0, 4.0)));
+        assert(v4_isclose(vec_transform(v, t), v4d(0.5, 3.0, 6.0, 4.0)));
     }
 }
 
@@ -181,7 +184,7 @@ void test_mul() {
             1, 2,
             3, 4
         };
-        Mat2x2F m2 = m2x2f_mul(m1, id);
+        Mat2x2F m2 = mat_mul(m1, id);
         assert(m2x2_isclose(m2, m1));
     }
     {
@@ -190,7 +193,7 @@ void test_mul() {
             1, 2,
             3, 4
         };
-        Mat2x2D m2 = m2x2d_mul(m1, id);
+        Mat2x2D m2 = mat_mul(m1, id);
         assert(m2x2_isclose(m2, m1));
     }
     {
@@ -200,7 +203,7 @@ void test_mul() {
             4,  5,  6,
             7,  8,  9,
         };
-        Mat3x3F m2 = m3x3f_mul(m1, id);
+        Mat3x3F m2 = mat_mul(m1, id);
         assert(m3x3_isclose(m2, m1));
     }
     {
@@ -210,7 +213,7 @@ void test_mul() {
             4,  5,  6,
             7,  8,  9,
         };
-        Mat3x3D m2 = m3x3d_mul(m1, id);
+        Mat3x3D m2 = mat_mul(m1, id);
         assert(m3x3_isclose(m2, m1));
     }
     {
@@ -220,7 +223,7 @@ void test_mul() {
             5,  6,  7,  8,
             9, 10, 11, 12
         };
-        Mat4x4F m2 = m4x4f_mul(m1, id);
+        Mat4x4F m2 = mat_mul(m1, id);
         assert(m4x4_isclose(m2, m1));
     }
     {
@@ -230,7 +233,7 @@ void test_mul() {
             5,  6,  7,  8,
             9, 10, 11, 12
         };
-        Mat4x4D m2 = m4x4d_mul(m1, id);
+        Mat4x4D m2 = mat_mul(m1, id);
         assert(m4x4_isclose(m2, m1));
     }
 }
@@ -315,8 +318,13 @@ int main() {
 
     Vec4F v = v4f(1, 2, 3, 4);
     mem_swap(v.xyz, v.yzw);
-
     printf("%f %f %f %f\n", v.x, v.y, v.z, v.w);
+
+    Vec2F v1 = vec_scale(v2f(1, 2), 10.0);
+    printf("%f %f\n", v1.x, v1.y);
+
+    vec_len(v1);
+
 
     printf("\nExiting Successfully\n");
     return 0;

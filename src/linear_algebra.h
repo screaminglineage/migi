@@ -514,16 +514,16 @@ typedef struct {
 
 
 // Approximate Equality for float vectors
-#define v2_isclose(v1, v2)     \
+#define v2_isclose(v1, v2)   \
     (isclose((v1).x, (v2).x) \
   && isclose((v1).y, (v2).y))
 
-#define v3_isclose(v1, v2)     \
+#define v3_isclose(v1, v2)   \
     (isclose((v1).x, (v2).x) \
   && isclose((v1).y, (v2).y) \
   && isclose((v1).z, (v2).z))
 
-#define v4_isclose(v1, v2)     \
+#define v4_isclose(v1, v2)   \
     (isclose((v1).x, (v2).x) \
   && isclose((v1).y, (v2).y) \
   && isclose((v1).z, (v2).z) \
@@ -531,16 +531,16 @@ typedef struct {
 
 
 // Equality for integer matrics
-#define m2x2i_isclose(m1, m2)          \
+#define m2x2_eq(m1, m2)                \
     v2i_eq((m1).rows[0], (m2).rows[0]) \
  && v2i_eq((m1).rows[1], (m2).rows[1])
 
-#define m3x3i_isclose(m1, m2)          \
+#define m3x3_eq(m1, m2)                \
     v3i_eq((m1).rows[0], (m2).rows[0]) \
  && v3i_eq((m1).rows[1], (m2).rows[1]) \
  && v3i_eq((m1).rows[2], (m2).rows[2])
 
-#define m4x4i_isclose(m1, m2)          \
+#define m4x4_eq(m1, m2)                \
     v4i_eq((m1).rows[0], (m2).rows[0]) \
  && v4i_eq((m1).rows[1], (m2).rows[1]) \
  && v4i_eq((m1).rows[2], (m2).rows[2]) \
@@ -742,7 +742,7 @@ static double m4x4d_determinant(Mat4x4D m);
 
 // Generic matrix operations
 // Constructors that take the value of the diagonal
-// NOTE: If the matrix is not a square matrix, the function returns a zeroed matrix
+// NOTE: If the matrix is not a square matrix, `d` is ignored and a zeroed matrix is returned
 static MatI32 mati32(Arena *a, size_t rows, size_t cols, int32_t d);
 static MatI64 mati64(Arena *a, size_t rows, size_t cols, int64_t d);
 static MatF matf(Arena *a, size_t rows, size_t cols, float d);
@@ -753,6 +753,203 @@ static MatF matf_mul(Arena *arena, MatF a, MatF b);
 static MatD matd_mul(Arena *arena, MatD a, MatD b);
 
 
+// Overloaded macros using _Generic for ease of use
+//
+// NOTE: The *_eq and *_isclose operations are defined as macros
+// TODO: make these into functions
+// to not have as many variants, so the same cannot be done for them
+// NOTE: *_fill operations cannot be disambiguated since they do not
+// take in a vector or matrix as an argument
+
+// Vector Operations
+#define vec_scale(v, factor)  \
+    _Generic((v),             \
+        Vec2I32: v2i32_scale, \
+        Vec3I32: v3i32_scale, \
+        Vec4I32: v4i32_scale, \
+        Vec2I64: v2i64_scale, \
+        Vec3I64: v3i64_scale, \
+        Vec4I64: v4i64_scale, \
+        Vec2F:   v2f_scale,   \
+        Vec3F:   v3f_scale,   \
+        Vec4F:   v4f_scale,   \
+        Vec2D:   v2d_scale,   \
+        Vec3D:   v3d_scale,   \
+        Vec4D:   v4d_scale    \
+    )((v), (factor))
+
+#define vec_add(a, b)       \
+    _Generic((a),           \
+        Vec2I32: v2i32_add, \
+        Vec3I32: v3i32_add, \
+        Vec4I32: v4i32_add, \
+        Vec2I64: v2i64_add, \
+        Vec3I64: v3i64_add, \
+        Vec4I64: v4i64_add, \
+        Vec2F:   v2f_add,   \
+        Vec3F:   v3f_add,   \
+        Vec4F:   v4f_add,   \
+        Vec2D:   v2d_add,   \
+        Vec3D:   v3d_add,   \
+        Vec4D:   v4d_add    \
+    )((a), (b))
+
+#define vec_sub(a, b)       \
+    _Generic((a),           \
+        Vec2I32: v2i32_sub, \
+        Vec3I32: v3i32_sub, \
+        Vec4I32: v4i32_sub, \
+        Vec2I64: v2i64_sub, \
+        Vec3I64: v3i64_sub, \
+        Vec4I64: v4i64_sub, \
+        Vec2F:   v2f_sub,   \
+        Vec3F:   v3f_sub,   \
+        Vec4F:   v4f_sub,   \
+        Vec2D:   v2d_sub,   \
+        Vec3D:   v3d_sub,   \
+        Vec4D:   v4d_sub    \
+    )((a), (b))
+
+#define vec_mul(a, b)   \
+    _Generic((a),       \
+        Vec2F: v2f_mul, \
+        Vec3F: v3f_mul, \
+        Vec4F: v4f_mul, \
+        Vec2D: v2d_mul, \
+        Vec3D: v3d_mul, \
+        Vec4D: v4d_mul  \
+    )((a), (b))
+
+#define vec_div(a, b)   \
+    _Generic((a),       \
+        Vec2F: v2f_div, \
+        Vec3F: v3f_div, \
+        Vec4F: v4f_div, \
+        Vec2D: v2d_div, \
+        Vec3D: v3d_div, \
+        Vec4D: v4d_div  \
+    )((a), (b))
+
+#define vec_dot(a, b)   \
+    _Generic((a),       \
+        Vec2F: v2f_dot, \
+        Vec3F: v3f_dot, \
+        Vec4F: v4f_dot, \
+        Vec2D: v2d_dot, \
+        Vec3D: v3d_dot, \
+        Vec4D: v4d_dot  \
+    )((a), (b))
+
+#define vec_len(v)          \
+    _Generic((v),           \
+        Vec2I32: v2i32_len, \
+        Vec3I32: v3i32_len, \
+        Vec4I32: v4i32_len, \
+        Vec2I64: v2i64_len, \
+        Vec3I64: v3i64_len, \
+        Vec4I64: v4i64_len, \
+        Vec2F:   v2f_len,   \
+        Vec3F:   v3f_len,   \
+        Vec4F:   v4f_len,   \
+        Vec2D:   v2d_len,   \
+        Vec3D:   v3d_len,   \
+        Vec4D:   v4d_len    \
+    )((v))
+
+#define vec_len_squared(v)      \
+    _Generic((v),               \
+        Vec2F: v2f_len_squared, \
+        Vec3F: v3f_len_squared, \
+        Vec4F: v4f_len_squared, \
+        Vec2D: v2d_len_squared, \
+        Vec3D: v3d_len_squared, \
+        Vec4D: v4d_len_squared  \
+    )((v))
+
+#define vec_normalize(v)      \
+    _Generic((v),             \
+        Vec2F: v2f_normalize, \
+        Vec3F: v3f_normalize, \
+        Vec4F: v4f_normalize, \
+        Vec2D: v2d_normalize, \
+        Vec3D: v3d_normalize, \
+        Vec4D: v4d_normalize  \
+    )((v))
+
+#define vec_lerp(a, b, t) \
+    _Generic((a),         \
+        Vec2F: v2f_lerp,  \
+        Vec3F: v3f_lerp,  \
+        Vec4F: v4f_lerp,  \
+        Vec2D: v2d_lerp,  \
+        Vec3D: v3d_lerp,  \
+        Vec4D: v4d_lerp   \
+    )((a), (b), (t))
+
+#define vec_transform(v, mat) \
+    _Generic((v),             \
+        Vec2F: v2f_transform, \
+        Vec3F: v3f_transform, \
+        Vec4F: v4f_transform, \
+        Vec2D: v2d_transform, \
+        Vec3D: v3d_transform, \
+        Vec4D: v4d_transform  \
+    )((v), (mat))
+
+#define vec_cross(a, b)   \
+    _Generic((v1),        \
+        Vec3F: v3f_cross, \
+        Vec4D: v4d_cross  \
+    )((a), (b))
+
+
+
+// Matrix Operations
+#define mat_scale(m, factor)  \
+    _Generic((m),             \
+        Mat2x2F: m2x2f_scale, \
+        Mat3x3F: m3x3f_scale, \
+        Mat4x4F: m4x4f_scale, \
+        Mat2x2D: m2x2d_scale, \
+        Mat3x3D: m3x3d_scale, \
+        Mat4x4D: m4x4d_scale  \
+    )((m), (factor))
+
+#define mat_mul(a, b)       \
+    _Generic((a),           \
+        Mat2x2F: m2x2f_mul, \
+        Mat3x3F: m3x3f_mul, \
+        Mat4x4F: m4x4f_mul, \
+        Mat2x2D: m2x2d_mul, \
+        Mat3x3D: m3x3d_mul, \
+        Mat4x4D: m4x4d_mul  \
+    )((a), (b))
+
+#define mat_transpose(m)          \
+    _Generic((m),                 \
+        Mat2x2F: m2x2f_transpose, \
+        Mat3x3F: m3x3f_transpose, \
+        Mat4x4F: m4x4f_transpose, \
+        Mat2x2D: m2x2d_transpose, \
+        Mat3x3D: m3x3d_transpose, \
+        Mat4x4D: m4x4d_transpose  \
+    )((m))
+
+#define mat_determinant(m)          \
+    _Generic((m),                   \
+        Mat2x2F: m2x2f_determinant, \
+        Mat3x3F: m3x3f_determinant, \
+        Mat4x4F: m4x4f_determinant, \
+        Mat2x2D: m2x2d_determinant, \
+        Mat3x3D: m3x3d_determinant, \
+        Mat4x4D: m4x4d_determinant  \
+    )((m))
+
+#define matn_mul(arena, a, b) \
+    _Generic((m1),            \
+        MatF: matf_mul,       \
+        MatD: matd_mul        \
+    )((arena), (a), (b))
 
 // TODO: check these!!!!!!!
 
