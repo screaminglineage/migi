@@ -237,24 +237,71 @@ void test_mul() {
 
 void test_generic_mul() {
     Temp tmp = arena_temp();
-    MatD m = {0};
-    m.rows = 10;
-    m.cols = 10;
-    m.data = arena_push(tmp.arena, double, m.rows * m.cols);
+    // same shape
+    {
+        MatD m = {0};
+        m.rows = 10;
+        m.cols = 10;
+        m.data = arena_push(tmp.arena, double, m.rows * m.cols);
 
-    int c = 1;
-    for (size_t i = 0; i < m.rows; i++) {
-        for (size_t j = 0; j < m.cols; j++) {
-            mat_at(m, i, j) = c++;
+        int c = 1;
+        for (size_t i = 0; i < m.rows; i++) {
+            for (size_t j = 0; j < m.cols; j++) {
+                mat_at(m, i, j) = c++;
+            }
+        }
+
+        MatD id = matd(tmp.arena, m.cols, m.cols, 1);
+        MatD m1 = matn_mul(tmp.arena, m, id);
+
+        for (size_t i = 0; i < m.rows; i++) {
+            for (size_t j = 0; j < m.cols; j++) {
+                assert(isclose(mat_at(m1, i, j), mat_at(m, i, j)));
+            }
         }
     }
 
-    MatD id = matd(tmp.arena, m.cols, m.cols, 1);
-    MatD m1 = matd_mul(tmp.arena, m, id);
+    // different shapes
+    {
+        MatD m1 = {
+            .rows = 3,
+            .cols = 3
+        };
+        m1.data = arena_push(tmp.arena, double, m1.rows * m1.cols);
+        int c = 1;
+        for (size_t i = 0; i < m1.rows; i++) {
+            for (size_t j = 0; j < m1.cols; j++) {
+                mat_at(m1, i, j) = c++;
+            }
+        }
 
-    for (size_t i = 0; i < m.rows; i++) {
-        for (size_t j = 0; j < m.cols; j++) {
-            assert(isclose(mat_at(m1, i, j), mat_at(m, i, j)));
+        MatD m2 = {
+            .rows = 3,
+            .cols = 2
+        };
+        m2.data = arena_push(tmp.arena, double, m2.rows * m2.cols);
+        c = 1;
+        for (size_t i = 0; i < m2.rows; i++) {
+            for (size_t j = 0; j < m2.cols; j++) {
+                mat_at(m2, i, j) = c++;
+            }
+        }
+
+        MatD m3 = matd_mul(tmp.arena, m1, m2);
+        MatD m3_expected = {
+            .data = (double[]){
+                22.0, 28.0,
+                49.0, 64.0,
+                76.0, 100.0
+            },
+            .rows = 3,
+            .cols = 2,
+        };
+
+        for (size_t i = 0; i < m3.rows; i++) {
+            for (size_t j = 0; j < m3.cols; j++) {
+                assert(isclose(mat_at(m3, i, j), mat_at(m3_expected, i, j)));
+            }
         }
     }
     arena_temp_release(tmp);
@@ -264,6 +311,7 @@ int main() {
     test_determinant();
     test_transform();
     test_mul();
+    test_generic_mul();
 
     Vec4F v = v4f(1, 2, 3, 4);
     mem_swap(v.xyz, v.yzw);

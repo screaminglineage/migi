@@ -4,6 +4,7 @@
 // Linear Algebra types and functions
 // TODO: add (mat3x3, mat4x4)_invert
 // TODO: rename matnxn to simply matn, like how vec works?
+// TODO: can this be simplified using _Generic?
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -456,7 +457,7 @@ typedef struct {
 
 
 // Get mat[row][col] for generic sized matrix
-#define mat_at(mat, row, col) (mat).data[(row) * (mat).rows + (col)]
+#define mat_at(mat, row, col) (mat).data[(row) * (mat).cols + (col)]
 
 
 // Constructors
@@ -1746,13 +1747,13 @@ static MatF matf_mul(Arena *arena, MatF a, MatF b) {
     MatF mat = {0};
     if (a.cols != b.rows) return mat;
 
-    mat.rows = a.cols;
-    mat.cols = b.rows;
+    mat.rows = a.rows;
+    mat.cols = b.cols;
     mat.data = arena_push(arena, float, mat.rows * mat.cols);
 
-    for (size_t i = 0; i < a.cols; i++) {
+    for (size_t i = 0; i < a.rows; i++) {
         for (size_t k = 0; k < a.cols; k++) {
-            for (size_t j = 0; j < b.rows; j++) {
+            for (size_t j = 0; j < b.cols; j++) {
                 mat_at(mat, i, j) += mat_at(a, i, k) * mat_at(b, k, j);
             }
         }
@@ -1764,13 +1765,13 @@ static MatD matd_mul(Arena *arena, MatD a, MatD b) {
     MatD mat = {0};
     if (a.cols != b.rows) return mat;
 
-    mat.rows = a.cols;
-    mat.cols = b.rows;
+    mat.rows = a.rows;
+    mat.cols = b.cols;
     mat.data = arena_push(arena, double, mat.rows * mat.cols);
 
-    for (size_t i = 0; i < a.cols; i++) {
+    for (size_t i = 0; i < a.rows; i++) {
         for (size_t k = 0; k < a.cols; k++) {
-            for (size_t j = 0; j < b.rows; j++) {
+            for (size_t j = 0; j < b.cols; j++) {
                 mat_at(mat, i, j) += mat_at(a, i, k) * mat_at(b, k, j);
             }
         }
