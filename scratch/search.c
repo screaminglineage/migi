@@ -24,7 +24,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
 // search_key(arr, array_len(arr), a, 12) will only search for items where the field `a` is `12`
 #define search_key(arr, length, field, key, ...)                                          \
     (check_type_value(type_of((arr)->field), (key)),                                      \
-    binary_search_opt((byte *)arr, sizeof(*(arr)), (length),                              \
+    search_opt((byte *)arr, sizeof(*(arr)), (length),                                     \
             offsetof(type_of(*(arr)), field), binarysearch__addr_of((arr)->field, (key)), \
             (SearchOpt){ .comparator = compare__func_for((arr)->field), __VA_ARGS__ }))
 
@@ -56,11 +56,35 @@ static int compare_str(void *left, void *right, void *user_data);
 static int compare_cstr(void *left, void *right, void *user_data);
 static int compare_char(void *left, void *right, void *user_data);
 
-
-
 static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size_t field_offset, void *key, SearchOpt opt) {
     assertf(opt.comparator, "no suitable comparison function found, provide one manually");
 
+    // TODO: do some performance testing to see if it really
+    // is faster for this particular configuration
+    // branchless version of binary search
+#ifdef BRANCHLESS
+    byte *base = arr;
+    size_t len = length;
+
+    while (len > 1) {
+        size_t half = len/2;
+        byte *half_ptr = base + elem_size*half + field_offset;
+        int result = opt.comparator(half_ptr, key, opt.user_data);
+        base += result < 0? elem_size*half: 0;
+        len  -= half;
+    }
+
+    byte *elem = base + field_offset;
+    bool less_than_key = opt.comparator(elem, key, opt.user_data) < 0;
+    size_t idx = (base - arr) + less_than_key*elem_size;
+
+    bool found = false;
+    if (idx < length*elem_size) {
+        found = opt.comparator(arr + idx + field_offset, key, opt.user_data) == 0;
+    }
+    return found? idx/elem_size: length;
+
+#else
     size_t left = 0;
     size_t right = length;
 
@@ -78,6 +102,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
         }
     }
     return length;
+#endif // #ifdef BRANCHLESS
 }
 
 static size_t search_opt(byte *arr, size_t elem_size, size_t length, size_t field_offset, void *key, SearchOpt opt) {
@@ -172,7 +197,7 @@ void test_search() {
             arr[i] = i;
         }
         for (int i = 0; i <= s; i++) {
-            size_t n = binary_search(arr, s, i);
+            size_t n = search(arr, s, i);
             assert((int)n == i);
         }
     }
@@ -180,10 +205,10 @@ void test_search() {
     {
         Str arr[] = { S("bar"), S("baz"), S("foo"), S("hello"), S("world") };
         for (size_t i = 0; i < array_len(arr); i++) {
-            size_t n = binary_search(arr, array_len(arr), arr[i]);
+            size_t n = search(arr, array_len(arr), arr[i]);
             assert(n == i);
         }
-        assert(binary_search(arr, array_len(arr), S("different string")) == array_len(arr));
+        assert(search(arr, array_len(arr), S("different string")) == array_len(arr));
     }
 
     {
@@ -203,7 +228,7 @@ void test_search() {
         }
 
         for (int i = 0; i < s; i++) {
-            size_t n = binary_search_key(arr, s, num2, i);
+            size_t n = search_key(arr, s, num2, i);
             assert((int)n == i);
         }
     }
