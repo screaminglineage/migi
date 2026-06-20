@@ -34,4 +34,8 @@ bool dir_move(Str from, Str to);
 bool dir_delete_opt(Str filepath, DirDeleteOpt opt);
 #define dir_delete(filepath, ...) dir_delete_opt((filepath), (DirDeleteOpt){__VA_ARGS__})
 
+Str get_cwd(Arena *arena);
+Str get_cwd_executable(Arena *arena);
+Str get_executable_path(Arena *a);
+
 #endif // ifndef MIGI_FILESYSTEM_H

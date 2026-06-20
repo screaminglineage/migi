@@ -181,4 +181,12 @@ bool dir_make_if_not_exists(Str dirpath) {
     return result;
 }
 
+bool dir_copy(Str from, Str to) { todo(); }
+bool dir_move(Str from, Str to) { todo(); }
+bool dir_delete_opt(Str filepath, DirDeleteOpt opt) { todo(); }
+
+Str get_cwd(Arena *arena) { todo(); }
+Str get_cwd_executable(Arena *arena) { todo(); }
+Str get_executable_path(Arena *a) { todo(); }
+
 #endif // #ifndef FILESYSTEM_LINUX_H
