@@ -3,11 +3,11 @@
 
 // TODO: implement this
 
-#include "filesystem/filesystem_inc.h"
+#include "filesystem/filesystem_interface.h"
 #include "filepath.h"
 
 // TODO: double check the logic
-Str get_cwd(Arena *a) {
+static Str get_cwd(Arena *a) {
     int len = 1024;
     char *buf = arena_push(a, char, len);
     int res = GetCurrentDirectory(len, buf);
@@ -33,11 +33,11 @@ Str get_cwd(Arena *a) {
     };
 }
 
-bool set_cwd(Str cwd) {
+static bool set_cwd(Str cwd) {
     todo();
 }
 
-Str get_executable_path(Arena *a) {
+static Str get_executable_path(Arena *a) {
     int len = 1024;
     char *buf = arena_push(a, char, len);
     int res = GetModuleFileNameA(NULL, buf, len);
@@ -54,7 +54,7 @@ Str get_executable_path(Arena *a) {
     };
 }
 
-Str get_cwd_executable(Arena *a) {
+static Str get_cwd_executable(Arena *a) {
     Str result = get_executable_path(a);
     if (result.length != 0) {
         result = path_dirname(result, S("\\"));

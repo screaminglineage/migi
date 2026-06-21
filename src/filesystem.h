@@ -3,9 +3,9 @@
 
 // IWYU pragma: begin_exports
 #ifdef _WIN32
-    #include "filesystem_windows.h"
+    #include "filesystem/filesystem_windows.c"
 #else
-    #include "filesystem_linux.h"
+    #include "filesystem/filesystem_linux.c"
 #endif // ifdef _WIN32
 // IWYU pragma: end_exports
 

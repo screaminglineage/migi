@@ -13,7 +13,7 @@ typedef struct {
     union {
         Str as_string;
         struct {
-            const char *data;
+            char *data;
             size_t length;
         };
     };
@@ -25,7 +25,7 @@ typedef struct {
 
 #define DS(cstr) dstr_new((cstr), sizeof(cstr) - 1)
 
-static DStr dstr_new(const char *data, size_t length);
+static DStr dstr_new(char *data, size_t length);
 static void dstr_free(DStr *dstr);
 
 static DStr dstr_from_string(Str str);
@@ -38,12 +38,12 @@ static void dstr_push(DStr *dstr, Str str);
 static void dstr_pushf(DStr *dstr, const char *fmt, ...);
 static void dstr_push_char(DStr *dstr, char ch);
 static void dstr_push_cstr(DStr *dstr, const char *cstr);
-static void dstr_push_buffer(DStr *dstr, const char *data, size_t length);
+static void dstr_push_buffer(DStr *dstr, char *data, size_t length);
 
 // Extend `dstr` with `dstr_other` and then free the latter
 static void dstr_consume(DStr *dstr, DStr *dstr_other);
 
-static DStr dstr_new(const char *data, size_t length) {
+static DStr dstr_new(char *data, size_t length) {
     size_t size_bytes = clamp_bottom(DSTRING_INIT_CAP, next_power_of_two(length));
     Str string = {
         .data = memcpy(malloc(size_bytes), data, length),
@@ -65,7 +65,7 @@ static DStr dstr_from_string(Str str) {
     return dstr_new(str.data, str.length);
 }
 
-static void dstr_push_buffer(DStr *dstr, const char *data, size_t length) {
+static void dstr_push_buffer(DStr *dstr, char *data, size_t length) {
     size_t new_length = dstr->length + length;
     if (new_length >= dstr->capacity) {
         size_t new_capacity = next_power_of_two(new_length);
@@ -83,7 +83,7 @@ static void dstr_push_char(DStr *dstr, char ch) {
 
 static void dstr_push_cstr(DStr *dstr, const char *cstr) {
     size_t len = strlen(cstr);
-    dstr_push_buffer(dstr, cstr, len);
+    dstr_push_buffer(dstr, (char *)cstr, len);
 }
 
 static void dstr_push(DStr *dstr, Str str) {
