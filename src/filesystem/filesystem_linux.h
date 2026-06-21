@@ -4,9 +4,11 @@
 #include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include "migi_core.h"
 #include "filesystem/filesystem_inc.h"
+#include "filepath.h"
 
 FileType file_type(Str filepath) {
     FileType result = {0};
@@ -34,11 +36,9 @@ end:
 }
 
 bool file__exists(const char *filepath) {
-    Temp tmp = arena_temp();
     int fd = access(filepath, F_OK);
     bool exists = fd == 0;
     close(fd);
-    arena_temp_release(tmp);
     return exists;
 }
 
@@ -180,5 +180,78 @@ bool dir_make_if_not_exists(Str dirpath) {
     arena_temp_release(tmp);
     return result;
 }
+
+bool dir_copy(Str from, Str to) { todo(); }
+bool dir_move(Str from, Str to) { todo(); }
+bool dir_delete_opt(Str filepath, DirDeleteOpt opt) { todo(); }
+
+
+// TODO: double check and simplify the functions
+Str get_cwd(Arena *a) {
+    size_t size = PATH_MAX;
+    char *buf = arena_push(a, char, size);
+    char *ret = getcwd(buf, size);
+
+    // getcwd doesnt return the actual needed size
+    // so this shit needs to be done here
+    while (errno == ERANGE) {
+        arena_push(a, char, size);
+        size *= 2;
+        ret = getcwd(buf, size);
+    }
+    if (ret == NULL) {
+        migi_log(Log_Error, "failed to get working directory: %s", strerror(errno));
+        return (Str){0};
+    }
+
+    Str cwd = str_from_cstr(buf);
+    arena_pop(a, char, size - cwd.length);
+    return cwd;
+}
+
+bool set_cwd(Str cwd) {
+    bool result = true;
+    Temp tmp = arena_temp();
+    if (chdir(str_to_cstr(tmp.arena, cwd)) == -1) {
+        migi_log(Log_Error, "failed to set working directory to '%.*s': %s", SArg(cwd), strerror(errno));
+        result = false;
+    }
+    arena_temp_release(tmp);
+    return result;
+}
+
+Str get_executable_path(Arena *a) {
+    ssize_t size = PATH_MAX;
+    char *buf = arena_push(a, char, size);
+    ssize_t n = readlink("/proc/self/exe", buf, size);
+    if (n == -1) {
+        migi_log(Log_Error, "failed to get executable path: %s", strerror(errno));
+        return (Str){0};
+    } else if (n >= size) {
+        // getcwd doesnt return the actual needed size
+        // so this shit needs to be done here
+        while (n >= size) {
+            arena_push(a, char, size);
+            size *= 2;
+            n = readlink("/proc/self/exe", buf, size);
+            if (n == -1) {
+                migi_log(Log_Error, "failed to get executable path: %s", strerror(errno));
+                return (Str){0};
+            }
+        }
+    }
+    Str cwd = str_from_cstr(buf);
+    arena_pop(a, char, size - cwd.length);
+    return cwd;
+}
+
+Str get_cwd_executable(Arena *a) {
+    Str result = get_executable_path(a);
+    if (result.length != 0) {
+        result = path_dirname(result, S("/"));
+    }
+    return result;
+}
+
 
 #endif // #ifndef FILESYSTEM_LINUX_H
