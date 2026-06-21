@@ -2,12 +2,12 @@
 #define MIGI_DYNAMIC_ARRAY_H
 
 #ifndef DYNAMIC_ARRAY_INIT_CAP
-    #define DYNAMIC_ARRAY_INIT_CAP 16
+    #define DYNAMIC_ARRAY_INIT_CAP 8
 #endif
 
 #include "migi_core.h"
 #include "migi_math.h" // needed for next_power_of_two
-                       //
+
 
 #ifdef DYNAMIC_ARRAY_USE_ARENA
 

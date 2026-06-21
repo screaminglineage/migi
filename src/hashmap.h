@@ -10,7 +10,7 @@
 
 // NOTE: HASHMAP_INIT_CAP *must* always be a power of two or bad things will happen
 #ifndef HASHMAP_INIT_CAP
-   #define HASHMAP_INIT_CAP 256
+   #define HASHMAP_INIT_CAP 32
 #endif
 static_assert(HASHMAP_INIT_CAP >= 2 && (HASHMAP_INIT_CAP & (HASHMAP_INIT_CAP - 1)) == 0, "HASHMAP_INIT_CAP must be a power of 2 and at least 2");
 
