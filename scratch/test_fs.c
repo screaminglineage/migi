@@ -2,7 +2,6 @@
 
 #include "filesystem/filesystem.h"
 
-
 void test_cwd() {
     Temp tmp = arena_temp();
     Str cwd = get_cwd(tmp.arena);

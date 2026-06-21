@@ -229,12 +229,14 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
 
     byte *mem = (byte *)current + alloc_start;
 
-#ifdef ARENA_USE_MALLOC
+#ifndef ARENA_USE_MALLOC
+    // If memory was just committed the OS has already cleared it,
+    // so there is no need to clear it again
+    if (clear_mem && !committed) mem_clear_array(mem, size);
+#else
     // Commit operation in malloc mode doesnt do anything,
     // so the memory must always be cleared in this case
     if (clear_mem) mem_clear_array(mem, size);
-#else
-    if (clear_mem && !committed) mem_clear_array(mem, size);
 #endif
 
     current->position = alloc_end;

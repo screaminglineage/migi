@@ -186,21 +186,24 @@ bool dir_move(Str from, Str to) { todo(); }
 bool dir_delete_opt(Str filepath, DirDeleteOpt opt) { todo(); }
 
 
-// TODO: double check and simplify the functions
 Str get_cwd(Arena *a) {
     size_t size = PATH_MAX;
     char *buf = arena_push(a, char, size);
     char *ret = getcwd(buf, size);
 
-    // getcwd doesnt return the actual needed size
-    // so this shit needs to be done here
+    // getcwd doesnt return the actual needed size so this shit needs to be done here
+    // NOTE: Since the arena may not be linear, simply doing another
+    // push of the same size to double the previous allocation is not
+    // completely correct. Thus a pop is needed.
     while (errno == ERANGE) {
-        arena_push(a, char, size);
+        arena_pop(a, char, size);
         size *= 2;
+        buf = arena_push(a, char, size);
         ret = getcwd(buf, size);
     }
     if (ret == NULL) {
         migi_log(Log_Error, "failed to get working directory: %s", strerror(errno));
+        arena_pop(a, char, size);
         return (Str){0};
     }
 
@@ -224,25 +227,33 @@ Str get_executable_path(Arena *a) {
     ssize_t size = PATH_MAX;
     char *buf = arena_push(a, char, size);
     ssize_t n = readlink("/proc/self/exe", buf, size);
-    if (n == -1) {
-        migi_log(Log_Error, "failed to get executable path: %s", strerror(errno));
-        return (Str){0};
-    } else if (n >= size) {
-        // getcwd doesnt return the actual needed size
-        // so this shit needs to be done here
-        while (n >= size) {
-            arena_push(a, char, size);
-            size *= 2;
-            n = readlink("/proc/self/exe", buf, size);
-            if (n == -1) {
-                migi_log(Log_Error, "failed to get executable path: %s", strerror(errno));
-                return (Str){0};
-            }
-        }
+
+    if (n == -1) goto err;
+
+    // getcwd doesnt return the actual needed size so this shit needs to be done here
+    // NOTE: Since the arena may not be linear, simply doing another
+    // push of the same size to double the previous allocation is not
+    // completely correct. Thus a pop is needed.
+    while (n >= size) {
+        arena_pop(a, char, size);
+        size *= 2;
+        buf = arena_push(a, char, size);
+        n = readlink("/proc/self/exe", buf, size);
+
+        if (n == -1) goto err;
     }
-    Str cwd = str_from_cstr(buf);
+
+    Str cwd = (Str){
+        .data = buf,
+        .length = n
+    };
     arena_pop(a, char, size - cwd.length);
     return cwd;
+
+err:
+    migi_log(Log_Error, "failed to get executable path: %s", strerror(errno));
+    arena_pop(a, char, size);
+    return (Str){0};
 }
 
 Str get_cwd_executable(Arena *a) {

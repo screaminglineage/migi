@@ -89,6 +89,8 @@ static bool file_set_pos(File file, size_t new_pos) {
 
 
 
+// TODO: instead of assuming read to be the default even if it is unset
+// make its default value true in the macro to prevent this confusion entirely
 // TODO: check if the sharing mode parameter of CreateFileA should be set
 // (for example if a file is opened in read mode, it may be SHARED_READ)
 File file_open_opt(Str filepath, FileOpenOpt opt) {
@@ -108,7 +110,7 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
     // If read == false, default to read mode
     if (!opt.write) {
 #ifdef _WIN32
-        file = CreateFileA(filename_cstr, 
+        file = CreateFileA(filename_cstr,
             GENERIC_READ, 0, NULL, OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL, NULL);
 #else
@@ -130,10 +132,23 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
             open_mode, 0, NULL, create_mode,
             FILE_ATTRIBUTE_NORMAL, NULL);
 #else
-        todof("implement other features");
+        int open_flags = 0;
+        if (opt.write  || opt.append)                                    open_flags |= O_CREAT;
+        if (opt.write && !opt.read && !opt.append && !opt.dont_truncate) open_flags |= O_TRUNC;
+
+        int access_mode = O_RDONLY;
+        if (opt.read && opt.write) {
+            access_mode = O_RDWR;
+        } else if (!opt.read && opt.write) {
+            access_mode = O_WRONLY;
+        } else if (!opt.read && !opt.write && opt.append) {
+            // for append
+            access_mode = O_WRONLY;
+        }
+        open_flags |= access_mode;
+
         file = open(str_to_cstr(tmp.arena, filepath),
-                  O_WRONLY|O_CREAT|O_TRUNC,
-                  S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+                  open_flags, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
 #endif
     }
     if (file == FILE_ERROR) {
