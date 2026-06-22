@@ -73,6 +73,7 @@ static int64_t file_length(File file) {
 
 static int64_t file_pos(File file) {
 #ifdef _WIN32
+    unused(file);
     todof("get current file position");
 #else
     return lseek(file, 0, SEEK_CUR);
@@ -81,6 +82,8 @@ static int64_t file_pos(File file) {
 
 static bool file_set_pos(File file, size_t new_pos) {
 #ifdef _WIN32
+    unused(file);
+    unused(new_pos);
     todof("set file position");
 #else
     return lseek(file, new_pos, SEEK_SET) != -1;
@@ -263,6 +266,7 @@ static bool file_close(File file) {
 #endif // ifdef _WIN32
 }
 
+// TODO: move this into its own file
 static Str str_last_error(Arena *arena) {
 #ifdef _WIN32
     DWORD err = GetLastError();
