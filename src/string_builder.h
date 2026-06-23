@@ -160,11 +160,11 @@ static void sb_push_f64(StrBuilder *sb, double to_push) {
     if (to_push >= (double)(-1UL>>1)) {  // out of long range?
         sb_push_str(sb, S("inf"));
     } else {
-        long integral = to_push;
-        long fractional = (to_push - integral)*prec;
+        int64_t integral   = (int64_t)to_push;
+        int64_t fractional = ((int64_t)to_push - integral)*prec;
         sb_push_i64(sb, integral);
         sb_push_char(sb, '.');
-        for (long i = prec/10; i > 1; i /= 10) {
+        for (int64_t i = prec/10; i > 1; i /= 10) {
             if (i > fractional) {
                 sb_push_char(sb, '0');
             }

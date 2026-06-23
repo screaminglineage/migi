@@ -28,7 +28,7 @@ void test_arena_functions() {
 
         Str string = S("hello world!");
         char *str = arena_copy(a, char, string.data, string.length);
-        Str uppercased = str_to_upper(a, (Str){.data = str, string.length});
+        Str uppercased = str_to_upper(a, str_from(str, string.length));
         assert(str_eq(uppercased, S("HELLO WORLD!")));
         arena_free(a);
     }

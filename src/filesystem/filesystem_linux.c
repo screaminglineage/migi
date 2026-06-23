@@ -377,7 +377,7 @@ static Str get_cwd(Arena *a) {
     if (ret == NULL) {
         migi_log(Log_Error, "failed to get working directory: %s", strerror(errno));
         arena_pop(a, char, size);
-        return (Str){0};
+        return str_zero();
     }
 
     Str cwd = str_from_cstr(buf);
@@ -416,17 +416,14 @@ static Str get_executable_path(Arena *a) {
         if (n == -1) goto err;
     }
 
-    Str cwd = (Str){
-        .data = buf,
-        .length = n
-    };
+    Str cwd = str_from(buf, n);
     arena_pop(a, char, size - cwd.length);
     return cwd;
 
 err:
     migi_log(Log_Error, "failed to get executable path: %s", strerror(errno));
     arena_pop(a, char, size);
-    return (Str){0};
+    return str_zero();
 }
 
 static Str get_cwd_executable(Arena *a) {

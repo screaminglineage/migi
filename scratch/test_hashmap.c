@@ -41,11 +41,11 @@ void test_basic() {
     }
     printf("\n");
 
-    assert(mem_eq(&hm.pairs[0].key, &(Str){0}));    assert(mem_eq(&hm.pairs[0].value, &((Point){0})));
-    assert(mem_eq(&hm.pairs[1].key, &(S("foo"))));  assert(mem_eq(&hm.pairs[1].value, &((Point){1, 2})));
-    assert(mem_eq(&hm.pairs[2].key, &(S("bar"))));  assert(mem_eq(&hm.pairs[2].value, &((Point){3, 4})));
-    assert(mem_eq(&hm.pairs[3].key, &(S("baz"))));  assert(mem_eq(&hm.pairs[3].value, &((Point){5, 6})));
-    assert(mem_eq(&hm.pairs[4].key, &(S("bla"))));  assert(mem_eq(&hm.pairs[4].value, &((Point){7, 8})));
+    assert(str_eq(hm.pairs[0].key, str_zero()));    assert(mem_eq(&hm.pairs[0].value, &((Point){0})));
+    assert(str_eq(hm.pairs[1].key, S("foo")));      assert(mem_eq(&hm.pairs[1].value, &((Point){1, 2})));
+    assert(str_eq(hm.pairs[2].key, S("bar")));      assert(mem_eq(&hm.pairs[2].value, &((Point){3, 4})));
+    assert(str_eq(hm.pairs[3].key, S("baz")));      assert(mem_eq(&hm.pairs[3].value, &((Point){5, 6})));
+    assert(str_eq(hm.pairs[4].key, S("bla")));      assert(mem_eq(&hm.pairs[4].value, &((Point){7, 8})));
 
     Point deleted = hashmap_del(&hm, S("bar"));
     assert(deleted.x == 3 && deleted.y == 4);
@@ -66,10 +66,10 @@ void test_basic() {
     hashmap_foreach(&hm, pair) {
         printf("%.*s: (Point){%d %d}\n", SArg(pair->key), pair->value.x, pair->value.y);
     }
-    assert(mem_eq(&hm.pairs[0].key, &((Str){0})));    assert(mem_eq(&hm.pairs[0].value, &((Point){0})));
-    assert(mem_eq(&hm.pairs[1].key, &(S("foo"))));    assert(mem_eq(&hm.pairs[1].value, &((Point){10, 20})));
-    assert(mem_eq(&hm.pairs[2].key, &(S("bla"))));    assert(mem_eq(&hm.pairs[2].value, &((Point){7, 8})));
-    assert(mem_eq(&hm.pairs[3].key, &(S("baz"))));    assert(mem_eq(&hm.pairs[3].value, &((Point){5, 6})));
+    assert(str_eq(hm.pairs[0].key, str_zero()));  assert(mem_eq(&hm.pairs[0].value, &((Point){0})));
+    assert(str_eq(hm.pairs[1].key, S("foo")));    assert(mem_eq(&hm.pairs[1].value, &((Point){10, 20})));
+    assert(str_eq(hm.pairs[2].key, S("bla")));    assert(mem_eq(&hm.pairs[2].value, &((Point){7, 8})));
+    assert(str_eq(hm.pairs[3].key, S("baz")));    assert(mem_eq(&hm.pairs[3].value, &((Point){5, 6})));
 }
 
 void test_default_values() {
@@ -107,7 +107,7 @@ typedef struct {
 typedef HashMap(Str, int64_t) MapStrInt;
 
 int hash_entry_cmp(const void *a, const void *b) {
-    return ((KVStrInt *)b)->value - ((KVStrInt *)a)->value;
+    return (int)(((KVStrInt *)b)->value - ((KVStrInt *)a)->value);
 }
 
 // Counts frequency of occurence of words from a text file
@@ -235,12 +235,12 @@ void test_type_safety() {
     unused(del_int);
     // Point del_int = hashmap_del(&map, S("abcd"));
 
-    assert(mem_eq(&map.pairs[0].key, &(Str){0}));       assert(mem_eq(&map.pairs[0].value, &(int64_t){0}));
-    assert(mem_eq(&map.pairs[1].key, &(S("ijkl"))));    assert(mem_eq(&map.pairs[1].value, &(int64_t){100}));
+    assert(str_eq(map.pairs[0].key, str_zero())); assert(mem_eq(&map.pairs[0].value, &(int64_t){0}));
+    assert(str_eq(map.pairs[1].key, S("ijkl")));  assert(mem_eq(&map.pairs[1].value, &(int64_t){100}));
 
-    assert(mem_eq(&map2.pairs[0].key, &(Str){0}));      assert(mem_eq(&map2.pairs[0].value, &(int64_t){0}));
-    assert(mem_eq(&map2.pairs[1].key, &(S("abcd"))));   assert(mem_eq(&map2.pairs[1].value, &((Point){1, 2})));
-    assert(mem_eq(&map2.pairs[2].key, &(S("efgh"))));   assert(mem_eq(&map2.pairs[2].value, &((Point){3, 4})));
+    assert(str_eq(map2.pairs[0].key, str_zero())); assert(mem_eq(&map2.pairs[0].value, &(int64_t){0}));
+    assert(str_eq(map2.pairs[1].key, S("abcd")));  assert(mem_eq(&map2.pairs[1].value, &((Point){1, 2})));
+    assert(str_eq(map2.pairs[2].key, S("efgh")));  assert(mem_eq(&map2.pairs[2].value, &((Point){3, 4})));
 
     hashmap_foreach(&map, pair) {
         printf("%.*s: %ld", SArg(pair->key), pair->value);
@@ -256,9 +256,9 @@ Str random_string(Arena *a, size_t length) {
     char *chars = arena_push(a, char, length);
 
     for (size_t i = 0; i < length; i++) {
-        chars[i] = rand_range('a', 'z');
+        chars[i] = (char)rand_range('a', 'z');
     }
-    return (Str){.data = chars, .length = length};
+    return str_from(chars, length);
 }
 
 // Inserts random strings into the hashmap and tries to later find them
@@ -445,9 +445,9 @@ void test_basic_primitive_key() {
 typedef HashMap(int, int) MapIntInt;
 
 void profile_hashmap_iteration(Arena *a, MapIntInt *map, size_t capacity, int64_t cpu_freq, bool print_stats) {
-    size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
-    if (max_size == 0) max_size = capacity * 2;
-    for (size_t i = 0; i < max_size; i++) {
+    int max_size = (int)(HASHMAP_LOAD_FACTOR * capacity);
+    if (max_size == 0) max_size = (int)(capacity * 2);
+    for (int i = 0; i < max_size; i++) {
         hashmap_put(a, map, i, 5025);
     }
 
@@ -455,8 +455,9 @@ void profile_hashmap_iteration(Arena *a, MapIntInt *map, size_t capacity, int64_
     uint64_t samples[SAMPLES] = {0};
 
     for (size_t i = 0; i < SAMPLES; i++) {
-        int key = rand_range_exclusive(-max_size, 0); // missing key
-                                                        // int key = random_range_exclusive(0, max_size); // valid key
+        int key = (int)rand_range_exclusive(-max_size, 0); // missing key
+        // int key = random_range_exclusive(0, max_size); // valid key
+
         uint64_t start = read_cpu_timer();
 
         int value = hashmap_get(map, key);
@@ -524,10 +525,10 @@ void profile_hashmap_deletion_times() {
         hashmap_free(&map);
         arena_reset(a);
 
-        size_t max_size = HASHMAP_LOAD_FACTOR * capacity;
+        int max_size = (int)(HASHMAP_LOAD_FACTOR * capacity);
         if (max_size == 0) continue;
 
-        for (size_t j = 0; j < max_size; j++) {
+        for (int j = 0; j < max_size; j++) {
             hashmap_put(a, &map, j, 1234);
         }
 
@@ -535,7 +536,7 @@ void profile_hashmap_deletion_times() {
         uint64_t samples[SAMPLES] = {0};
 
         for (size_t i = 0; i < SAMPLES; i++) {
-            int key = rand_range_exclusive(0, max_size);
+            int key = (int)rand_range_exclusive(0, max_size);
             uint64_t start = read_cpu_timer();
             hashmap_del(&map, key);
             uint64_t end = read_cpu_timer();
@@ -587,6 +588,7 @@ static void put_strings(Arena *a, Arena *str_arena, StrMap *map, size_t n) {
     }
 }
 
+// TODO: this seems to fail if load factor is 0.25
 static void test_reserve() {
     Arena *a = arena_init();
     Arena *str_arena = arena_init();

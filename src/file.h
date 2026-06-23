@@ -280,10 +280,7 @@ static Str str_last_error(Arena *arena) {
 
     arena_pop(arena, char, max_length - len - 2);
 
-    Str err_string = (Str){
-        .data = buf,
-        .length = len
-    };
+    Str err_string = str_from(buf, len);
 
     // remove `\r\n` from end
     if (str_ends_with(err_string, S("\r\n"))) {

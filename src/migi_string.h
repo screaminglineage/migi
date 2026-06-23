@@ -28,10 +28,12 @@ typedef struct {
     size_t length;
 } StrSlice;
 
-#define S(cstr)  ((Str){(cstr), (sizeof(cstr) - 1)})
+
+#define S(str_lit)  str_from((str_lit), sizeof((str_lit)) - 1)
 #define SArg(sv) (int)(sv).length, (sv).data
+#define str_zero() ((Str){0})
 
-
+static Str str_from(char *data, size_t length);
 static Str str_from_span(char *start, char *end);
 static Str str_from_cstr(const char *cstr);
 static char *str_to_cstr(Arena *arena, Str str);
@@ -181,6 +183,7 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags);
 // Loop through each split, (accessed by `cut.split`) of repeated `str_cut`s
 // until there are no more matches
 // TODO: rename split to str
+// TODO: rename this version to strcut_foreach_ex and add another one which passes `flags` as 0
 #define strcut_foreach(str, delim, flags, cut)                      \
     for (struct { StrCut _cut; int _count; Str split; }             \
         cut = {str_cut_ex((str), (delim), (flags)), 0, {0}};        \
@@ -197,19 +200,20 @@ static uint64_t str_hash(Str string);
 migi_printf_format(2, 3) static Str strf(Arena *arena, const char *fmt, ...);
 
 
-
-static Str str_from_span(char *start, char *end) {
+static Str str_from(char *data, size_t length) {
     return (Str){
-        .data = start,
-        .length = end - start
+        .data   = data,
+        .length = length
     };
 }
 
+static Str str_from_span(char *start, char *end) {
+    return str_from(start, end - start);
+}
+
 static Str str_from_cstr(const char *cstr) {
-    return (Str){
-        .data   = (char *)cstr,
-        .length = (cstr == NULL)? 0: strlen(cstr)
-    };
+    size_t length = (cstr == NULL)? 0: strlen(cstr);
+    return str_from((char *)cstr, length);
 }
 
 static char *str_to_cstr(Arena *arena, Str str) {
@@ -223,10 +227,7 @@ static char *str_to_cstr(Arena *arena, Str str) {
 
 
 static Str str_copy(Arena *arena, Str str) {
-    return (Str){
-        .data = arena_copy(arena, char, str.data, str.length),
-        .length = str.length
-    };
+    return str_from(arena_copy(arena, char, str.data, str.length), str.length);
 }
 
 static Str str_cat(Arena *arena, Str head, Str tail) {
@@ -326,7 +327,7 @@ static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
         int64_t first_match = INT64_MAX;
         int64_t last_match = INT64_MIN;
         for (size_t i = 0; i < needle.length; i++) {
-            Str ch = (Str){.data = &needle.data[i], .length = 1};
+            Str ch = str_from(&needle.data[i], 1);
             int64_t index = str_find_ex(haystack, ch, flags & ~Find_Any);
             last_match = max_of(last_match, index);
             first_match = min_of(first_match, index);
@@ -486,7 +487,7 @@ static Str str_to_lower(Arena *arena, Str str) {
             lower[i] = str.data[i];
         }
     }
-    return (Str){lower, str.length};
+    return str_from(lower, str.length);
 }
 
 static Str str_to_upper(Arena *arena, Str str) {
@@ -498,7 +499,7 @@ static Str str_to_upper(Arena *arena, Str str) {
             upper[i] = str.data[i];
         }
     }
-    return (Str){upper, str.length};
+    return str_from(upper, str.length);
 }
 
 static Str str_to_lower_inplace(Str *str) {
@@ -529,7 +530,7 @@ static Str str_reverse(Arena *arena, Str str) {
     for (size_t i = 0; i < str.length; i++) {
         reversed[str.length - i - 1] = str.data[i];
     }
-    return (Str){reversed, str.length};
+    return str_from(reversed, str.length);
 }
 
 
@@ -567,7 +568,7 @@ static Str str_replace(Arena *arena, Str str, Str find, Str replace_with) {
 
     size_t actual_length = replaced_at - replaced;
     arena_pop(arena, char, max_length - actual_length);
-    return (Str){.data = replaced, .length = actual_length};
+    return str_from(replaced, actual_length);
 }
 
 
@@ -635,7 +636,7 @@ static Str str__format(Arena *arena, const char *fmt, va_list args) {
 
     va_end(args_saved);
     // actual includes the null terminator
-    return (Str){ .data = mem, .length = actual - 1 };
+    return str_from(mem, actual - 1);
 }
 
 migi_printf_format(2, 3) static Str strf(Arena *arena, const char *fmt, ...) {

@@ -1,3 +1,6 @@
+// TODO: needs some modifications to bring it up to the current standards
+// TODO: doesnt compile on windows msvc
+
 #ifndef PROFILER_H
 #define PROFILER_H
 

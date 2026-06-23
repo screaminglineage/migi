@@ -692,14 +692,14 @@ void test_string() {
     {
         assert_str_eq(S("abcd"), S("abcd"));
         assert_str_eq(S(""), S(""));
-        assert_str_eq((Str){0}, (Str){0});
+        assert_str_eq(str_zero(), str_zero());
 
-        assert(str_eq_cstr((Str){0}, "", 0));
-        assert(str_eq_cstr((Str){0}, "", 0));
+        assert(str_eq_cstr(str_zero(), "", 0));
+        assert(str_eq_cstr(str_zero(), "", 0));
         assert(str_eq_cstr(S("yes!!"), "yes!!", 0));
 
-        assert_str_eq(str_skip(S("1234"), 5), (Str){0});
-        assert_str_eq((Str){0}, str_skip(S("4567"), 5));
+        assert_str_eq(str_skip(S("1234"), 5), str_zero());
+        assert_str_eq(str_zero(), str_skip(S("4567"), 5));
         assert_str_eq(str_skip(S("1234"), 5), str_skip(S("4567"), 5));
         assert_str_eq(str_take(S("hello"), 0), str_take(S("world"), 0));
         assert_str_eq(str_slice(S("hello"), 2, 2), str_slice(S("world"), 2, 2));

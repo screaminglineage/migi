@@ -136,6 +136,7 @@
 
 
 // StrList (Linked List of Strings)
+// TODO: rename the member to simply `str`
 typedef struct StrNode StrNode;
 struct StrNode {
     Str string;
@@ -237,7 +238,7 @@ static void strlist_push(Arena *a, StrList *list, Str str) {
 static void strlist_push_char(Arena *a, StrList *list, char ch) {
     char *data = arena_new(a, char);
     *data = ch;
-    strlist_push(a, list, (Str){data, 1});
+    strlist_push(a, list, str_from(data, 1));
 }
 
 static void strlist_push_cstr(Arena *a, StrList *list, const char *cstr) {
@@ -246,7 +247,7 @@ static void strlist_push_cstr(Arena *a, StrList *list, const char *cstr) {
 
 static void strlist_push_buffer(Arena *a, StrList *list, char *str, size_t length) {
     char *data = arena_copy(a, char, str, length);
-    strlist_push(a, list, (Str){data, length});
+    strlist_push(a, list, str_from(data, length));
 }
 
 // NOTE: strlist_pushf doesnt append a null terminator at the end
@@ -267,7 +268,7 @@ static Str strlist_to_str(Arena *a, StrList *list) {
         memcpy(dest, node->string.data, node->string.length);
         dest += node->string.length;
     }
-    return (Str){mem, list->total_size};
+    return str_from(mem, list->total_size);
 }
 
 static void strlist_extend(StrList *list, StrList *extend_with) {
@@ -284,7 +285,7 @@ static void strlist_extend(StrList *list, StrList *extend_with) {
 }
 
 static Str strlist_pop(StrList *list) {
-    if (!list->head) return (Str){0};
+    if (!list->head) return str_zero();
 
     Str popped = list->head->string;
     queue_pop(list->head, list->tail);
@@ -294,7 +295,7 @@ static Str strlist_pop(StrList *list) {
 }
 
 static Str strlist_join(Arena *a, StrList *list, Str join_with) {
-    if (list->length == 0) return (Str){0};
+    if (list->length == 0) return str_zero();
     size_t total_size = list->total_size + (list->length - 1) * join_with.length;
     char *mem = arena_push_nonzero(a, char, total_size);
 
@@ -308,7 +309,7 @@ static Str strlist_join(Arena *a, StrList *list, Str join_with) {
         dest += join_with.length;
     }
     memcpy(dest, node->string.data, node->string.length);
-    return (Str){mem, total_size};
+    return str_from(mem, total_size);
 }
 
 
@@ -316,7 +317,7 @@ static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
     StrList strings = {0};
     if (delimiter.length == 0) {
         for (size_t i = 0; i < str.length; i++) {
-            strlist_push(a, &strings, (Str){.data = &str.data[i], .length = 1});
+            strlist_push(a, &strings, str_from(&str.data[i], 1));
         }
         return strings;
     }

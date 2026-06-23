@@ -43,10 +43,7 @@ static Str get_cwd(Arena *a) {
     }
 
     size = ret;
-    result = (Str){
-        .data   = buf,
-        .length = size,
-    };
+    result = str_from(buf, size);
 
 end:
     arena_temp_release(tmp);
