@@ -5,6 +5,8 @@
 
 #include "migi_string.h"
 
+// TODO: add file_info() for basic file info (size/times/etc.)
+
 typedef struct {
     bool error;
     bool is_directory;
@@ -12,7 +14,7 @@ typedef struct {
 } FileType;
 
 typedef struct {
-    bool replace_exisiting;
+    bool replace_existing;
 } FileOpt;
 
 static bool file_touch(Str filepath);

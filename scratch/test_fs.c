@@ -3,17 +3,17 @@
 #include "filesystem.h"
 
 void test_dir_delete() {
-    bool r = dir_delete(S("junk"), .recursive = true);
+    bool r = dir_delete(S("junk"), .recursive=true);
     printf("%.*s\n", SArg(bool_to_str(r)));
 }
 
 void test_dir_copy() {
-    bool r = dir_copy(S("src"), S("src-2"));
+    bool r = dir_copy(S("src"), S("build"));
     printf("%.*s\n", SArg(bool_to_str(r)));
 }
 
 void test_dir_move() {
-    bool r = dir_move(S("build"), S("built"));
+    bool r = dir_move(S("build"), S("src"));
     printf("%.*s\n", SArg(bool_to_str(r)));
 }
 
@@ -38,8 +38,8 @@ int main() {
     Temp tmp = arena_temp();
     // test_dir_move();
     // test_dir_copy();
-    // test_dir_delete();
-    test_cwd();
+    test_dir_delete();
+    // test_cwd();
     arena_temp_release(tmp);
     printf("\nExiting Successfully\n");
     return 0;

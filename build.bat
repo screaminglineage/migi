@@ -29,7 +29,7 @@ set "LinkFlags=/link /INCREMENTAL:NO"
 if "%Debug%"=="1" (
     set "CFlags=%CFlags% %Sanitizer% /Zi /DMIGI_DEBUG_LOGS"
 ) else (
-    set "CFlags=%CFlags% /O2"
+    set "CFlags=%CFlags% /O2 /DMIGI_DISABLE_ASSERTS"
 )
 
 if not exist "%BuildFolder%" (
