@@ -32,6 +32,8 @@ typedef struct {
 
 static bool dir_make_if_not_exists(Str dirpath);
 static bool dir_copy(Str from, Str to);
+
+// TODO: For move and delete, iterate over the directories and move/delete them at the end instead of interrupting the loop
 static bool dir_move(Str from, Str to);
 static bool dir_delete_opt(Str filepath, DirDeleteOpt opt);
 #define dir_delete(filepath, ...) dir_delete_opt((filepath), (DirDeleteOpt){__VA_ARGS__})

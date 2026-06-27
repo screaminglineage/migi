@@ -29,6 +29,10 @@ typedef struct {
 } StrSlice;
 
 
+// TODO: check for other whitespace characters
+// https://stackoverflow.com/a/46637343
+#define ASCII_WHITESPACES S(" \n\r\t\v\f")
+
 #define S(str_lit)  str_from((str_lit), sizeof((str_lit)) - 1)
 #define SArg(sv) (int)(sv).length, (sv).data
 #define str_zero() ((Str){0})
@@ -323,6 +327,8 @@ static bool str__eq_ignore_case(const char *a, const char *b, size_t length) {
 static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
+    // TODO: can this be made faster?
+    // Currently is very slow for needles bigger than 2 or 3 characters
     if (flags & Find_Any) {
         int64_t first_match = INT64_MAX;
         int64_t last_match = INT64_MIN;
@@ -449,14 +455,12 @@ static Str str_skip_chars(Str str, Str chars, SkipWhileOpt flags) {
     return str_skip_while(str, str__is_equal_chars, &chars, flags);
 }
 
-// TODO: check for other whitespace characters
-// https://stackoverflow.com/a/46637343
 static Str str_trim_left(Str str) {
-    return str_skip_chars(str, S(" \n\r\t"), 0);
+    return str_skip_chars(str, ASCII_WHITESPACES, 0);
 }
 
 static Str str_trim_right(Str str) {
-    return str_skip_chars(str, S(" \n\r\t"), SkipWhile_Reverse);
+    return str_skip_chars(str, ASCII_WHITESPACES, SkipWhile_Reverse);
 }
 
 static Str str_trim(Str str) {

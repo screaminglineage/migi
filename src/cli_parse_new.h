@@ -470,10 +470,14 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
             continue;
         }
 
-        // TODO: is there a way to differentiate `--str` and `-str`, and make the latter invalid?
         // `-` on its own is invalid, skip it
         if (arg.length == 1) continue;
 
+        // TODO: differentiate between `--flag` and `-flag` and
+        // parse `-flag` as `-f,` `-l,` `-a`, `-g` options instead
+        // TODO: To do this without getting messy, the loop needs to be rewritten into a state machine
+        // TODO: Or maybe remove the distinction entirely and only support options with a single `-`
+        // The alias system can then be further generalized to support a list of aliases for the same option
         if (arg.data[1] != '-') {
             // -flag
             flag_key = str_skip(arg, 1);
