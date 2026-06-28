@@ -162,6 +162,7 @@ static Str strlist_pop(StrList *list);
 #define strlist_foreach(strlist, node) list_foreach((strlist)->head, (node))
 
 static Str strlist_to_str(Arena *a, StrList *list);
+static StrSlice strlist_to_slice(Arena *a, StrList *list);
 static Str strlist_join(Arena *a, StrList *list, Str join_with);
 static void strlist_replace(Arena *a, StrList *list, Str find, Str replace_with);
 static void strlist_reset(StrList *list);
@@ -172,7 +173,7 @@ typedef enum {
 
     // Treat delimiter as a list of characters, where
     // splitting is done any time one of them appear
-    Split_Any   = bit(1),
+    Split_Any       = bit(1),
 } SplitOpt;
 
 // Splits a string by delimiter, pushing each chunk onto a StrList
@@ -269,6 +270,20 @@ static Str strlist_to_str(Arena *a, StrList *list) {
         dest += node->string.length;
     }
     return str_from(mem, list->total_size);
+}
+
+static StrSlice strlist_to_slice(Arena *a, StrList *list) {
+    Str *slice = arena_push_nonzero(a, Str, list->length);
+
+    size_t i = 0;
+    strlist_foreach(list, node) {
+        slice[i++] = node->string;
+    }
+
+    return (StrSlice){
+        .data = slice,
+        .length = list->length
+    };
 }
 
 static void strlist_extend(StrList *list, StrList *extend_with) {

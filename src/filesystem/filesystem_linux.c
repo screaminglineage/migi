@@ -4,6 +4,8 @@
 #include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include <time.h>
+#include <utime.h>
 #include <unistd.h>
 
 #include "migi_core.h"
@@ -15,7 +17,7 @@ static FileType file_type(Str filepath) {
     FileType result = {0};
     Temp tmp = arena_temp();
 
-    int fd = open(str_to_cstr(tmp.arena, filepath), O_CREAT | S_IRUSR | S_IWUSR);
+    int fd = open(str_to_cstr(tmp.arena, filepath), O_CREAT, S_IRUSR | S_IWUSR);
     if (fd == -1) {
         migi_log(Log_Error, "file: '%.*s' doesn't exist", SArg(filepath));
         return_with((FileType){.error = true});
@@ -50,19 +52,22 @@ static bool file_exists(Str filepath) {
     return exists;
 }
 
-// TODO: does this actually "touch" the file?
 static bool file_touch(Str filepath) {
     bool result = true;
     Temp tmp = arena_temp();
 
-    int fd = open(str_to_cstr(tmp.arena, filepath), O_CREAT | S_IRUSR | S_IWUSR);
-
+    const char *filepath_cstr = str_to_cstr(tmp.arena, filepath);
+    int fd = open(filepath_cstr, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
     if (fd == -1) {
         migi_log(Log_Error, "failed to touch file: '%.*s': %s", SArg(filepath), strerror(errno));
         return_with(false);
     }
-
     close(fd);
+
+    if (utime(filepath_cstr, NULL) == -1) {
+        migi_log(Log_Error, "failed to update file time: '%.*s': %s", SArg(filepath), strerror(errno));
+        return_with(false);
+    }
 
 end:
     arena_temp_release(tmp);

@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     }
     printf("\n");
 
-    printf("bar: %lld\n", flag_as_i64(&cli, S("bar"), 10));
+    printf("bar: %ld\n", flag_as_i64(&cli, S("bar"), 10));
 
     printf("baz: %f\n", flag_as_f64(&cli, S("baz"), 0));
 

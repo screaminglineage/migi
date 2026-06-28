@@ -30,7 +30,7 @@ typedef struct {
 
     Str help;
     Str name;
-    Str alias;
+    Str alias; // TODO: make this a list of aliases
     int32_t nargs;
     bool required;
     bool found;
@@ -177,17 +177,17 @@ typedef struct {
     Arena *arena;
 } CliStrOpt;
 
-#define cli_add_str(name, help, ...)          \
-    (global_cli_temp.arena == NULL            \
-        ? global_cli_temp = arena_temp()      \
-        : (void)0,                            \
-    cli_str_opt((name), (help), (CliStrOpt) { \
-        .ctx = &global_cli,                   \
-        .arena = global_cli_temp.arena,       \
-        __VA_ARGS__                           \
+#define cli_add_str(name, help, ...)              \
+    (global_cli_temp.arena == NULL                \
+        ? global_cli_temp = arena_temp()          \
+        : (void)0,                                \
+    cli_add_str_opt((name), (help), (CliStrOpt) { \
+        .ctx = &global_cli,                       \
+        .arena = global_cli_temp.arena,           \
+        __VA_ARGS__                               \
     }))
 
-static Str *cli_str_opt(Str name, Str help, CliStrOpt opt) {
+static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
@@ -212,17 +212,17 @@ typedef struct {
     Arena *arena;
 } CliIntOpt;
 
-#define cli_add_i64(name, help, ...)         \
-    (global_cli_temp.arena == NULL           \
-        ? global_cli_temp = arena_temp()     \
-        : (void)0,                           \
-    cli_int_opt((name), (help), (CliIntOpt){ \
-        .ctx = &global_cli,                  \
-        .arena = global_cli_temp.arena,      \
-        __VA_ARGS__                          \
+#define cli_add_i64(name, help, ...)             \
+    (global_cli_temp.arena == NULL               \
+        ? global_cli_temp = arena_temp()         \
+        : (void)0,                               \
+    cli_add_i64_opt((name), (help), (CliIntOpt){ \
+        .ctx = &global_cli,                      \
+        .arena = global_cli_temp.arena,          \
+        __VA_ARGS__                              \
     }))
 
-static int64_t *cli_int_opt(Str name, Str help, CliIntOpt opt) {
+static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
@@ -248,18 +248,18 @@ typedef struct {
     Arena *arena;
 } CliBoolOpt;
 
-#define cli_add_bool(name, help, ...)          \
-    (global_cli_temp.arena == NULL             \
-        ? global_cli_temp = arena_temp()       \
-        : (void)0,                             \
-    cli_bool_opt((name), (help), (CliBoolOpt){ \
-        .ctx = &global_cli,                    \
-        .arena = global_cli_temp.arena,        \
-        .nargs = 0,                            \
-        __VA_ARGS__                            \
+#define cli_add_bool(name, help, ...)              \
+    (global_cli_temp.arena == NULL                 \
+        ? global_cli_temp = arena_temp()           \
+        : (void)0,                                 \
+    cli_add_bool_opt((name), (help), (CliBoolOpt){ \
+        .ctx = &global_cli,                        \
+        .arena = global_cli_temp.arena,            \
+        .nargs = 0,                                \
+        __VA_ARGS__                                \
     }))
 
-static bool *cli_bool_opt(Str name, Str help, CliBoolOpt opt) {
+static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
@@ -284,17 +284,17 @@ typedef struct {
     Arena *arena;
 } CliDoubleOpt;
 
-#define cli_add_f64(name, help, ...)               \
-    (global_cli_temp.arena == NULL                 \
-        ? global_cli_temp = arena_temp()           \
-        : (void)0,                                 \
-    cli_double_opt((name), (help), (CliDoubleOpt){ \
-        .ctx = &global_cli,                        \
-        .arena = global_cli_temp.arena,            \
-        __VA_ARGS__                                \
+#define cli_add_f64(name, help, ...)                \
+    (global_cli_temp.arena == NULL                  \
+        ? global_cli_temp = arena_temp()            \
+        : (void)0,                                  \
+    cli_add_i64_opt((name), (help), (CliDoubleOpt){ \
+        .ctx = &global_cli,                         \
+        .arena = global_cli_temp.arena,             \
+        __VA_ARGS__                                 \
     }))
 
-static double *cli_double_opt(Str name, Str help, CliDoubleOpt opt) {
+static double *cli_add_f64_opt(Str name, Str help, CliDoubleOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
@@ -349,6 +349,8 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
 }
 
 static bool cli__parse_value(CliArg *cli_arg, Str flag_key, Str arg) {
+    bool result = false;
+
     Temp tmp = arena_temp();
 
     switch (cli_arg->type) {
@@ -361,24 +363,24 @@ static bool cli__parse_value(CliArg *cli_arg, Str flag_key, Str arg) {
             // Since arg comes from a C String, doing this should be fine as it has a NULL terminator at the end
             int64_t num = strtoll(arg.data, &endptr, 10);
             if (endptr != arg.data + arg.length) {
-                migi_log(Log_Error, "expected value of type int for option: '%.*s' but got: '%.*s'",
+                migi_log(Log_Error, "expected value of type int for option: '-%.*s' but got: '%.*s'",
                         SArg(flag_key), SArg(arg));
-                arena_temp_release(tmp);
-                return false;
+                goto end;
             }
             cli_arg->as_int = num;
         } break;
         case CliArg_Bool: {
             Str arg_lower = str_to_lower(tmp.arena, arg);
-            if (str_eq(arg_lower, S("1")) || str_eq(arg_lower, S("true"))) {
+            if (str_eq_any(arg_lower, S("1"), S("y"), S("yes"), S("true"))) {
                 cli_arg->as_bool = true;
-            } else if (str_eq(arg_lower, S("0")) || str_eq(arg_lower, S("false"))) {
+
+            } else if (str_eq_any(arg_lower, S("0"), S("n"), S("no"), S("false"))) {
                 cli_arg->as_bool = false;
             } else {
-                migi_log(Log_Error, "expected value of type bool for option: '%.*s' but got: '%.*s'",
+                migi_log(Log_Error, "expected value of type bool for option: '-%.*s' "
+                        "(supported values are: 1/0, y[es]/n[o], true/false) but got: '%.*s'",
                         SArg(flag_key), SArg(arg));
-                arena_temp_release(tmp);
-                return false;
+                goto end;
             }
         } break;
         case CliArg_Double: {
@@ -387,10 +389,9 @@ static bool cli__parse_value(CliArg *cli_arg, Str flag_key, Str arg) {
             // Since arg comes from a C String, doing this should be fine as it has a NULL terminator at the end
             double num = strtod(arg.data, &endptr);
             if (endptr != arg.data + arg.length) {
-                migi_log(Log_Error, "expected value of type double for option: '%.*s' but got: '%.*s'",
+                migi_log(Log_Error, "expected value of type double for option: '-%.*s' but got: '%.*s'",
                         SArg(flag_key), SArg(arg));
-                arena_temp_release(tmp);
-                return false;
+                goto end;
             }
             cli_arg->as_double = num;
         } break;
@@ -398,13 +399,17 @@ static bool cli__parse_value(CliArg *cli_arg, Str flag_key, Str arg) {
             migi_unreachable();
     }
     cli_arg->found = true;
-    return true;
+
+    result = true;
+end:
+    arena_temp_release(tmp);
+    return result;
 }
 
 static CliArg *cli_key_to_arg(Cli *cli, Str key) {
     uint32_t *arg_index = cli__lookup(cli, key);
     if (arg_index == NULL) {
-        migi_log(Log_Error, "unknown flag: '%.*s'", SArg(key));
+        migi_log(Log_Error, "unknown flag: '-%.*s'", SArg(key));
         return NULL;
     }
     return &cli->args[*arg_index];
@@ -430,7 +435,10 @@ typedef struct {
         __VA_ARGS__                                    \
     }))
 
+
 static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
+    bool result = true;
+
     Temp tmp = arena_temp();
 
     if (opt.ctx->slots == NULL) {
@@ -460,7 +468,6 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     int i = 0;
     opt.ctx->executable = (!opt.ignore_first)? str_from_cstr(argv[i++]): opt.executable;
     for (; i < argc; i++) {
-        Str flag_key = {0};
         Str arg = str_from_cstr(argv[i]);
         if (arg.length == 0) continue;
 
@@ -472,37 +479,24 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
         // `-` on its own is invalid, skip it
         if (arg.length == 1) continue;
+        Str flag_key = str_skip(arg, 1);
 
-        // TODO: differentiate between `--flag` and `-flag` and
-        // parse `-flag` as `-f,` `-l,` `-a`, `-g` options instead
-        // TODO: To do this without getting messy, the loop needs to be rewritten into a state machine
-        // TODO: Or maybe remove the distinction entirely and only support options with a single `-`
-        // The alias system can then be further generalized to support a list of aliases for the same option
-        if (arg.data[1] != '-') {
-            // -flag
-            flag_key = str_skip(arg, 1);
-        } else {
-            // --flag
-            flag_key = str_skip(arg, 2);
-
-            // if arg is only a `--` parse everything after it as meta arguments
-            if (flag_key.length == 0) {
-                i++;
-                while (i < argc) {
-                    strlist_push_cstr(opt.arena, &opt.ctx->meta_args, argv[i++]);
-                }
-                break;
+        // if arg is only a `--` parse everything after it as meta arguments
+        if (str_eq(arg, S("--"))) {
+            i++;
+            while (i < argc) {
+                strlist_push_cstr(opt.arena, &opt.ctx->meta_args, argv[i++]);
             }
+            break;
         }
 
         StrCut cut = str_cut(flag_key, S("="));
 
-        // --flag foo
+        // -flag foo
         if (!cut.found) {
             CliArg *cli_arg = cli_key_to_arg(opt.ctx, flag_key);
             if (!cli_arg) {
-                arena_temp_release(tmp);
-                return false;
+                return_with(false);
             }
             if (cli_arg->nargs == 0) {
                 assertf(cli_arg->type == CliArg_Bool, "only boolean flags can have no arguments");
@@ -513,8 +507,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
             if (i + 1 == argc) {
                 migi_log(Log_Error, "expected argument after flag: '%.*s'", SArg(flag_key));
-                arena_temp_release(tmp);
-                return false;
+                return_with(false);
             }
 
             i++;
@@ -525,8 +518,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
                 strlist_push(opt.arena, &cli_arg->as_list, flag_value);
             } else {
                 if (!cli__parse_value(cli_arg, flag_key, flag_value)) {
-                    arena_temp_release(tmp);
-                    return false;
+                    return_with(false);
                 }
             }
             continue;
@@ -537,18 +529,19 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         Str flag_value = cut.tail;
 
         CliArg *cli_arg = cli_key_to_arg(opt.ctx, flag_key);
-        if (!cli_arg) {
-            arena_temp_release(tmp);
-            return false;
-        }
+        if (!cli_arg) return_with(false);
 
-        // --flag=foo,bar,baz
+        // -flag=foo,bar,baz
         StrList items = {0};
 
-        // TODO: `--flag="foo,bar"` is currently parsed like [`"foo`, `bar"`]
+        // TODO: `-flag="foo,bar"` is currently parsed like [`"foo`, `bar"`]
         StrCut values_cut = str_cut(flag_value, S(","));
         Str prev_tail = {0};
         do {
+            if (values_cut.head.length == 0) {
+                migi_log(Log_Error, "empty argument passed to list option: '-%.*s'", SArg(cli_arg->name));
+                goto end;
+            }
             strlist_push(opt.arena, &items, values_cut.head);
             prev_tail = values_cut.tail;
             values_cut = str_cut(values_cut.tail, S(","));
@@ -568,8 +561,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
             }
         } else {
             if (!cli__parse_value(cli_arg, flag_key, items.head->string)) {
-                arena_temp_release(tmp);
-                return false;
+                return_with(false);
             }
         }
     }
@@ -577,40 +569,43 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     // Validation
     clic_foreach(opt.ctx, arg) {
         if (arg->type == CliArg_List && arg->nargs != CLI_NARGS_INF && (size_t)arg->nargs != arg->as_list.length) {
-            migi_log(Log_Error, "too %s arguments for flag: '%.*s', expected %d but got %zu",
+            migi_log(Log_Error, "too %s arguments for option: '-%.*s', expected %d but got %zu",
                     arg->as_list.length < (size_t)arg->nargs? "few": "many",
                     SArg(arg->name), arg->nargs, arg->as_list.length);
-            arena_temp_release(tmp);
-            return false;
+
+            return_with(false);
         }
+
         if (arg->required && !arg->found) {
-            migi_log(Log_Error, "flag: '%.*s' is required but was not provided", SArg(arg->name));
-            arena_temp_release(tmp);
-            return false;
+            migi_log(Log_Error, "option: '-%.*s' is required but was not provided", SArg(arg->name));
+            return_with(false);
         }
     }
 
     if (opt.ctx->pos_args.length < (size_t)opt.nargs_atleast) {
         migi_log(Log_Error, "too few positional arguments, expected at least %d but got %zu",
                 opt.nargs_atleast, opt.ctx->pos_args.length);
-        arena_temp_release(tmp);
-        return false;
+        return_with(false);
     }
 
+
+end:
     if (handle_help_flag) {
         uint32_t *help_index = cli__lookup(opt.ctx, S("help"));
         assertf(help_index, "will never return NULL as 'help' was explicitly added");
-        if (opt.ctx->args[*help_index].as_bool) {
+
+        // Print help if there was an error or `-h` was explicitly specified
+        if (!result || opt.ctx->args[*help_index].as_bool) {
             fprintf(stderr, "%.*s", SArg(cli_help_text(tmp.arena, opt.ctx)));
         }
     }
-
     arena_temp_release(tmp);
-    return true;
+    return result;
 }
 
 
 // TODO: mention argument is required
+// TODO: mention argument aliases in a list
 // TODO: mention argument type
 // TODO: factor out the printing of options to another function, to enable easy custom help printing functions
 static Str cli_help_text(Arena *arena, Cli *cli) {
@@ -633,7 +628,7 @@ static Str cli_help_text(Arena *arena, Cli *cli) {
             if (arg->alias.length != 0) {
                 help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s, ", SArg(arg->alias)));
             }
-            help_text = str_cat(arena, help_text, strf(tmp.arena, "--%.*s      %.*s\n", SArg(arg->name), SArg(arg->help)));
+            help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s      %.*s\n", SArg(arg->name), SArg(arg->help)));
         }
     }
     help_text = str_cat(arena, help_text, S("\n"));

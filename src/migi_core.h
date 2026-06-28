@@ -260,9 +260,12 @@ do {                                                \
 
 // Set `result` to a value and goto `end` label
 // Useful for cleaning up stuff before exiting
+// TODO: rename this to goto_end_with?
 #define return_with(expr) \
+do {                      \
     result = expr;        \
-    goto end;
+    goto end;             \
+} while (0)
 
 
 typedef enum {
