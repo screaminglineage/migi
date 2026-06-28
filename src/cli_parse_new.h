@@ -30,7 +30,7 @@ typedef struct {
 
     Str help;
     Str name;
-    Str alias; // TODO: make this a list of aliases
+    StrSpan aliases;
     int32_t nargs;
     bool required;
     bool found;
@@ -83,7 +83,13 @@ typedef struct {
 
 static void cli_free(Cli *cli);
 
-static Str cli_help_text(Arena *arena, Cli *cli);
+
+typedef struct {
+    Cli *ctx;
+} CliHelpTextOpt;
+#define cli_help_text(arena, ...) cli_help_text_opt((arena), (CliHelpTextOpt){ .ctx = &global_cli, __VA_ARGS__ })
+static Str cli_help_text_opt(Arena *arena, CliHelpTextOpt opt);
+
 static CliArg *cli_key_to_arg(Cli *cli, Str key);
 
 #define cli_executable() global_cli.executable
@@ -172,7 +178,7 @@ static uint32_t *cli__lookup(Cli *flags, Str flag) {
 typedef struct {
     bool required;
     Str value;
-    Str alias;
+    StrSpan aliases;
     Cli *ctx;
     Arena *arena;
 } CliStrOpt;
@@ -191,7 +197,7 @@ static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
-        .alias = opt.alias,
+        .aliases = opt.aliases,
         .type = CliArg_Str,
         .as_str = opt.value,
         .nargs = 1,
@@ -199,7 +205,9 @@ static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
     };
     int32_t index = cli__push_arg(opt.arena, opt.ctx, arg);
     cli__insert(opt.arena, opt.ctx, name, index);
-    cli__insert(opt.arena, opt.ctx, opt.alias, index);
+    array_foreach(&opt.aliases, alias) {
+        cli__insert(opt.arena, opt.ctx, *alias, index);
+    }
 
     return &opt.ctx->args[index].as_str;
 }
@@ -207,7 +215,7 @@ static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
 typedef struct {
     bool required;
     int64_t value;
-    Str alias;
+    StrSpan aliases;
     Cli *ctx;
     Arena *arena;
 } CliIntOpt;
@@ -226,7 +234,7 @@ static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
-        .alias = opt.alias,
+        .aliases = opt.aliases,
         .type = CliArg_Int,
         .as_int = opt.value,
         .nargs = 1,
@@ -234,7 +242,9 @@ static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt) {
     };
     int32_t index = cli__push_arg(opt.arena, opt.ctx, arg);
     cli__insert(opt.arena, opt.ctx, name, index);
-    cli__insert(opt.arena, opt.ctx, opt.alias, index);
+    array_foreach(&opt.aliases, alias) {
+        cli__insert(opt.arena, opt.ctx, *alias, index);
+    }
 
     return &opt.ctx->args[index].as_int;
 }
@@ -243,7 +253,7 @@ typedef struct {
     int32_t nargs;
     bool required;
     bool value;
-    Str alias;
+    StrSpan aliases;
     Cli *ctx;
     Arena *arena;
 } CliBoolOpt;
@@ -263,7 +273,7 @@ static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
-        .alias = opt.alias,
+        .aliases = opt.aliases,
         .type = CliArg_Bool,
         .as_bool = opt.value,
         .nargs = opt.nargs,
@@ -271,7 +281,9 @@ static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
     };
     int32_t index = cli__push_arg(opt.arena, opt.ctx, arg);
     cli__insert(opt.arena, opt.ctx, name, index);
-    cli__insert(opt.arena, opt.ctx, opt.alias, index);
+    array_foreach(&opt.aliases, alias) {
+        cli__insert(opt.arena, opt.ctx, *alias, index);
+    }
 
     return &opt.ctx->args[index].as_bool;
 }
@@ -279,7 +291,7 @@ static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
 typedef struct {
     bool required;
     double value;
-    Str alias;
+    StrSpan aliases;
     Cli *ctx;
     Arena *arena;
 } CliDoubleOpt;
@@ -288,7 +300,7 @@ typedef struct {
     (global_cli_temp.arena == NULL                  \
         ? global_cli_temp = arena_temp()            \
         : (void)0,                                  \
-    cli_add_i64_opt((name), (help), (CliDoubleOpt){ \
+    cli_add_f64_opt((name), (help), (CliDoubleOpt){ \
         .ctx = &global_cli,                         \
         .arena = global_cli_temp.arena,             \
         __VA_ARGS__                                 \
@@ -298,7 +310,7 @@ static double *cli_add_f64_opt(Str name, Str help, CliDoubleOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
-        .alias = opt.alias,
+        .aliases = opt.aliases,
         .type = CliArg_Double,
         .as_double = opt.value,
         .nargs = 1,
@@ -306,7 +318,9 @@ static double *cli_add_f64_opt(Str name, Str help, CliDoubleOpt opt) {
     };
     int32_t index = cli__push_arg(opt.arena, opt.ctx, arg);
     cli__insert(opt.arena, opt.ctx, name, index);
-    cli__insert(opt.arena, opt.ctx, opt.alias, index);
+    array_foreach(&opt.aliases, alias) {
+        cli__insert(opt.arena, opt.ctx, *alias, index);
+    }
 
     return &opt.ctx->args[index].as_double;
 }
@@ -315,7 +329,7 @@ static double *cli_add_f64_opt(Str name, Str help, CliDoubleOpt opt) {
 typedef struct {
     bool required;
     int32_t nargs;
-    Str alias;
+    StrSpan aliases;
     Cli *ctx;
     Arena *arena;
 } CliListStrOpt;
@@ -335,7 +349,7 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
     CliArg arg = {
         .name = name,
         .help = help,
-        .alias = opt.alias,
+        .aliases = opt.aliases,
         .type = CliArg_List,
         .nargs = opt.nargs,
         .required = opt.required,
@@ -343,7 +357,9 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
 
     int32_t index = cli__push_arg(opt.arena, opt.ctx, arg);
     cli__insert(opt.arena, opt.ctx, name, index);
-    cli__insert(opt.arena, opt.ctx, opt.alias, index);
+    array_foreach(&opt.aliases, alias) {
+        cli__insert(opt.arena, opt.ctx, *alias, index);
+    }
 
     return &opt.ctx->args[index].as_list;
 }
@@ -450,7 +466,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     if (!cli__lookup(opt.ctx, S("help"))) {
         CliArg help_arg = {
             .name = S("help"),
-            .alias = S("h"),
+            .aliases = str_span_new(opt.arena, S("h")),
             .help = S("show this help message"),
             .type = CliArg_Bool,
             .as_bool = false,
@@ -458,7 +474,9 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         };
         int32_t index = cli__push_arg(opt.arena, opt.ctx, help_arg);
         cli__insert(opt.arena, opt.ctx, S("help"), index);
-        cli__insert(opt.arena, opt.ctx, S("h"), index);
+        array_foreach(&help_arg.aliases, alias) {
+            cli__insert(opt.arena, opt.ctx, *alias, index);
+        }
         handle_help_flag = true;
     }
 
@@ -596,7 +614,7 @@ end:
 
         // Print help if there was an error or `-h` was explicitly specified
         if (!result || opt.ctx->args[*help_index].as_bool) {
-            fprintf(stderr, "%.*s", SArg(cli_help_text(tmp.arena, opt.ctx)));
+            fprintf(stderr, "%.*s", SArg(cli_help_text_opt(tmp.arena, (CliHelpTextOpt){ .ctx = opt.ctx })));
         }
     }
     arena_temp_release(tmp);
@@ -608,8 +626,9 @@ end:
 // TODO: mention argument aliases in a list
 // TODO: mention argument type
 // TODO: factor out the printing of options to another function, to enable easy custom help printing functions
-static Str cli_help_text(Arena *arena, Cli *cli) {
+static Str cli_help_text_opt(Arena *arena, CliHelpTextOpt opt) {
     Temp tmp = arena_temp_excl(arena);
+    Cli *cli = opt.ctx;
     Str help_text = {0};
 
     help_text = str_cat(arena, help_text, strf(tmp.arena, "usage: %.*s [OPTIONS]\n", SArg(cli->executable)));
@@ -625,8 +644,8 @@ static Str cli_help_text(Arena *arena, Cli *cli) {
         clic_foreach(cli, arg) {
             // TODO: improve the alignment of options and help
             help_text = str_cat(arena, help_text, S("  "));
-            if (arg->alias.length != 0) {
-                help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s, ", SArg(arg->alias)));
+            array_foreach(&arg->aliases, alias) {
+                help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s, ", SArg(*alias)));
             }
             help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s      %.*s\n", SArg(arg->name), SArg(arg->help)));
         }

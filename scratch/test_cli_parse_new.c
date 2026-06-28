@@ -73,13 +73,16 @@ int main(int argc, char **argv) {
 int main1(int argc, char **argv) {
     Temp tmp = arena_temp();
 
-    Str *str       = cli_add_str (S("str"),  S("help text for str"),  .value = S("foo"), .alias = S("s"));
-    int64_t *num   = cli_add_i64 (S("num"),  S("help text for num"),  .value = 25,       .alias = S("n"));
-    bool *flag     = cli_add_bool(S("flag"), S("help text for flag"), .value = false,    .alias = S("f"));
-    double *real   = cli_add_f64 (S("real"), S("help text for real"), .value = 3.1415,   .alias = S("r"));
+    Str *str       = cli_add_str (S("str"),  S("help text for str"),  .value = S("foo"), .aliases = str_span(S("s")));
+    int64_t *num   = cli_add_i64 (S("num"),  S("help text for num"),  .value = 25,       .aliases = str_span(S("n")));
+    bool *flag     = cli_add_bool(S("flag"), S("help text for flag"), .value = false,    .aliases = str_span(S("f")));
+    double *real   = cli_add_f64 (S("real"), S("help text for real"), .value = 3.1415,   .aliases = str_span(S("r")));
 
-    // bool *help    = cli_add_bool(S("help"), S("help text for help"));
-    if (!cli_parse_args(argc, argv, .help = S("Does some stuff"))) return 1;
+    bool *help    = cli_add_bool(S("help"), S("help text for help"), .aliases = str_span(S("h"), S("?")));
+    if (!cli_parse_args(argc, argv, .help = S("Does some stuff")) || *help) {
+        fprintf(stderr, "%.*s", SArg(cli_help_text(tmp.arena)));
+        return 1;
+    }
 
     printf("Executable: '%.*s'\n\n", SArg(cli_executable()));
     cli_foreach(arg) {
