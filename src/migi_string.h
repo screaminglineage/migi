@@ -26,19 +26,25 @@ typedef struct {
 typedef struct {
     Str *data;
     size_t length;
-} StrSlice;
+} StrSpan;
 
+#define str_span(...) span(Str, StrSpan, __VA_ARGS__)
+#define str_span_new(arena, ...) span_new((arena), Str, StrSpan, __VA_ARGS__)
 
-// TODO: check for other whitespace characters
-// https://stackoverflow.com/a/46637343
-#define ASCII_WHITESPACES S(" \n\r\t\v\f")
-
-#define S(str_lit)  str_from((str_lit), sizeof((str_lit)) - 1)
+#define S(str_lit)  (Str){(str_lit), sizeof((str_lit)) - 1}
 #define SArg(sv) (int)(sv).length, (sv).data
 #define str_zero() ((Str){0})
 
+// TODO: check for other whitespace characters
+// https://stackoverflow.com/a/46637343
+const Str ASCII_WHITESPACES = S(" \n\r\t\v\f");
+
+
 static Str str_from(char *data, size_t length);
-static Str str_from_span(char *start, char *end);
+
+// The range is end exclusive
+static Str str_from_range(char *start, char *end);
+
 static Str str_from_cstr(const char *cstr);
 static char *str_to_cstr(Arena *arena, Str str);
 
@@ -62,9 +68,9 @@ static int str_cmp(Str a, Str b, StrEqOpt flags);
 
 // Check if string matches any element of an array
 // NOTE: __VA_ARGS__ cannot be empty in str_eq_any for msvc compatibility
-bool str_eq_any_slice(Str to_match, StrSlice matches);
+bool str_eq_any_span(Str to_match, StrSpan matches);
 #define str_eq_any(to_match, ...) \
-    str_eq_any_slice((to_match), slice_from(Str, StrSlice, __VA_ARGS__))
+    str_eq_any_span((to_match), span(Str, StrSpan, __VA_ARGS__))
 
 
 // Slice string into [start, end) (exclusive range)
@@ -211,7 +217,7 @@ static Str str_from(char *data, size_t length) {
     };
 }
 
-static Str str_from_span(char *start, char *end) {
+static Str str_from_range(char *start, char *end) {
     return str_from(start, end - start);
 }
 
@@ -306,7 +312,7 @@ static bool str_eq_cstr(Str a, const char *b, StrEqOpt flags) {
     return str_eq_ex(a, str_from_cstr(b), flags);
 }
 
-bool str_eq_any_slice(Str to_match, StrSlice matches) {
+bool str_eq_any_span(Str to_match, StrSpan matches) {
     for (size_t i = 0; i < matches.length; i++) {
         if (str_eq(to_match, matches.data[i])) {
             return true;

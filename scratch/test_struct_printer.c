@@ -46,7 +46,7 @@ int main() {
         array_push(&arr, i);
     }
 
-    Strings strings = slice_from(Str, Strings, S("hello"), S("world"), S("Generated!"));
+    Strings strings = span(Str, Strings, S("hello"), S("world"), S("Generated!"));
     strings.more = (void *)0x8000f;
 
     Foo f = {

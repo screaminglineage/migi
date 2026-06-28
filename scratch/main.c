@@ -447,7 +447,7 @@ void profile_linear_arena() {
 
 
 typedef struct {
-    StrSlice expected;
+    StrSpan expected;
     StrList actual;
 } StringSplitTest;
 
@@ -478,44 +478,44 @@ void test_str_split_and_join() {
     Arena *a = arena_init();
     StringSplitTest splits[] = {
         {
-            .expected = slice_from(Str, StrSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
+            .expected = str_span(S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
             .actual = str_split(a, S("Mary had a little lamb"), S(" "))
         },
         {
-            .expected = slice_from(Str, StrSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
+            .expected = str_span(S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
             .actual =  str_split_ex(a, S(" Mary    had   a   little   lamb "), S(" "), Split_SkipEmpty)
         },
         {
-            .expected = slice_from(Str, StrSlice, S(""), S("Mary"), S(""), S(""), S(""), S("had"), S(""), S(""), 
+            .expected = str_span(S(""), S("Mary"), S(""), S(""), S(""), S("had"), S(""), S(""), 
                     S("a"), S(""), S(""), S("little"), S(""), S(""), S("lamb")),
             .actual =  str_split(a, S(" Mary    had   a   little   lamb"), S(" "))
         },
         {
-            .expected = slice_from(Str, StrSlice, S("Mary"), S("had"), S("a"), S("little"), S("lamb"), S("")),
+            .expected = str_span(S("Mary"), S("had"), S("a"), S("little"), S("lamb"), S("")),
             .actual = str_split(a, S("Mary--had--a--little--lamb--"), S("--"))
         },
         {
-            .expected = slice_from(Str, StrSlice, S("a"), S("b"), S("c"), S("d")),
+            .expected = str_span(S("a"), S("b"), S("c"), S("d")),
             .actual = str_split(a, S("abcd"), S(""))
         },
         {
-            .expected = slice_from(Str, StrSlice, S(""), S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
+            .expected = str_span(S(""), S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
             .actual = str_split(a, S(" Mary had a little lamb"), S(" ")),
         },
         {
-            .expected = slice_from(Str, StrSlice, S(""), S("1"), S("")),
+            .expected = str_span(S(""), S("1"), S("")),
             .actual = str_split(a, S("010"), S("0"))
         },
         {
-            .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S("03"), S("23"), S("59"), S("")),
+            .expected = str_span(S("2020"), S("11"), S("03"), S("23"), S("59"), S("")),
             .actual = str_split_ex(a, S("2020-11-03 23:59@"), S("- :@"), Split_Any)
         },
         {
-            .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S("03"), S("23"), S("59")),
+            .expected = str_span(S("2020"), S("11"), S("03"), S("23"), S("59")),
             .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_SkipEmpty|Split_Any)
         },
         {
-            .expected = slice_from(Str, StrSlice, S("2020"), S("11"), S(""), S("03"), S("23"), S("59"), S("")),
+            .expected = str_span(S("2020"), S("11"), S(""), S("03"), S("23"), S("59"), S("")),
             .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any)
         },
     };
@@ -1052,16 +1052,16 @@ void test_swap() {
 typedef struct {
     int *data;
     size_t length;
-} IntSlice;
+} IntSpan;
 
 
-IntSlice return_slice(Arena *a) {
-    return slice_new(a, int, IntSlice, 1,2,3,4,5);
+IntSpan return_slice(Arena *a) {
+    return span_new(a, int, IntSpan, 1,2,3,4,5);
 }
 
 void test_return_slice() {
     Arena *a = arena_init();
-    IntSlice slice = return_slice(a);
+    IntSpan slice = return_slice(a);
     int arr[] = {1,2,3,4,5};
     assert(slice.length == array_len(arr) && mem_eq_array(slice.data, arr, slice.length));
 }

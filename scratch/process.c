@@ -15,7 +15,7 @@ typedef struct {
 } CmdResult;
 
 #define cmd_push(cmd, ...) \
-    cmd__push((cmd), slice_from(Str, StrSlice, __VA_ARGS__ ))
+    cmd__push((cmd), span_from(Str, StrSpan, __VA_ARGS__ ))
 
 typedef struct {
     // TODO: implement these
@@ -32,7 +32,7 @@ static CmdResult cmd_run_opt(Arena *a, Cmd *cmd, CmdOpt opt);
     cmd_run_opt((arena), (cmd), (CmdOpt){__VA_ARGS__})
 
 
-static void cmd__push(Cmd *cmd, StrSlice args) {
+static void cmd__push(Cmd *cmd, StrSpan args) {
     array_foreach(&args, arg) {
         strlist_push(cmd->arena, &cmd->args, *arg);
     }

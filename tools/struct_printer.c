@@ -145,7 +145,7 @@ void generate_string_printer(StrBuilder *sb) {
 }
 
 
-void generate_member_printer(StrBuilder *sb, Member member, int indent_count, int max_name_length, bool is_slice) {
+void generate_member_printer(StrBuilder *sb, Member member, int indent_count, int max_name_length, bool is_span) {
     // indent member sufficiently according to the level
     sb_pushf(sb, "    printf(\"%%*s\", (level + 1) * %d, \"\");\n", indent_count);
 
@@ -154,7 +154,7 @@ void generate_member_printer(StrBuilder *sb, Member member, int indent_count, in
 
 
     // print as slice
-    if (is_slice) {
+    if (is_span) {
         sb_pushf     (sb, "    printf(\".%.*s%*s= \");\n", SArg(member.name), padding, " ");
         sb_pushf     (sb, "    printf(\"(%.*s[]){ \");\n", SArg(member.type_name));
         sb_push_cstr (sb, "    for (size_t i = 0; i < var_name.length; i++) {\n");

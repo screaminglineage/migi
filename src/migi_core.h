@@ -166,17 +166,17 @@ do {                    \
 
 #define array_len(array) (sizeof(array) / sizeof(*(array)))
 
-// Creates a Slice (any struct with a data and length) from an 
+// Creates a Span (any struct with a data and length) from an 
 // array designated initializer and allocates the data on an arena
-#define slice_new(arena, T, SliceT, ...)                                                              \
-    (SliceT){                                                                                         \
+#define span_new(arena, T, SpanT, ...)                                                                \
+    (SpanT){                                                                                          \
         .data = arena_copy_bytes(arena, (T[]){__VA_ARGS__}, sizeof((T[]){__VA_ARGS__}), align_of(T)), \
         .length = sizeof((T[]){__VA_ARGS__}) / sizeof(T),                                             \
     }
 
-// Creates a Slice (any struct with a data and length) from an array designated initializer
-#define slice_from(T, SliceT, ...)                        \
-    (SliceT){                                             \
+// Creates a Span (any struct with a data and length) from an array designated initializer
+#define span(T, SpanT, ...)                               \
+    (SpanT){                                              \
         .data = (T[]){__VA_ARGS__},                       \
         .length = sizeof((T[]){__VA_ARGS__}) / sizeof(T), \
     }

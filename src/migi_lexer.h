@@ -156,7 +156,7 @@ static inline bool match_token_str(Lexer *lexer, LexerTokenType expected, Str to
 // Check if the next token is one of the passed in tokens
 // bool match_token_any(Lexer *lexer, (LexerTokenType[]){ ... })
 #define match_token_any(lexer, ...) \
-    (match_token_any_slice((lexer), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
+    (match_token_any_span((lexer), __VA_ARGS__, sizeof((__VA_ARGS__))/sizeof(*(__VA_ARGS__))))
 
 #define lexer_new_token(lexer, tok_type)              \
     ((Token){                                         \
@@ -498,7 +498,7 @@ static inline bool match_token(Lexer *lexer, LexerTokenType expected) {
     return true;
 }
 
-static inline bool match_token_any_slice(Lexer *lexer, LexerTokenType *expected, size_t expected_len) {
+static inline bool match_token_any_span(Lexer *lexer, LexerTokenType *expected, size_t expected_len) {
     Token tok = {0};
     if (!peek_token(lexer, &tok)) return false;
     for (size_t i = 0; i < expected_len; i++) {
