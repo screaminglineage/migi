@@ -21,40 +21,38 @@ static void end_profiling_and_print_stats();
 
 #include "migi_core.h"
 
-typedef uint64_t u64;
-
 #define MAX_TIMESTAMPS 4096
 
 typedef struct {
-    u64 bytes_count;
-    u64 start_time;
-    u64 elapsed_inclusive;
-    u64 elapsed_exclusive;
-    u64 hits;
+    uint64_t bytes_count;
+    uint64_t start_time;
+    uint64_t elapsed_inclusive;
+    uint64_t elapsed_exclusive;
+    uint64_t hits;
     const char *name;
 } ProfilerTimestamp;
 
 typedef struct {
     ProfilerTimestamp timestamps[MAX_TIMESTAMPS];
-    u64 start_time;
-    u64 end_time;
+    uint64_t start_time;
+    uint64_t end_time;
 } Profiler;
 
 static Profiler global_profiler = {0};
-static u64 global_parent_index = 0;
+static uint64_t global_parent_index = 0;
 
 #ifdef ENABLE_PROFILING
 
 typedef struct {
-    u64 start_time;
-    u64 elapsed_inclusive;
-    u64 timestamp_index;
-    u64 timestamp_parent_index;
+    uint64_t start_time;
+    uint64_t elapsed_inclusive;
+    uint64_t timestamp_index;
+    uint64_t timestamp_parent_index;
     const char *name;
 } ProfilerTimestampTemp;
 
 
-static ProfilerTimestampTemp start_block(u64 index, const char *name, u64 bytes_count) {
+static ProfilerTimestampTemp start_block(uint64_t index, const char *name, uint64_t bytes_count) {
     ProfilerTimestampTemp tp = {
         .elapsed_inclusive = global_profiler.timestamps[index].elapsed_inclusive,
         .timestamp_index = index,
@@ -68,7 +66,7 @@ static ProfilerTimestampTemp start_block(u64 index, const char *name, u64 bytes_
 }
 
 static void end_block(ProfilerTimestampTemp *tp) {
-    u64 elapsed = read_cpu_timer() - tp->start_time;
+    uint64_t elapsed = read_cpu_timer() - tp->start_time;
     ProfilerTimestamp *saved_ts = &global_profiler.timestamps[tp->timestamp_index];
 
     saved_ts->elapsed_inclusive = tp->elapsed_inclusive + elapsed;
@@ -97,7 +95,7 @@ static void end_block(ProfilerTimestampTemp *tp) {
 #define PROFILER_END static_assert(EVAL(DEFER(__COUNTER__)) < MAX_TIMESTAMPS, "More timestamps were added than allowed. Either increase MAX_TIMESTAMPS or reduce profile points")
 
 
-static void print_timestamps(u64 total, u64 cpu_freq) {
+static void print_timestamps(uint64_t total, uint64_t cpu_freq) {
     for (size_t i = 1; i < MAX_TIMESTAMPS; i++) {
         ProfilerTimestamp ts = global_profiler.timestamps[i];
         if (ts.elapsed_inclusive) {
@@ -141,9 +139,9 @@ static void begin_profiling() {
 
 static void end_profiling_and_print_stats() {
     global_profiler.end_time = read_cpu_timer();
-    u64 total = global_profiler.end_time - global_profiler.start_time;
+    uint64_t total = global_profiler.end_time - global_profiler.start_time;
 
-    u64 cpu_freq = estimate_cpu_timer_freq();
+    uint64_t cpu_freq = estimate_cpu_timer_freq();
     if (cpu_freq) {
         double total_time = (double)total/(double)cpu_freq;
         if (total_time < 1) {
