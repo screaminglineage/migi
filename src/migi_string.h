@@ -37,7 +37,8 @@ typedef struct {
 
 // TODO: check for other whitespace characters
 // https://stackoverflow.com/a/46637343
-const Str ASCII_WHITESPACES = S(" \n\r\t\v\f");
+// Cannot use S macro here since compound literals are apparently not constants on MSVC
+const Str ASCII_WHITESPACES = {.data = " \n\r\t\v\f", .length = 6};
 
 
 static Str str_from(char *data, size_t length);
@@ -50,10 +51,13 @@ static char *str_to_cstr(Arena *arena, Str str);
 
 static Str str_copy(Arena *arena, Str str);
 
-// Concatenates `tail` to the end of `head` if that was the
-// last allocation, otherwise copies both `head` and `tail`
-// Returns the concatenated string, so it can be chained
+// "StringBuilder at home"
+// Concatenates `tail` to the end of `head` if that was the last allocation,
+// otherwise copies both `head` and `tail` to a new continuous allocation.
+// Returns the concatenated string, so it can be chained.
+// `str_catf` behaves the same, but uses the formatted printing instead.
 static Str str_cat(Arena *arena, Str head, Str tail);
+migi_printf_format(3, 4) static Str str_catf(Arena *arena, Str head, const char *fmt, ...);
 
 typedef enum {
     Eq_IgnoreCase = bit(0),
@@ -209,6 +213,9 @@ static uint64_t str_hash(Str string);
 // Create formatted string on an arena
 migi_printf_format(2, 3) static Str strf(Arena *arena, const char *fmt, ...);
 
+// Helper function for string formatting
+static Str str__format(Arena *arena, const char *fmt, va_list args);
+
 
 static Str str_from(char *data, size_t length) {
     return (Str){
@@ -247,6 +254,14 @@ static Str str_cat(Arena *arena, Str head, Str tail) {
     }
     head.length += str_copy(arena, tail).length;
     return head;
+}
+
+static Str str_catf(Arena *arena, Str head, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    Str tail = str__format(arena, fmt, args);
+    va_end(args);
+    return str_cat(arena, head, tail);
 }
 
 char char_to_upper(char ch) {
@@ -629,7 +644,7 @@ static Str str__format(Arena *arena, const char *fmt, va_list args) {
     va_copy(args_saved, args);
 
     int reserved = 1024;
-    char *mem = arena_push(arena, char, reserved);
+    char *mem = arena_push_nonzero(arena, char, reserved);
     int actual = vsnprintf(mem, reserved, fmt, args);
     // vsnprintf doesnt count the null terminator
     actual += 1;

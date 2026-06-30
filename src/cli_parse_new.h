@@ -1,8 +1,6 @@
 #ifndef MIGI_CLI_PARSE_NEW_H
 #define MIGI_CLI_PARSE_NEW_H
 
-// TODO: add support for enums
-
 #include "migi.h"
 
 // Maximum number of flags supported
@@ -113,7 +111,7 @@ static CliArg *cli_key_to_arg(Cli *cli, Str key);
 
 
 threadvar Cli global_cli = {0};
-threadvar Temp global_cli_temp = {0};
+threadvar Arena *global_cli_arena = {0};
 
 
 static void cli__init(Arena *arena, Cli *cli) {
@@ -185,14 +183,14 @@ typedef struct {
     Arena *arena;
 } CliStrOpt;
 
-#define cli_add_str(name, help, ...)              \
-    (global_cli_temp.arena == NULL                \
-        ? global_cli_temp = arena_temp()          \
-        : (void)0,                                \
-    cli_add_str_opt((name), (help), (CliStrOpt) { \
-        .cli = &global_cli,                       \
-        .arena = global_cli_temp.arena,           \
-        __VA_ARGS__                               \
+#define cli_add_str(name, help, ...)                        \
+    (global_cli_arena == NULL                               \
+        ? global_cli_arena = arena_init(.type=Arena_Linear) \
+        : (void)0,                                          \
+    cli_add_str_opt((name), (help), (CliStrOpt) {           \
+        .cli = &global_cli,                                 \
+        .arena = global_cli_arena,                          \
+        __VA_ARGS__                                         \
     }))
 
 static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
@@ -223,12 +221,12 @@ typedef struct {
 } CliIntOpt;
 
 #define cli_add_i64(name, help, ...)             \
-    (global_cli_temp.arena == NULL               \
-        ? global_cli_temp = arena_temp()         \
+    (global_cli_arena == NULL                    \
+        ? global_cli_arena = arena_init()        \
         : (void)0,                               \
     cli_add_i64_opt((name), (help), (CliIntOpt){ \
         .cli = &global_cli,                      \
-        .arena = global_cli_temp.arena,          \
+        .arena = global_cli_arena,               \
         __VA_ARGS__                              \
     }))
 
@@ -261,12 +259,12 @@ typedef struct {
 } CliBoolOpt;
 
 #define cli_add_bool(name, help, ...)              \
-    (global_cli_temp.arena == NULL                 \
-        ? global_cli_temp = arena_temp()           \
+    (global_cli_arena == NULL                      \
+        ? global_cli_arena = arena_init()          \
         : (void)0,                                 \
     cli_add_bool_opt((name), (help), (CliBoolOpt){ \
         .cli = &global_cli,                        \
-        .arena = global_cli_temp.arena,            \
+        .arena = global_cli_arena,                 \
         .nargs = 0,                                \
         __VA_ARGS__                                \
     }))
@@ -299,12 +297,12 @@ typedef struct {
 } CliDoubleOpt;
 
 #define cli_add_f64(name, help, ...)                \
-    (global_cli_temp.arena == NULL                  \
-        ? global_cli_temp = arena_temp()            \
+    (global_cli_arena == NULL                       \
+        ? global_cli_arena = arena_init()           \
         : (void)0,                                  \
     cli_add_f64_opt((name), (help), (CliDoubleOpt){ \
         .cli = &global_cli,                         \
-        .arena = global_cli_temp.arena,             \
+        .arena = global_cli_arena,                  \
         __VA_ARGS__                                 \
     }))
 
@@ -337,12 +335,12 @@ typedef struct {
 } CliListStrOpt;
 
 #define cli_add_list(name, help, ...)                 \
-    (global_cli_temp.arena == NULL                    \
-        ? global_cli_temp = arena_temp()              \
+    (global_cli_arena == NULL                         \
+        ? global_cli_arena = arena_init()             \
         : (void)0,                                    \
     cli_list_str_opt((name), (help), (CliListStrOpt){ \
         .cli = &global_cli,                           \
-        .arena = global_cli_temp.arena,               \
+        .arena = global_cli_arena,                    \
         .nargs = CLI_NARGS_INF,                       \
         __VA_ARGS__                                   \
     }))
@@ -414,7 +412,7 @@ static bool cli__parse_value(CliArg *cli_arg, Str flag_key, Str arg) {
             cli_arg->as_double = num;
         } break;
         default:
-            migi_unreachable();
+            unreachable();
     }
     cli_arg->found = true;
 
@@ -444,12 +442,12 @@ typedef struct {
 } CliParseOpt;
 
 #define cli_parse_args(argc, argv, ...)                \
-    (global_cli_temp.arena == NULL                     \
-        ? global_cli_temp = arena_temp()               \
+    (global_cli_arena == NULL                          \
+        ? global_cli_arena = arena_init()              \
         : (void)0,                                     \
     cli_parse_args_opt((argc), (argv), (CliParseOpt) { \
         .cli = &global_cli,                            \
-        .arena = global_cli_temp.arena,                \
+        .arena = global_cli_arena,                     \
         __VA_ARGS__                                    \
     }))
 
@@ -632,10 +630,10 @@ static Str cli_arg_type_to_str(CliArgType type) {
         case CliArg_Double: return S("float");
         case CliArg_List:   return S("list");
     }
+    unreachable();
 }
 
 // TODO: mention argument is required
-// TODO: mention argument aliases in a list
 // TODO: factor out the printing of options to another function, to enable easy custom help printing functions
 static Str cli_help_text_opt(Arena *arena, CliHelpTextOpt opt) {
     Temp tmp = arena_temp_excl(arena);
@@ -652,17 +650,43 @@ static Str cli_help_text_opt(Arena *arena, CliHelpTextOpt opt) {
 
     if (cli->args_length > 0) {
         help_text = str_cat(arena, help_text, S("Options:\n"));
+
+        StrList options = {0};
+        size_t max_option_length = 0;
         clic_foreach(cli, arg) {
-            // TODO: improve the alignment of options and help
-            help_text = str_cat(arena, help_text, S("  "));
+            Str options_str = {0};
             array_foreach(&arg->aliases, alias) {
-                help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s, ", SArg(*alias)));
+                options_str = str_catf(tmp.arena, options_str, "-%.*s, ", SArg(*alias));
             }
-            // TODO: dont print the parameter if nargs = 0
-            // TODO: print the list format and expected count if nargs > 0
-            help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s %.*s [%.*s]      %.*s\n",
-                        SArg(arg->name), SArg(str_to_upper(tmp.arena, arg->name)),
-                        SArg(cli_arg_type_to_str(arg->type)), SArg(arg->help)));
+
+            if (arg->nargs == 0) {
+                options_str = str_catf(tmp.arena, options_str, "-%.*s", SArg(arg->name));
+            } else if (arg->nargs == 1) {
+                options_str = str_catf(tmp.arena, options_str, "-%.*s <%.*s>",
+                        SArg(arg->name), SArg(cli_arg_type_to_str(arg->type)));
+            } else if (arg->nargs > 1) {
+                options_str = str_catf(tmp.arena, options_str, "-%.*s <%.*s[%d]>",
+                        SArg(arg->name), SArg(cli_arg_type_to_str(arg->type)), arg->nargs);
+            }
+
+            if (arg->required) {
+                options_str = str_cat(tmp.arena, options_str, S(" (required)"));
+            }
+
+            max_option_length = max_of(options_str.length, max_option_length);
+            strlist_push(tmp.arena, &options, options_str);
+        }
+
+
+        size_t i = 0;
+        strlist_foreach(&options, option) {
+            CliArg arg = cli->args[i++];
+            help_text = str_cat(arena, help_text, S("  "));
+            help_text = str_cat(arena, help_text, option->string);
+
+            int min_space_count = 5;
+            size_t space_count = min_space_count + max_option_length - option->string.length;
+            help_text = str_catf(arena, help_text, "%*.s%.*s\n", (int)space_count, " ", SArg(arg.help));
         }
     }
     help_text = str_cat(arena, help_text, S("\n"));

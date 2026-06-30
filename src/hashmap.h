@@ -164,7 +164,7 @@ static void hashmap__init(HashMapHeader *h, HashMapKeyType key_type) {
             case HashMapKey_Str:    h->hash_fn = hash_fnv_str;   break;
             case HashMapKey_CStr:   h->hash_fn = hash_fnv_cstr;  break;
             case HashMapKey_Other:  h->hash_fn = hash_fnv_bytes; break;
-            default:                migi_unreachable();          break;
+            default:                unreachable();          break;
         }
     }
     if (h->eq_fn == NULL) {
@@ -172,7 +172,7 @@ static void hashmap__init(HashMapHeader *h, HashMapKeyType key_type) {
             case HashMapKey_Str:    h->eq_fn = eq_str;   break;
             case HashMapKey_CStr:   h->eq_fn = eq_cstr;  break;
             case HashMapKey_Other:  h->eq_fn = eq_bytes; break;
-            default:                migi_unreachable();  break;
+            default:                unreachable();  break;
         }
     }
     return;

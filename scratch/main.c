@@ -1478,7 +1478,6 @@ void test_ring_buffer() {
 
 int main() {
     Arena *a = arena_init();
-    test_random();
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

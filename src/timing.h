@@ -41,7 +41,7 @@ static uint64_t timer_now() {
 
     static LARGE_INTEGER freq = {0};
     if (freq.QuadPart == 0) {
-        QueryPerformancefreq(&freq);
+        QueryPerformanceFrequency(&freq);
     }
 
     uint64_t secs  = time.QuadPart / freq.QuadPart;
@@ -50,6 +50,7 @@ static uint64_t timer_now() {
 }
 
 static uint64_t sleep_until(uint64_t target_nanos) {
+    unused(target_nanos);
     todof("implement for windows");
 }
 

@@ -49,7 +49,7 @@ static int run_command(StrList *command) {
                 migi_log(Log_Error, "Failed to run `%s`: %s", command_args[0], strerror(errno));
                 exit(1);
             }
-            migi_unreachable();
+            unreachable();
         } break;
 
         default: {

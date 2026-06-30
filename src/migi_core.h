@@ -96,8 +96,13 @@ typedef uint8_t byte;
 #define todo_expr(type) (todo(), (type){0})
 #define todof_expr(type, ...) (todof(__VA_ARGS__), (type){0})
 
-#define migi_unreachable() crash_with_message("%s: unreachable!", __func__)
-#define migi_unreachablef crash_with_message
+#ifdef _WIN32
+    #define unreachable() (crash_with_message("%s: unreachable!", __func__), __assume(0))
+    #define unreachablef(...)  (crash_with_message(__VA_ARGS__), __assume(0))
+#else
+    #define unreachable() crash_with_message("%s: unreachable!", __func__)
+    #define unreachablef(...) crash_with_message(__VA_ARGS__)
+#endif
 
 #define unused(a) ((void)a)
 

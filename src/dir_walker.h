@@ -397,7 +397,7 @@ static DirIter walker_next_opt(Arena *arena, DirWalker *w, WalkerNextOpt opt) {
                 return w->entry;
             } break;
 
-            default: migi_unreachable();
+            default: unreachable();
         }
     }
 }

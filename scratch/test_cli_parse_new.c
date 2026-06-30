@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include "migi.h"
 #include "cli_parse_new.h"
 
@@ -9,7 +10,7 @@ void print_arg(CliArg *arg) {
             printf("'%.*s'\n", SArg(arg->as_str));
         } break;
         case CliArg_Int: {
-            printf("%ld\n", arg->as_int);
+            printf("%"PRId64"\n", arg->as_int);
         } break;
         case CliArg_Bool: {
             printf("%.*s\n", SArg(bool_to_str(arg->as_bool)));
@@ -25,7 +26,7 @@ void print_arg(CliArg *arg) {
             printf("]\n");
         } break;
         case CliArg_None: {
-            migi_unreachable();
+            unreachable();
         } break;
     }
 }
@@ -42,7 +43,7 @@ int main(int argc, char **argv) {
     double *real   = cli_add_f64 (S("real"), S("help: real"),                   .cli = &cli, /*.arena = tmp.arena*/);
 
     // NOTE: bools take no args by default which can be changed to 1 through the `nargs` argument
-    // The supported values are: `1`, `0`, `true`, `false` (case doesnt matter)
+    // The supported values are: `1`, `0`, `y[es]`, `n[o]` `true`, `false` (case doesnt matter)
     bool *check     = cli_add_bool(S("check"), S("help: check"), .nargs = 1, .cli = &cli, /*.arena = tmp.arena*/);
     StrList *list   = cli_add_list(S("list"),  S("help: list"),  .nargs = 3, .cli = &cli, /*.arena = tmp.arena*/);
 
