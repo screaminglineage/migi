@@ -301,9 +301,9 @@ void test_random() {
     // seeding a custom RNG and setting it as global
     {
         Rng rng = {0};
-        randr_rng_seed(&rng, seed);
+        rand_rng_seed(seed, .rng=&rng);
 
-        Rng old_rng = rand_rng_set(rng);
+        Rng old_rng = rand_rng_set_global(rng);
 
         byte *buf = arena_push_nonzero(arena, byte, size);
         rand_fill_bytes(buf, size);
@@ -315,7 +315,7 @@ void test_random() {
         rand_rng_seed(seed + 1);
         assertf(!mem_eq_array(MIGI_GLOBAL_RNG.state, old_rng.state, MIGI_RNG_STATE_LEN), 
                 "rng must be in different states");
-        rand_rng_set(old_rng);
+        rand_rng_set_global(old_rng);
         assertf(mem_eq_array(MIGI_GLOBAL_RNG.state, old_rng.state, MIGI_RNG_STATE_LEN),
                 "rng must be in the same state");
 
@@ -1478,7 +1478,7 @@ void test_ring_buffer() {
 
 int main() {
     Arena *a = arena_init();
-
+    test_random();
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

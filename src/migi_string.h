@@ -31,7 +31,7 @@ typedef struct {
 #define str_span(...) span(Str, StrSpan, __VA_ARGS__)
 #define str_span_new(arena, ...) span_new((arena), Str, StrSpan, __VA_ARGS__)
 
-#define S(str_lit)  (Str){(str_lit), sizeof((str_lit)) - 1}
+#define S(str_lit)  ((Str){(str_lit), sizeof((str_lit)) - 1})
 #define SArg(sv) (int)(sv).length, (sv).data
 #define str_zero() ((Str){0})
 

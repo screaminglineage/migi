@@ -394,11 +394,12 @@ static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
 
 
 // Get a pointer to the value for a key
-// If key is not present, it is inserted with a zero initialized value
+// If key is not present, it is inserted with the default value
 #define hashmap_entry(arena, hashmap, k)                                                           \
     ((hashmap)->pairs = hashmap__put((arena), &(hashmap)->_h, hashmap__generic((hashmap)),         \
                                     (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
     (hashmap)->pairs[(hashmap)->_temp_index].key = (k),                                            \
+    (hashmap)->pairs[(hashmap)->_temp_index].value = (hashmap)->pairs[0].value,                    \
     &(hashmap)->pairs[(hashmap)->_temp_index].value)
 
 
