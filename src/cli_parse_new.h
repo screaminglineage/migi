@@ -1,6 +1,8 @@
 #ifndef MIGI_CLI_PARSE_NEW_H
 #define MIGI_CLI_PARSE_NEW_H
 
+// TODO: add support for enums
+
 #include "migi.h"
 
 // Maximum number of flags supported
@@ -621,10 +623,19 @@ end:
     return result;
 }
 
+static Str cli_arg_type_to_str(CliArgType type) {
+    switch (type) {
+        case CliArg_None:   return S("NONE");
+        case CliArg_Str:    return S("string");
+        case CliArg_Int:    return S("int");
+        case CliArg_Bool:   return S("bool");
+        case CliArg_Double: return S("float");
+        case CliArg_List:   return S("list");
+    }
+}
 
 // TODO: mention argument is required
 // TODO: mention argument aliases in a list
-// TODO: mention argument type
 // TODO: factor out the printing of options to another function, to enable easy custom help printing functions
 static Str cli_help_text_opt(Arena *arena, CliHelpTextOpt opt) {
     Temp tmp = arena_temp_excl(arena);
@@ -647,7 +658,11 @@ static Str cli_help_text_opt(Arena *arena, CliHelpTextOpt opt) {
             array_foreach(&arg->aliases, alias) {
                 help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s, ", SArg(*alias)));
             }
-            help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s      %.*s\n", SArg(arg->name), SArg(arg->help)));
+            // TODO: dont print the parameter if nargs = 0
+            // TODO: print the list format and expected count if nargs > 0
+            help_text = str_cat(arena, help_text, strf(tmp.arena, "-%.*s %.*s [%.*s]      %.*s\n",
+                        SArg(arg->name), SArg(str_to_upper(tmp.arena, arg->name)),
+                        SArg(cli_arg_type_to_str(arg->type)), SArg(arg->help)));
         }
     }
     help_text = str_cat(arena, help_text, S("\n"));
