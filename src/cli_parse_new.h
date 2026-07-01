@@ -119,6 +119,9 @@ typedef struct {
     Str help;             // help text for the program as a whole
     bool ignore_first;    // whether to ignore the first argument (usually the name of the executable) [defaults to false and consumes it]
     Str executable;       // this is only used when `ignore_first` is true to set the executable name manually
+
+    // TODO: remove `nargs_atleast` as this case must be handled manually to give a good error message anyway
+    // check tools/build.c for such an example
     int nargs_atleast;    // minimum number of positional arguments to expect
 } CliParseOpt;
 // bool cli_parse_args(argc, argv, ...);
@@ -318,8 +321,10 @@ static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
         .required = opt.required
     };
     int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+    assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
+        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -337,8 +342,10 @@ static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt) {
         .required = opt.required,
     };
     int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+    assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
+        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -356,8 +363,10 @@ static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
         .required = opt.required,
     };
     int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+    assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
+        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -375,8 +384,10 @@ static double *cli_add_double_opt(Str name, Str help, CliDoubleOpt opt) {
         .required = opt.required,
     };
     int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+    assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
+        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -394,8 +405,10 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
     };
 
     int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+    assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
+        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
