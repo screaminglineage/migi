@@ -8,10 +8,8 @@
 #include <unistd.h>
 
 #include "migi.h"
-#include "cli_parse.h"
-#include "migi_core.h"
-#include "migi_string.h"
-
+#include "cli_parse_new.h"
+#include "process.h"
 
 #define COMPILER S("gcc")
 #define BUILD_FOLDER S("./build")
@@ -23,7 +21,7 @@ void command_to_args(Arena *arena, char **command_args, StrList *command) {
     }
 }
 
-static int run_command(StrList *command) {
+static int run_command(StrList *command, bool run_in_shell, bool run_in_bg) {
     if (command->length == 0) return 0;
     Temp tmp = arena_temp();
 
@@ -40,16 +38,30 @@ static int run_command(StrList *command) {
         } break;
 
         case 0: {
-            char **command_args = arena_push(tmp.arena, char *, command->length + 1);
-            command_to_args(tmp.arena, command_args, command);
-            command_args[command->length] = NULL;
+            char **command_args = NULL;
+            if (run_in_shell) {
+                strlist_push(tmp.arena, command, S("\0"));  // will convert to a cstring when joined
+                command_args = arena_push(tmp.arena, char *, 4 + run_in_bg);
+                int i = 0;
+                command_args[i++] = "sh";
+                command_args[i++] = "-c";
+                command_args[i++] = strlist_join(tmp.arena, command, S(" ")).data;
+                if (run_in_bg) {
+                    command_args[i++] = "&";
+                }
+                command_args[i++] = NULL;
+            } else {
+                command_args = arena_push(tmp.arena, char *, command->length + 1);
+                command_to_args(tmp.arena, command_args, command);
+                command_args[command->length] = NULL;
+            }
 
             int ret = execvp(command_args[0], command_args);
             if (ret == -1) {
                 migi_log(Log_Error, "Failed to run `%s`: %s", command_args[0], strerror(errno));
                 exit(1);
             }
-            unreachable();
+            migi_unreachable();
         } break;
 
         default: {
@@ -71,7 +83,7 @@ static int run_command(StrList *command) {
     return child_exit_code;
 }
 
-static bool run_compiler(Str compiler, bool debug, Str filename, Str output_path) {
+static bool run_compiler(Str compiler, bool optimize, Str filename, Str output_path) {
     Temp tmp = arena_temp();
     StrList command = {0};
     strlist_push(tmp.arena, &command, compiler);
@@ -88,16 +100,16 @@ static bool run_compiler(Str compiler, bool debug, Str filename, Str output_path
     strlist_push(tmp.arena, &command, S("-Wno-missing-braces")); // dont warn on specific kinds of designated initializers
     strlist_push(tmp.arena, &command, S("-lm"));
 
-    if (debug) {
+    if (optimize) {
+        strlist_push(tmp.arena, &command, S("-O3"));
+        strlist_push(tmp.arena, &command, S("-DMIGI_DISABLE_ASSERTS"));
+    } else {
         strlist_push(tmp.arena, &command, S("-ggdb"));
         strlist_push(tmp.arena, &command, S("-DMIGI_DEBUG_LOGS"));
         strlist_push(tmp.arena, &command, S("-fsanitize=undefined,address"));
-    } else {
-        strlist_push(tmp.arena, &command, S("-O3"));
-        strlist_push(tmp.arena, &command, S("-DMIGI_DISABLE_ASSERTS"));
     }
 
-    bool ok = run_command(&command) == 0;
+    bool ok = run_command(&command, false, false) == 0;
     arena_temp_release(tmp);
     return ok;
 }
@@ -120,37 +132,50 @@ Str filename_to_output_path(Arena *arena, Str filename, Str build_folder) {
 
 int main(int argc, char **argv) {
     Arena *arena = arena_init();
-    CmdLn cli = cli_parse_args(arena, argc, argv);
 
-    if (flag_exists(&cli, S("h")) || flag_exists(&cli, S("help"))) {
-        todof("print help");
-        return 0;
-    }
+    bool *run      = cli_add_bool(S("run"),      S("run the program after compiling"), .aliases=str_span(S("r")));
+    bool *optimize = cli_add_bool(S("optimize"), S("enable optimizations"),            .aliases=str_span(S("O")));
+    bool *debug    = cli_add_bool(S("debug"),    S("debug program in gf2"),            .aliases=str_span(S("d")));
+    bool *help     = cli_add_bool(S("help"),     S("show this help message"),          .aliases=str_span(S("h")));
 
+    if (!cli_parse_args(argc, argv, .arena = arena)) return 1;
 
-    bool run = flag_exists(&cli, S("r")) || flag_exists(&cli, S("run"));
-    bool debug = !(flag_exists(&cli, S("O")) || flag_exists(&cli, S("optimize")));
-
-    if (cli.args.length == 0) {
-        migi_log(Log_Error, "no file to compile");
+    if (*run && *debug) {
+        migi_log(Log_Error, "options '-%.*s' and '-%.*s' are mutually exclusive", 
+                SArg(cli_var_to_arg(run)->name), SArg(cli_var_to_arg(optimize)->name));
         return 1;
     }
-    Str filename = strlist_pop(&cli.args);
+
+    if (global_cli.pos_args.length == 0) {
+        migi_log(Log_Error, "no file to compile");
+        fprintf(stderr, "%.*s", SArg(cli_help_text(arena)));
+        return 1;
+    }
+
+    if (*help) {
+        fprintf(stderr, "%.*s", SArg(cli_help_text(arena)));
+        return 1;
+    }
+
+    Str filename = cli_pos_args().head->string;
     migi_log(Log_Info, "Compiling%s: %.*s", run? " and Running": "", SArg(filename));
 
-    Str output_path = filename_to_output_path(arena, filename, BUILD_FOLDER);
-    if (!run_compiler(COMPILER, debug, filename, output_path)) {
+    Str executable_path = filename_to_output_path(arena, filename, BUILD_FOLDER);
+    if (!run_compiler(COMPILER, *optimize, filename, executable_path)) {
         return 1;
     }
 
-    StrList command = {0};
-    strlist_push(arena, &command, output_path);
-    strlist_extend(&command, &cli.meta_args);
+    if (*debug || *run) {
+        Cmd command = {.arena=arena};
+        if (*debug) cmd_push(&command, S("gf2"));
 
-    if (run) {
-        int ret = run_command(&command);
-        if (ret != 0) {
-            migi_log(Log_Error, "Program: `%.*s` exited with code: %d", SArg(output_path), ret);
+        cmd_push(&command, executable_path);
+        strlist_extend(&command.args, &cli_meta_args());
+        CmdResult res = cmd_run(&command, .shell=*debug, .background=*debug);
+
+        if (res.code != 0) {
+            migi_log(Log_Error, "Program: `%.*s` exited with code: %d", SArg(executable_path), res.code);
+            return 1;
         }
     }
 

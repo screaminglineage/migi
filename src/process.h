@@ -1,5 +1,9 @@
+#ifndef PROCESS_H
+#define PROCESS_H
+
 #include <sys/wait.h>
 
+#include "migi_core.h"
 #include "arena.h"
 #include "migi_list.h"
 
@@ -15,21 +19,23 @@ typedef struct {
 } CmdResult;
 
 #define cmd_push(cmd, ...) \
-    cmd__push((cmd), span_from(Str, StrSpan, __VA_ARGS__ ))
+    cmd__push((cmd), str_span(__VA_ARGS__ ))
 
 typedef struct {
     // TODO: implement these
+    Arena *arena;           // arena to store captured output in (must be set if those options are provided)
     bool capture_stdout;
     bool capture_stderr;
-    bool shell;             // run through the shell
 
+    bool shell;             // run through the shell
+    bool background;        // run in background (only possible when running through shell)
     bool no_reset;          // dont reset the cmd after running the command
 } CmdOpt;
 
-static CmdResult cmd_run_opt(Arena *a, Cmd *cmd, CmdOpt opt);
+static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt);
 
-#define cmd_run(arena, cmd, ...) \
-    cmd_run_opt((arena), (cmd), (CmdOpt){__VA_ARGS__})
+#define cmd_run(cmd, ...) \
+    cmd_run_opt((cmd), (CmdOpt){__VA_ARGS__})
 
 
 static void cmd__push(Cmd *cmd, StrSpan args) {
@@ -52,20 +58,15 @@ char **cmd__to_args(Arena *arena, Cmd *cmd) {
     return args;
 }
 
-static CmdResult cmd_run_opt(Arena *a, Cmd *cmd, CmdOpt opt) {
-    // TODO: If stdout or stderr was captured, they are stored in the arena
-    unused(a);
+static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
     unused(opt);
 
     CmdResult result = {0};
 
     if (cmd->args.length == 0) return result;
 
-    Temp tmp = arena_temp();
-
-    Temp mark = arena_save(tmp.arena);
+    Temp tmp = arena_save(cmd->arena);
     migi_log(Log_Info, "Running: %.*s", SArg(strlist_join(tmp.arena, &cmd->args, S(" "))));
-    arena_rewind(mark);
 
     pid_t child_exit_code = -1;
     pid_t ret = fork();
@@ -75,13 +76,28 @@ static CmdResult cmd_run_opt(Arena *a, Cmd *cmd, CmdOpt opt) {
         } break;
 
         case 0: {
-            char **command_args = cmd__to_args(tmp.arena, cmd);
+            char **command_args = NULL;
+            if (opt.shell) {
+                strlist_push(tmp.arena, &cmd->args, S("\0"));  // will convert to a cstring when joined
+                command_args = arena_push(tmp.arena, char *, 4 + opt.background);
+                int i = 0;
+                command_args[i++] = "sh";
+                command_args[i++] = "-c";
+                command_args[i++] = strlist_join(tmp.arena, &cmd->args, S(" ")).data;
+                if (opt.background) {
+                    command_args[i++] = "&";
+                }
+                command_args[i++] = NULL;
+            } else {
+                command_args = cmd__to_args(tmp.arena, cmd);
+            }
+
             int ret = execvp(command_args[0], command_args);
             if (ret == -1) {
                 migi_log(Log_Error, "Failed to run `%s`: %s", command_args[0], strerror(errno));
                 exit(1);
             }
-            unreachable();
+            migi_unreachable();
         } break;
 
         default: {
@@ -99,7 +115,7 @@ static CmdResult cmd_run_opt(Arena *a, Cmd *cmd, CmdOpt opt) {
         } break;
     }
 
-    arena_temp_release(tmp);
+    arena_rewind(tmp);
     result.code = child_exit_code;
 
     if (!opt.no_reset) {
@@ -110,17 +126,5 @@ static CmdResult cmd_run_opt(Arena *a, Cmd *cmd, CmdOpt opt) {
     return result;
 }
 
-int main() {
-    Temp tmp = arena_temp();
-    Cmd cmd = {.arena=tmp.arena};
-    cmd_push(&cmd, S("ls"), S("-l"));
-    cmd_push(&cmd, S("-a"));
-    CmdResult res = cmd_run(tmp.arena, &cmd, .capture_stdout=true, .capture_stderr=true);
-    printf("res = %d\n", res.code);
+#endif // ifndef PROCESS_H
 
-    printf("%p %p %zu %zu\n", cmd.args.head, cmd.args.tail, cmd.args.length, cmd.args.total_size);
-
-    arena_temp_release(tmp);
-
-    return 0;
-}

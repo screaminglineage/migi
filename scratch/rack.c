@@ -67,7 +67,7 @@ RackNode *rack__get_node_to_fill(Rack *rack) {
         } break;
 
         case RackNode_None: {
-            unreachablef("`%s` called without first calling `rack_begin_pair`", __func__);
+            migi_unreachablef("`%s` called without first calling `rack_begin_pair`", __func__);
         }
     }
     return node;
@@ -120,7 +120,7 @@ void rack__dump_node(Arena *arena, StrList *list, RackNode node) {
 
         case RackNode_None:
         case RackNode_Count:
-            unreachable();
+            migi_unreachable();
     }
 }
 
@@ -192,7 +192,7 @@ RackNode rack__load_node(Arena *arena, Str *rack_str, Str filepath) {
         case 'D':
             todof("implement loading other types");
         case 'N':
-            unreachablef("error!");
+            migi_unreachablef("error!");
     }
     return node;
 }

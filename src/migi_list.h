@@ -288,6 +288,8 @@ static StrSpan strlist_to_span(Arena *a, StrList *list) {
 }
 
 static StrList strlist_extend(StrList *list, StrList *extend_with) {
+    if (extend_with->length == 0) return *list;
+
     // Update the head as well for an empty StrList
     if (list->length == 0) {
         list->head = extend_with->head;

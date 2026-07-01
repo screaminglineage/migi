@@ -257,11 +257,25 @@ static Str str_cat(Arena *arena, Str head, Str tail) {
 }
 
 static Str str_catf(Arena *arena, Str head, const char *fmt, ...) {
+    Arena *current = arena->current;
+    if ((byte *)current + current->position != (byte *)head.data + head.length) {
+        Temp tmp = arena_temp_excl(arena);
+        va_list args;
+        va_start(args, fmt);
+        Str tail = str__format(tmp.arena, fmt, args);
+        va_end(args);
+        head = str_copy(arena, head);
+        head.length += str_copy(arena, tail).length;
+        arena_temp_release(tmp);
+        return head;
+    }
+
     va_list args;
     va_start(args, fmt);
     Str tail = str__format(arena, fmt, args);
     va_end(args);
-    return str_cat(arena, head, tail);
+    head.length += tail.length;
+    return head;
 }
 
 char char_to_upper(char ch) {
