@@ -1,3 +1,5 @@
+// TODO: automatically rebuild this file if it is newer than build/build
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

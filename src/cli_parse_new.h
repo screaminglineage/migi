@@ -482,6 +482,33 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name) {
     return &cli->args[*arg_index];
 }
 
+bool cli__validate_args(Cli *cli, int32_t nargs_atleast) {
+    // Validation for required arguments
+    clic_foreach(cli, arg) {
+        if (arg->type == CliArg_List) {
+            if (arg->required && arg->nargs != CLI_NARGS_INF && (size_t)arg->nargs != arg->as_list.length) {
+                migi_log(Log_Error, "too %s arguments for option: '-%.*s', expected %d but got %zu",
+                        arg->as_list.length < (size_t)arg->nargs? "few": "many",
+                        SArg(arg->name), arg->nargs, arg->as_list.length);
+                return false ;
+            } else if ((size_t)arg->nargs < arg->as_list.length) {
+                migi_log(Log_Error, "too many arguments for option: '-%.*s', expected %d but got %zu",
+                        SArg(arg->name), arg->nargs, arg->as_list.length);
+                return false ;
+            }
+        } else if (arg->required && !arg->found) {
+            migi_log(Log_Error, "option: '-%.*s' is required but was not provided", SArg(arg->name));
+            return false ;
+        }
+    }
+
+    if (cli->pos_args.length < (size_t)nargs_atleast) {
+        migi_log(Log_Error, "too few positional arguments, expected at least %d but got %zu",
+                nargs_atleast, cli->pos_args.length);
+        return false ;
+    }
+    return true;
+}
 
 static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     bool result = true;
@@ -615,30 +642,8 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         }
     }
 
-    // Validation for required arguments
-    clic_foreach(opt.cli, arg) {
-        if (arg->type == CliArg_List) {
-            if (arg->required && arg->nargs != CLI_NARGS_INF && (size_t)arg->nargs != arg->as_list.length) {
-                migi_log(Log_Error, "too %s arguments for option: '-%.*s', expected %d but got %zu",
-                        arg->as_list.length < (size_t)arg->nargs? "few": "many",
-                        SArg(arg->name), arg->nargs, arg->as_list.length);
-                return_with(false);
-            } else if ((size_t)arg->nargs < arg->as_list.length) {
-                migi_log(Log_Error, "too many arguments for option: '-%.*s', expected %d but got %zu",
-                        SArg(arg->name), arg->nargs, arg->as_list.length);
-                return_with(false);
-            }
-        } else if (arg->required && !arg->found) {
-            migi_log(Log_Error, "option: '-%.*s' is required but was not provided", SArg(arg->name));
-            return_with(false);
-        }
-    }
+    if (!cli__validate_args(opt.cli, opt.nargs_atleast)) return_with(false);
 
-    if (opt.cli->pos_args.length < (size_t)opt.nargs_atleast) {
-        migi_log(Log_Error, "too few positional arguments, expected at least %d but got %zu",
-                opt.nargs_atleast, opt.cli->pos_args.length);
-        return_with(false);
-    }
 
 
 end:
