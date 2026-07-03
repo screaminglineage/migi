@@ -1,9 +1,7 @@
-// TODO: display the default value in the help for each option
-// This will require storing the default as another arg in CliArg
-
 #ifndef MIGI_CLI_PARSE_NEW_H
 #define MIGI_CLI_PARSE_NEW_H
 
+#include <inttypes.h>
 #include "migi_core.h"
 #include "migi_string.h"
 #include "migi_list.h"
@@ -23,12 +21,13 @@ typedef enum {
     CliArg_List,
 } CliArgType;
 
+#define CLI_BOOL_FOUND -1
 typedef struct {
     Str name;
     Str help;
     StrSpan aliases;
     int32_t nargs;
-    int32_t found_args;  // NOTE: for bool's that do not take any arguments, this is set to -1 if the flag was set
+    int32_t found_args;  // NOTE: for bool's that do not take any arguments, this is set to `CLI_BOOL_FOUND` (-1) if the flag was set
     bool required;
 
     CliArgType type;
@@ -38,6 +37,12 @@ typedef struct {
         bool as_bool;
         double as_double;
         StrList as_list;
+    };
+    union {
+        Str default_str;
+        int64_t default_int;
+        bool default_bool;
+        double default_double;
     };
 } CliArg;
 
@@ -58,6 +63,8 @@ typedef struct {
     StrList meta_args;    // arguments following a `--`, usually passed to the program being called by this program
     Str executable;       // executable name (argv[0] by default but can be customized)
     Str help;
+
+    Arena *arena;
 } Cli;
 
 
@@ -66,7 +73,6 @@ typedef struct {
     Str value;             // default value of argument
     StrSpan aliases;       // aliases that map to the same option
     Cli *cli;              // cli context to store options         [default: uses global cli context]
-    Arena *arena;          // arena to allocate into               [default: uses global arena]
 } CliStrOpt;
 // Str *cli_add_str(name, help, ...)
 static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt);
@@ -76,7 +82,6 @@ typedef struct {
     int64_t value;
     StrSpan aliases;
     Cli *cli;
-    Arena *arena;
 } CliIntOpt;
 // int64_t *cli_add_int(name, help, ...)
 static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt);
@@ -87,7 +92,6 @@ typedef struct {
     bool value;
     StrSpan aliases;
     Cli *cli;
-    Arena *arena;
 } CliBoolOpt;
 // bool *cli_add_bool(name, help, ...)
 static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt);
@@ -97,11 +101,20 @@ typedef struct {
     double value;
     StrSpan aliases;
     Cli *cli;
-    Arena *arena;
 } CliDoubleOpt;
 // double *cli_add_double(name, help, ...)
 static double *cli_add_double_opt(Str name, Str help, CliDoubleOpt opt);
 
+// TODO: maybe add support for default list values
+// However it might not really be needed for most use cases of list
+//
+// If added should probably be a StrSpan. During the validation stage,
+// if there are default values they will be added if there are missing string
+// values.
+// For example, cli_add_list(/* ... */, .nargs=3, .value=str_span("a", "b", "c", "d", "e"))
+// and -list=x,y,z will result in list being ["x", "y", "z", "d", "e"]
+// Storing the default value as a StrSpan will allow easily copying the items,
+// starting from a particular index like mentioned above
 #define CLI_NARGS_INF -1
 typedef struct {
     bool required;     // if set then checks that exactly `nargs` arguments are provided, otherwise
@@ -110,7 +123,6 @@ typedef struct {
     int32_t nargs;     // no. of arguments to take [default: -1 or `CLI_NARGS_INF` for no limit]
     StrSpan aliases;
     Cli *cli;
-    Arena *arena;
 } CliListStrOpt;
 // StrList *cli_add_list(name, help, ...)
 static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt);
@@ -118,7 +130,6 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt);
 
 typedef struct {
     Cli *cli;             // cli context to store options         [default: uses global cli context]
-    Arena *arena;         // arena to allocate into               [default: uses global arena]
     Str help;             // help text for the program as a whole
     bool ignore_first;    // whether to ignore the first argument (usually the name of the executable) [defaults to false and consumes it]
     Str executable;       // this is only used when `ignore_first` is true to set the executable name manually
@@ -188,69 +199,44 @@ static bool cli_arg_was_set(CliArg *arg);
 
 
 threadvar Cli global_cli = {0};
-threadvar Arena *global_cli_arena = {0};
 
 #define cli_parse_args(argc, argv, ...)                \
-    (global_cli_arena == NULL                          \
-        ? global_cli_arena = arena_init(), (void)0     \
-        : (void)0,                                     \
     cli_parse_args_opt((argc), (argv), (CliParseOpt) { \
         .cli = &global_cli,                            \
-        .arena = global_cli_arena,                     \
         __VA_ARGS__                                    \
-    }))
+    })
 
 
 #define cli_add_str(name, help, ...)               \
-    (global_cli_arena == NULL                      \
-        ? global_cli_arena = arena_init(), (void)0 \
-        : (void)0,                                 \
     cli_add_str_opt((name), (help), (CliStrOpt) {  \
         .cli = &global_cli,                        \
-        .arena = global_cli_arena,                 \
         __VA_ARGS__                                \
-    }))
+    })
 
 #define cli_add_i64(name, help, ...)               \
-    (global_cli_arena == NULL                      \
-        ? global_cli_arena = arena_init(), (void)0 \
-        : (void)0,                                 \
     cli_add_i64_opt((name), (help), (CliIntOpt){   \
         .cli = &global_cli,                        \
-        .arena = global_cli_arena,                 \
         __VA_ARGS__                                \
-    }))
+    })
 
 #define cli_add_bool(name, help, ...)              \
-    (global_cli_arena == NULL                      \
-        ? global_cli_arena = arena_init(), (void)0 \
-        : (void)0,                                 \
     cli_add_bool_opt((name), (help), (CliBoolOpt){ \
         .cli = &global_cli,                        \
-        .arena = global_cli_arena,                 \
         __VA_ARGS__                                \
-    }))
+    })
 
 #define cli_add_double(name, help, ...)                \
-    (global_cli_arena == NULL                          \
-        ? global_cli_arena = arena_init(), (void)0     \
-        : (void)0,                                     \
     cli_add_double_opt((name), (help), (CliDoubleOpt){ \
         .cli = &global_cli,                            \
-        .arena = global_cli_arena,                     \
         __VA_ARGS__                                    \
-    }))
+    })
 
 #define cli_add_list(name, help, ...)                 \
-    (global_cli_arena == NULL                         \
-        ? global_cli_arena = arena_init(), (void)0    \
-        : (void)0,                                    \
     cli_list_str_opt((name), (help), (CliListStrOpt){ \
         .cli = &global_cli,                           \
-        .arena = global_cli_arena,                    \
         .nargs = CLI_NARGS_INF,                       \
         __VA_ARGS__                                   \
-    }))
+    })
 
 
 static void cli__init(Arena *arena, Cli *cli) {
@@ -262,8 +248,8 @@ static void cli__init(Arena *arena, Cli *cli) {
 
 
 static void cli_free() {
+    arena_free(global_cli.arena);
     mem_clear(&global_cli);
-    arena_free(global_cli_arena);
 }
 
 // Doesnt actually free the memory as that is stored on an arena
@@ -323,20 +309,24 @@ static uint32_t *cli__lookup(Cli *cli, Str key) {
 
 static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
     CliArg arg = {
-        .name = name,
-        .help = help,
-        .aliases = opt.aliases,
-        .type = CliArg_Str,
-        .as_str = opt.value,
-        .nargs = 1,
-        .required = opt.required
+        .name        = name,
+        .help        = help,
+        .aliases     = opt.aliases,
+        .type        = CliArg_Str,
+        .as_str      = opt.value,
+        .default_str = opt.value,
+        .nargs       = 1,
+        .required    = opt.required
     };
-    int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+
+    if (!opt.cli->arena) opt.cli->arena = arena_init();
+
+    int32_t index = cli__push_arg(opt.cli->arena, opt.cli, arg);
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
-    cli__insert(opt.arena, opt.cli, name, index);
+    cli__insert(opt.cli->arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
         assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
-        cli__insert(opt.arena, opt.cli, *alias, index);
+        cli__insert(opt.cli->arena, opt.cli, *alias, index);
     }
 
     return &opt.cli->args[index].as_str;
@@ -344,20 +334,24 @@ static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
 
 static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt) {
     CliArg arg = {
-        .name = name,
-        .help = help,
-        .aliases = opt.aliases,
-        .type = CliArg_Int,
-        .as_int = opt.value,
-        .nargs = 1,
-        .required = opt.required,
+        .name        = name,
+        .help        = help,
+        .aliases     = opt.aliases,
+        .type        = CliArg_Int,
+        .as_int      = opt.value,
+        .default_int = opt.value,
+        .nargs       = 1,
+        .required    = opt.required,
     };
-    int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+
+    if (!opt.cli->arena) opt.cli->arena = arena_init();
+
+    int32_t index = cli__push_arg(opt.cli->arena, opt.cli, arg);
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
-    cli__insert(opt.arena, opt.cli, name, index);
+    cli__insert(opt.cli->arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
         assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
-        cli__insert(opt.arena, opt.cli, *alias, index);
+        cli__insert(opt.cli->arena, opt.cli, *alias, index);
     }
 
     return &opt.cli->args[index].as_int;
@@ -365,20 +359,24 @@ static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt) {
 
 static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
     CliArg arg = {
-        .name = name,
-        .help = help,
-        .aliases = opt.aliases,
-        .type = CliArg_Bool,
-        .as_bool = opt.value,
-        .nargs = opt.takes_arg,
-        .required = opt.required,
+        .name         = name,
+        .help         = help,
+        .aliases      = opt.aliases,
+        .type         = CliArg_Bool,
+        .as_bool      = opt.value,
+        .default_bool = opt.value,
+        .nargs        = opt.takes_arg,
+        .required     = opt.required,
     };
-    int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+
+    if (!opt.cli->arena) opt.cli->arena = arena_init();
+
+    int32_t index = cli__push_arg(opt.cli->arena, opt.cli, arg);
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
-    cli__insert(opt.arena, opt.cli, name, index);
+    cli__insert(opt.cli->arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
         assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
-        cli__insert(opt.arena, opt.cli, *alias, index);
+        cli__insert(opt.cli->arena, opt.cli, *alias, index);
     }
 
     return &opt.cli->args[index].as_bool;
@@ -386,20 +384,24 @@ static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
 
 static double *cli_add_double_opt(Str name, Str help, CliDoubleOpt opt) {
     CliArg arg = {
-        .name = name,
-        .help = help,
-        .aliases = opt.aliases,
-        .type = CliArg_Double,
-        .as_double = opt.value,
-        .nargs = 1,
-        .required = opt.required,
+        .name           = name,
+        .help           = help,
+        .aliases        = opt.aliases,
+        .type           = CliArg_Double,
+        .as_double      = opt.value,
+        .default_double = opt.value,
+        .nargs          = 1,
+        .required       = opt.required,
     };
-    int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+
+    if (!opt.cli->arena) opt.cli->arena = arena_init();
+
+    int32_t index = cli__push_arg(opt.cli->arena, opt.cli, arg);
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
-    cli__insert(opt.arena, opt.cli, name, index);
+    cli__insert(opt.cli->arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
         assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
-        cli__insert(opt.arena, opt.cli, *alias, index);
+        cli__insert(opt.cli->arena, opt.cli, *alias, index);
     }
 
     return &opt.cli->args[index].as_double;
@@ -407,20 +409,22 @@ static double *cli_add_double_opt(Str name, Str help, CliDoubleOpt opt) {
 
 static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
     CliArg arg = {
-        .name = name,
-        .help = help,
-        .aliases = opt.aliases,
-        .type = CliArg_List,
-        .nargs = opt.nargs,
+        .name     = name,
+        .help     = help,
+        .aliases  = opt.aliases,
+        .type     = CliArg_List,
+        .nargs    = opt.nargs,
         .required = opt.required,
     };
 
-    int32_t index = cli__push_arg(opt.arena, opt.cli, arg);
+    if (!opt.cli->arena) opt.cli->arena = arena_init();
+
+    int32_t index = cli__push_arg(opt.cli->arena, opt.cli, arg);
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
-    cli__insert(opt.arena, opt.cli, name, index);
+    cli__insert(opt.cli->arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
         assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
-        cli__insert(opt.arena, opt.cli, *alias, index);
+        cli__insert(opt.cli->arena, opt.cli, *alias, index);
     }
 
     return &opt.cli->args[index].as_list;
@@ -493,8 +497,8 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name) {
     return &cli->args[*arg_index];
 }
 
+// Validation for required arguments
 static bool cli__validate_args(Cli *cli) {
-    // Validation for required arguments
     clic_foreach(cli, arg) {
         if (arg->type == CliArg_List) {
             if (arg->required && arg->nargs != CLI_NARGS_INF && arg->nargs != arg->found_args) {
@@ -521,25 +525,28 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
     Temp tmp = arena_temp();
 
+    Arena *arena = opt.cli->arena;
+    if (!arena) arena = arena_init();
+
     if (opt.cli->slots == NULL) {
-        cli__init(opt.arena, opt.cli);
+        cli__init(arena, opt.cli);
     }
 
     bool handle_help_flag = false;
     // Insert help option and handle it if it wasnt provided
     if (!cli__lookup(opt.cli, S("help"))) {
         CliArg help_arg = {
-            .name = S("help"),
-            .aliases = str_span_new(opt.arena, S("h")),
-            .help = S("show this help message"),
-            .type = CliArg_Bool,
+            .name    = S("help"),
+            .aliases = str_span_new(arena, S("h")),
+            .help    = S("show this help message"),
+            .type    = CliArg_Bool,
             .as_bool = false,
-            .nargs = 0,
+            .nargs   = 0,
         };
-        int32_t index = cli__push_arg(opt.arena, opt.cli, help_arg);
-        cli__insert(opt.arena, opt.cli, S("help"), index);
+        int32_t index = cli__push_arg(arena, opt.cli, help_arg);
+        cli__insert(arena, opt.cli, S("help"), index);
         array_foreach(&help_arg.aliases, alias) {
-            cli__insert(opt.arena, opt.cli, *alias, index);
+            cli__insert(arena, opt.cli, *alias, index);
         }
         handle_help_flag = true;
     }
@@ -555,7 +562,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
         // parse as a positional argument
         if (arg.data[0] != '-') {
-            strlist_push(opt.arena, &opt.cli->pos_args, arg);
+            strlist_push(arena, &opt.cli->pos_args, arg);
             continue;
         }
 
@@ -568,7 +575,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         if (key.data[0] == '-') {
             i++;
             while (i < argc) {
-                strlist_push_cstr(opt.arena, &opt.cli->meta_args, argv[i++]);
+                strlist_push_cstr(arena, &opt.cli->meta_args, argv[i++]);
             }
             break;
 
@@ -594,9 +601,9 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
                 return_with(false);
             }
             if (cli_arg->nargs == 0) {
-                assertf(cli_arg->type == CliArg_Bool, "only boolean flags can have no arguments");
+                assertf(cli_arg->type == CliArg_Bool, "only flags of type bool can have no arguments");
                 if (!ignore) cli_arg->as_bool = true;
-                cli_arg->found_args = -1;
+                cli_arg->found_args = CLI_BOOL_FOUND;
                 continue;
             }
 
@@ -610,7 +617,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
             if (cli_arg->type == CliArg_List) {
                 // -list item1 ... -list item2 ... -list item3
-                if (!ignore) strlist_push(opt.arena, &cli_arg->as_list, value);
+                if (!ignore) strlist_push(arena, &cli_arg->as_list, value);
                 cli_arg->found_args += 1;
             } else {
                 if (!cli__parse_value(cli_arg, key, value, ignore)) {
@@ -641,13 +648,13 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
                 migi_log(Log_Error, "empty argument passed to list option: '-%.*s'", SArg(cli_arg->name));
                 goto end;
             }
-            strlist_push(opt.arena, &items, values_cut.head);
+            strlist_push(arena, &items, values_cut.head);
             prev_tail = values_cut.tail;
             values_cut = str_cut(values_cut.tail, S(","));
         } while (values_cut.found);
 
         if (prev_tail.length != 0) {
-            strlist_push(opt.arena, &items, prev_tail);
+            strlist_push(arena, &items, prev_tail);
         }
 
         if (cli_arg->type == CliArg_List) {
@@ -719,6 +726,7 @@ static Str cli_options_list_opt(Arena *arena, CliOpt opt) {
                     SArg(arg->name), SArg(cli_arg_type_to_str(arg->type)), arg->nargs);
         }
 
+
         if (arg->required) {
             options_str = str_cat(tmp.arena, options_str, S(" (required)"));
         }
@@ -736,7 +744,34 @@ static Str cli_options_list_opt(Arena *arena, CliOpt opt) {
 
         int min_space_count = 5;
         size_t space_count = min_space_count + max_option_length - option->string.length;
-        options_list = str_catf(arena, options_list, "%*.s%.*s\n", (int)space_count, " ", SArg(arg.help));
+        options_list = str_catf(arena, options_list, "%*.s%.*s", (int)space_count, " ", SArg(arg.help));
+
+        switch (arg.type) {
+            case CliArg_Str: {
+                if (arg.default_str.length) {
+                    options_list = str_catf(arena, options_list, " [default: %.*s]", SArg(arg.default_str));
+                }
+            } break;
+            case CliArg_Int:  {
+                if (arg.default_int) {
+                    options_list = str_catf(arena, options_list, " [default: %"PRId64"]", arg.default_int);
+                }
+            } break;
+            case CliArg_Bool:  {
+                if (arg.default_bool) {
+                    options_list = str_catf(arena, options_list, " [default: %.*s]", SArg(bool_to_str(arg.default_bool)));
+                }
+            } break;
+            case CliArg_Double: {
+                if (arg.default_double) {
+                    options_list = str_catf(arena, options_list, " [default: %.3f]", arg.default_double);
+                }
+            } break;
+
+            case CliArg_List:  /* no default value for lists */ break;
+            case CliArg_None:   migi_unreachable();
+        }
+        options_list = str_cat(arena, options_list, S("\n"));
     }
     arena_temp_release(tmp);
 

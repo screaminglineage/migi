@@ -150,6 +150,7 @@ typedef struct {
 } StrList;
 
 static StrList strlist_from_str(Arena *a, Str str);
+static StrList strlist_from_span(Arena *a, StrSpan str);
 
 static Str strlist_push(Arena *a, StrList *list, Str str);
 static Str strlist_push_char(Arena *a, StrList *list, char ch);
@@ -225,6 +226,14 @@ do {                                                                \
 static StrList strlist_from_str(Arena *a, Str str) {
     StrList list = {0};
     strlist_push(a, &list, str);
+    return list;
+}
+
+static StrList strlist_from_span(Arena *a, StrSpan span) {
+    StrList list = {0};
+    array_foreach(&span, str) {
+        strlist_push(a, &list, *str);
+    }
     return list;
 }
 

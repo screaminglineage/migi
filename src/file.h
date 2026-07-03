@@ -3,6 +3,7 @@
 
 #include "migi_core.h"
 #include "migi_string.h"
+#include "migi_list.h"
 
 // TODO: split into file_win32 and file_posix rather than the #ifdef hell
 // TODO: complete the parts with todo()'s;
@@ -49,6 +50,7 @@ static bool file_write_all(File file, Str str);
 
 static Str str_from_file(Arena *arena, Str filepath);
 static bool str_to_file(Str string, Str filepath);
+static bool strlist_to_file(StrList list, Str filepath);
 
 
 
@@ -335,6 +337,27 @@ static bool str_to_file(Str string, Str filepath) {
 
     file_close(file);
     arena_temp_release(tmp);
+    return ok;
+}
+
+static bool strlist_to_file(StrList list, Str filepath) {
+    File file = file_open(filepath, .write=true);
+    if (file == FILE_ERROR) {
+        return false;
+    }
+
+    bool ok = true;
+    for (StrNode *node = list.head; ok && node; node = node->next) {
+        ok = file_write_all(file, node->string);
+    }
+    if (!ok) {
+        Temp tmp = arena_temp();
+        migi_log(Log_Error, "failed to write to file `%.*s`: %.*s",
+                SArg(filepath), SArg(str_last_error(tmp.arena)));
+        arena_temp_release(tmp);
+    }
+
+    file_close(file);
     return ok;
 }
 

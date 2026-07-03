@@ -41,19 +41,23 @@ void print_arg(CliArg *arg) {
 int main(int argc, char **argv) {
     Temp tmp = arena_temp();
 
-    // NOTE: the arenas in the parse_args and cli_* functions may or may not be provided
-    // They can even be separate arenas if required (why tho?)
-    Cli cli = {0};
-    Str *str       = cli_add_str   (S("str"),  S("help: str"),                    .cli = &cli, /*.arena = tmp.arena*/);
-    int64_t *num   = cli_add_i64   (S("num"),  S("help: num"),  .required = true, .cli = &cli, /*.arena = tmp.arena*/);
-    bool *flag     = cli_add_bool  (S("flag"), S("help: flag"),                   .cli = &cli, /*.arena = tmp.arena*/);
-    double *real   = cli_add_double(S("real"), S("help: real"),                   .cli = &cli, /*.arena = tmp.arena*/);
+    Cli cli = {.arena=tmp.arena};
+    Str *str       = cli_add_str   (S("str"),  S("help: str"),                    .cli = &cli);
+    int64_t *num   = cli_add_i64   (S("num"),  S("help: num"),  .required = true, .cli = &cli);
+    bool *flag     = cli_add_bool  (S("flag"), S("help: flag"),                   .cli = &cli);
+    double *real   = cli_add_double(S("real"), S("help: real"),                   .cli = &cli);
 
     // NOTE: bools can be passed an argument if `takes_arg` is true
-    bool *check     = cli_add_bool(S("check"), S("help: check"), .takes_arg = true, .cli = &cli, /*.arena = tmp.arena*/);
-    StrList *list   = cli_add_list(S("list"),  S("help: list"),  .required=true, .nargs = 3,        .cli = &cli, /*.arena = tmp.arena*/);
+    bool *check     = cli_add_bool(S("check"), S("help: check"), .takes_arg = true,          .cli = &cli);
+    StrList *list   = cli_add_list(S("list"),  S("help: list"),  .required=true, .nargs = 3, .cli = &cli);
 
-    if (!cli_parse_args(argc, argv, .help = S("help: prog"), .cli = &cli, /* .arena = tmp.arena */)) return 1;
+    if (!cli_parse_args(argc, argv, .help = S("help: prog"), .cli = &cli)) return 1;
+
+    printf("Executable: '%.*s'\n\n", SArg(cli.executable));
+    clic_foreach(&cli, arg) {
+        print_arg(arg);
+    }
+    printf("\n");
 
     printf("Is Set:\n");
     printf("-str:   %.*s\n",  SArg(bool_to_str(cli_var_was_set(str))));
@@ -63,12 +67,6 @@ int main(int argc, char **argv) {
     printf("-list:  %.*s\n",  SArg(bool_to_str(cli_var_was_set(list))));
     printf("-check: %.*s\n",  SArg(bool_to_str(cli_var_was_set(check))));
     printf("\n\n");
-
-    printf("Executable: '%.*s'\n\n", SArg(cli.executable));
-    clic_foreach(&cli, arg) {
-        print_arg(arg);
-    }
-    printf("\n");
 
     printf("Positional Arguments: \n");
     clic_args_foreach(&cli, arg) {
@@ -91,7 +89,7 @@ int main1(int argc, char **argv) {
 
     Str *str       = cli_add_str   (S("str"),  S("help text for str"),  .value = S("foo"), .aliases = str_span(S("s")));
     int64_t *num   = cli_add_i64   (S("num"),  S("help text for num"),  .value = 25,       .aliases = str_span(S("n")));
-    bool *flag     = cli_add_bool  (S("flag"), S("help text for flag"), .value = false,    .aliases = str_span(S("f")));
+    bool *flag     = cli_add_bool  (S("flag"), S("help text for flag"), .value = true,     .aliases = str_span(S("f")));
     double *real   = cli_add_double(S("real"), S("help text for real"), .value = 3.1415,   .aliases = str_span(S("r")));
 
     bool *help    = cli_add_bool(S("help"), S("help text for help"), .aliases = str_span(S("h"), S("?")));

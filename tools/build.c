@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
 
     if (*run && *debug) {
         migi_log(Log_Error, "options '-%.*s' and '-%.*s' are mutually exclusive", 
-                SArg(cli_arg_from_var(run)->name), SArg(cli_arg_from_var(debug)->name));
+                SArg(cli_var_name(run)), SArg(cli_var_name(debug)));
         return 1;
     }
 
