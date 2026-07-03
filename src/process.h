@@ -37,8 +37,12 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt);
 #define cmd_run(cmd, ...) \
     cmd_run_opt((cmd), (CmdOpt){__VA_ARGS__})
 
+static void cmd_reset(Cmd *cmd);
+
+
 
 static void cmd__push(Cmd *cmd, StrSpan args) {
+    if (!cmd->arena) cmd->arena = arena_init(.type=Arena_Linear);
     array_foreach(&args, arg) {
         strlist_push(cmd->arena, &cmd->args, *arg);
     }
@@ -59,8 +63,6 @@ char **cmd__to_args(Arena *arena, Cmd *cmd) {
 }
 
 static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
-    unused(opt);
-
     CmdResult result = {0};
 
     if (cmd->args.length == 0) return result;
@@ -119,11 +121,16 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
     result.code = child_exit_code;
 
     if (!opt.no_reset) {
-        arena_reset(cmd->arena);
-        strlist_reset(&cmd->args);
+        cmd_reset(cmd);
     }
 
     return result;
+}
+
+
+static void cmd_reset(Cmd *cmd) {
+    arena_reset(cmd->arena);
+    strlist_reset(&cmd->args);
 }
 
 #endif // ifndef PROCESS_H

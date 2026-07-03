@@ -184,7 +184,7 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name);
 threadvar Cli global_cli = {0};
 threadvar Arena *global_cli_arena = {0};
 
-
+// TODO: fix the "only one void side" warning
 #define cli_parse_args(argc, argv, ...)                \
     (global_cli_arena == NULL                          \
         ? global_cli_arena = arena_init()              \
@@ -324,7 +324,7 @@ static Str *cli_add_str_opt(Str name, Str help, CliStrOpt opt) {
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
-        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
+        assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -345,7 +345,7 @@ static int64_t *cli_add_i64_opt(Str name, Str help, CliIntOpt opt) {
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
-        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
+        assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -366,7 +366,7 @@ static bool *cli_add_bool_opt(Str name, Str help, CliBoolOpt opt) {
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
-        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
+        assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -387,7 +387,7 @@ static double *cli_add_double_opt(Str name, Str help, CliDoubleOpt opt) {
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
-        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
+        assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 
@@ -408,7 +408,7 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
     assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
     cli__insert(opt.arena, opt.cli, name, index);
     array_foreach(&opt.aliases, alias) {
-        assertf(cli__lookup(opt.cli, name) == NULL, "redefinition of option: '%.*s'", SArg(name));
+        assertf(cli__lookup(opt.cli, *alias) == NULL, "redefinition of option: '%.*s'", SArg(name));
         cli__insert(opt.arena, opt.cli, *alias, index);
     }
 

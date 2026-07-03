@@ -1,5 +1,4 @@
 // TODO: automatically rebuild this file if it is newer than build/build
-// TODO: for the debug option do not use sanitizers as they may conflict
 
 #include <stddef.h>
 #include <stdint.h>
@@ -24,97 +23,32 @@ void command_to_args(Arena *arena, char **command_args, StrList *command) {
     }
 }
 
-static int run_command(StrList *command, bool run_in_shell, bool run_in_bg) {
-    if (command->length == 0) return 0;
-    Temp tmp = arena_temp();
+static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str filename, Str output_path) {
+    Cmd command = {0};
+    cmd_push(&command, compiler);
 
-    Temp mark = arena_save(tmp.arena);
-    migi_log(Log_Info, "Running: %.*s", SArg(strlist_join(tmp.arena, command, S(" "))));
+    cmd_push(&command, filename);
+    cmd_push(&command, S("-o"));
+    cmd_push(&command, output_path);
 
-    arena_rewind(mark);
-
-    pid_t child_exit_code = -1;
-    pid_t ret = fork();
-    switch (ret) {
-        case -1: {
-            migi_log(Log_Error, "Failed to create child process: %s", strerror(errno));
-        } break;
-
-        case 0: {
-            char **command_args = NULL;
-            if (run_in_shell) {
-                strlist_push(tmp.arena, command, S("\0"));  // will convert to a cstring when joined
-                command_args = arena_push(tmp.arena, char *, 4 + run_in_bg);
-                int i = 0;
-                command_args[i++] = "sh";
-                command_args[i++] = "-c";
-                command_args[i++] = strlist_join(tmp.arena, command, S(" ")).data;
-                if (run_in_bg) {
-                    command_args[i++] = "&";
-                }
-                command_args[i++] = NULL;
-            } else {
-                command_args = arena_push(tmp.arena, char *, command->length + 1);
-                command_to_args(tmp.arena, command_args, command);
-                command_args[command->length] = NULL;
-            }
-
-            int ret = execvp(command_args[0], command_args);
-            if (ret == -1) {
-                migi_log(Log_Error, "Failed to run `%s`: %s", command_args[0], strerror(errno));
-                exit(1);
-            }
-            migi_unreachable();
-        } break;
-
-        default: {
-            int wstatus;
-            pid_t child_pid = waitpid(ret, &wstatus, 0);
-            if (child_pid == -1) {
-                migi_log(Log_Error, "Failed to wait on child process: %s", strerror(errno));
-            } else {
-                if (WIFEXITED(wstatus)) {
-                    child_exit_code = WEXITSTATUS(wstatus);
-                } else if (WIFSIGNALED(wstatus)) {
-                    migi_log(Log_Error, "Child process killed by: %s", strsignal(WTERMSIG(wstatus)));
-                }
-            }
-        } break;
-    }
-
-    arena_temp_release(tmp);
-    return child_exit_code;
-}
-
-static bool run_compiler(Str compiler, bool optimize, Str filename, Str output_path) {
-    Temp tmp = arena_temp();
-    StrList command = {0};
-    strlist_push(tmp.arena, &command, compiler);
-
-    strlist_push(tmp.arena, &command, filename);
-    strlist_push(tmp.arena, &command, S("-o"));
-    strlist_push(tmp.arena, &command, output_path);
-
-    strlist_push(tmp.arena, &command, S("-I./src"));
-    strlist_push(tmp.arena, &command, S("-Wall"));
-    strlist_push(tmp.arena, &command, S("-Wextra"));
-    strlist_push(tmp.arena, &command, S("-Wno-unused-function"));
-    strlist_push(tmp.arena, &command, S("-Wno-override-init"));
-    strlist_push(tmp.arena, &command, S("-Wno-missing-braces")); // dont warn on specific kinds of designated initializers
-    strlist_push(tmp.arena, &command, S("-lm"));
+    cmd_push(&command, S("-I./src"));
+    cmd_push(&command, S("-Wall"));
+    cmd_push(&command, S("-Wextra"));
+    cmd_push(&command, S("-Wno-unused-function"));
+    cmd_push(&command, S("-Wno-override-init"));
+    cmd_push(&command, S("-Wno-missing-braces")); // dont warn on specific kinds of designated initializers
+    cmd_push(&command, S("-lm"));
 
     if (optimize) {
-        strlist_push(tmp.arena, &command, S("-O3"));
-        strlist_push(tmp.arena, &command, S("-DMIGI_DISABLE_ASSERTS"));
+        cmd_push(&command, S("-O3"));
+        cmd_push(&command, S("-DMIGI_DISABLE_ASSERTS"));
     } else {
-        strlist_push(tmp.arena, &command, S("-ggdb"));
-        strlist_push(tmp.arena, &command, S("-DMIGI_DEBUG_LOGS"));
-        strlist_push(tmp.arena, &command, S("-fsanitize=undefined,address"));
+        cmd_push(&command, S("-ggdb"));
+        cmd_push(&command, S("-DMIGI_DEBUG_LOGS"));
+        if (sanitizers) cmd_push(&command, S("-fsanitize=undefined,address"));
     }
 
-    bool ok = run_command(&command, false, false) == 0;
-    arena_temp_release(tmp);
-    return ok;
+    return command;
 }
 
 Str filename_to_output_path(Arena *arena, Str filename, Str build_folder) {
@@ -136,20 +70,32 @@ Str filename_to_output_path(Arena *arena, Str filename, Str build_folder) {
 int main(int argc, char **argv) {
     Arena *arena = arena_init();
 
-    bool *run      = cli_add_bool(S("run"),      S("run the program after compiling"), .aliases=str_span(S("r")));
-    bool *optimize = cli_add_bool(S("optimize"), S("enable optimizations"),            .aliases=str_span(S("O")));
-    bool *debug    = cli_add_bool(S("debug"),    S("debug program in gf2"),            .aliases=str_span(S("d")));
-    bool *help     = cli_add_bool(S("help"),     S("show this help message"),          .aliases=str_span(S("h")));
+    bool *run           = cli_add_bool(S("run"),        S("run the program after compiling"),               .aliases=str_span(S("r")));
+    bool *dry_run       = cli_add_bool(S("dry-run"),    S("only print the compiler flags"),                 .aliases=str_span(S("dr")));
+    Str  *output        = cli_add_str (S("output"),     S("path to output executable"),                     .aliases=str_span(S("o")));
+    bool *optimize      = cli_add_bool(S("optimize"),   S("enable optimizations"),                          .aliases=str_span(S("O")));
+    bool *debug         = cli_add_bool(S("debug"),      S("debug program in gf2"),                          .aliases=str_span(S("d")));
+    bool *sanitizers    = cli_add_bool(S("sanitizers"), S("add sanitizers"),  .value=true, .takes_arg=true, .aliases=str_span(S("s")));
+    bool *help          = cli_add_bool(S("help"),       S("show this help message"),                        .aliases=str_span(S("h")));
 
-    if (!cli_parse_args(argc, argv, .arena = arena)) return 1;
+    if (!cli_parse_args(argc, argv)) return 1;
 
     if (*run && *debug) {
         migi_log(Log_Error, "options '-%.*s' and '-%.*s' are mutually exclusive", 
-                SArg(cli_arg_from_var(run)->name), SArg(cli_arg_from_var(optimize)->name));
+                SArg(cli_arg_from_var(run)->name), SArg(cli_arg_from_var(debug)->name));
         return 1;
     }
 
-    if (global_cli.pos_args.length == 0) {
+    // Sanitizers cause certain issues when debugging which are annoying
+    if (*debug) {
+        migi_log(Log_Info, "Disabling sanitizers since the program is running in a debugger");
+        *sanitizers = false;
+    }
+    if (!*sanitizers) {
+        migi_log(Log_Info, "Compiling without sanitizers");
+    }
+
+    if (cli_pos_args().length == 0) {
         migi_log(Log_Error, "no file to compile");
         fprintf(stderr, "%.*s", SArg(cli_help_text(arena)));
         return 1;
@@ -163,18 +109,27 @@ int main(int argc, char **argv) {
     Str filename = cli_pos_args().head->string;
     migi_log(Log_Info, "Compiling%s: %.*s", run? " and Running": "", SArg(filename));
 
-    Str executable_path = filename_to_output_path(arena, filename, BUILD_FOLDER);
-    if (!run_compiler(COMPILER, *optimize, filename, executable_path)) {
-        return 1;
+    Str executable_path = output->length != 0
+        ? *output
+        : filename_to_output_path(arena, filename, BUILD_FOLDER);
+
+    Cmd command = prepare_compiler(COMPILER, *optimize, *sanitizers, filename, executable_path);
+    if (*dry_run) {
+        migi_log(Log_Info, "Compiling (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
+        cmd_reset(&command);
+    } else {
+        if (cmd_run(&command).code != 0) {
+            return 1;
+        }
     }
 
     if (*debug || *run) {
-        Cmd command = {.arena=arena};
+        Cmd command = {0};
         if (*debug) cmd_push(&command, S("gf2"));
 
         cmd_push(&command, executable_path);
 
-        if (*debug) {
+        if (*debug && cli_meta_args().length > 0) {
             // Extra arguments to gf2 are passed to gdb
             // This ensures that the meta args are handled correctly
             cmd_push(&command, S("--args"));
@@ -182,11 +137,16 @@ int main(int argc, char **argv) {
         }
 
         strlist_extend(&command.args, &cli_meta_args());
-        CmdResult res = cmd_run(&command, .shell=*debug, .background=*debug);
+        if (*dry_run) {
+            migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
+            cmd_reset(&command);
+        } else {
+            CmdResult res = cmd_run(&command, .shell=*debug, .background=*debug);
 
-        if (res.code != 0) {
-            migi_log(Log_Error, "Program: `%.*s` exited with code: %d", SArg(executable_path), res.code);
-            return 1;
+            if (res.code != 0) {
+                migi_log(Log_Error, "Program: `%.*s` exited with code: %d", SArg(executable_path), res.code);
+                return 1;
+            }
         }
     }
 
