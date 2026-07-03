@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include "migi.h"
-#include "cli_parse_new.h"
+#include "cli_parse.h"
 
 void print_arg(CliArg *arg) {
     printf("%.*s => ", SArg(arg->name));

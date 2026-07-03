@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 #include "migi.h"
-#include "cli_parse_new.h"
+#include "cli_parse.h"
 #include "process.h"
 
 #define COMPILER S("gcc")
