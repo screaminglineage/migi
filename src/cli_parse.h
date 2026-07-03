@@ -417,14 +417,14 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
     return &opt.cli->args[index].as_list;
 }
 
-static bool cli__parse_value(CliArg *cli_arg, Str key, Str value) {
+static bool cli__parse_value(CliArg *cli_arg, Str key, Str value, bool ignore) {
     bool result = false;
 
     Temp tmp = arena_temp();
 
     switch (cli_arg->type) {
         case CliArg_Str: {
-            cli_arg->as_str = value;
+            if (!ignore) cli_arg->as_str = value;
         } break;
         case CliArg_Int: {
             char *endptr;
@@ -436,15 +436,15 @@ static bool cli__parse_value(CliArg *cli_arg, Str key, Str value) {
                         SArg(key), SArg(value));
                 goto end;
             }
-            cli_arg->as_int = num;
+            if (!ignore) cli_arg->as_int = num;
         } break;
         case CliArg_Bool: {
             Str arg_lower = str_to_lower(tmp.arena, value);
             if (str_eq_any(arg_lower, S("1"), S("y"), S("yes"), S("true"))) {
-                cli_arg->as_bool = true;
+                if (!ignore) cli_arg->as_bool = true;
 
             } else if (str_eq_any(arg_lower, S("0"), S("n"), S("no"), S("false"))) {
-                cli_arg->as_bool = false;
+                if (!ignore) cli_arg->as_bool = false;
             } else {
                 migi_log(Log_Error, "expected value of type bool for option: '-%.*s' "
                         "(supported values are: 1/0, y[es]/n[o], true/false) but got: '%.*s'",
@@ -462,7 +462,7 @@ static bool cli__parse_value(CliArg *cli_arg, Str key, Str value) {
                         SArg(key), SArg(value));
                 goto end;
             }
-            cli_arg->as_double = num;
+            if (!ignore) cli_arg->as_double = num;
         } break;
         default:
             migi_unreachable();
@@ -554,13 +554,26 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         if (arg.length == 1) continue;
         Str key = str_skip(arg, 1);
 
-        // if arg is only a `--` parse everything after it as meta arguments
-        if (str_eq(arg, S("--"))) {
+        bool ignore = false;
+        // if the option is `--` parse everything after it as meta arguments
+        if (key.data[0] == '-') {
             i++;
             while (i < argc) {
                 strlist_push_cstr(opt.arena, &opt.cli->meta_args, argv[i++]);
             }
             break;
+
+        // ignore options that begin with -/
+        // Eg. `-/foo 1` is parsed and type checked but the value is ultimately ignored
+        // Idea from: https://github.com/tsoding/flag.h
+        } else if (key.data[0] == '/') {
+            ignore = true;
+            key = str_skip(key, 1);
+
+            // `-/` on its own is invalid, skip it
+            if (key.length == 0) {
+                continue;
+            }
         }
 
         StrCut cut = str_cut(key, S("="));
@@ -573,7 +586,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
             }
             if (cli_arg->nargs == 0) {
                 assertf(cli_arg->type == CliArg_Bool, "only boolean flags can have no arguments");
-                cli_arg->as_bool = true;
+                if (!ignore) cli_arg->as_bool = true;
                 cli_arg->found = true;
                 continue;
             }
@@ -587,10 +600,10 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
             Str value = str_from_cstr(argv[i]);
 
             if (cli_arg->type == CliArg_List) {
-                // --list item1 ... --list item2 ... --list item3
+                // -list item1 ... -list item2 ... -list item3
                 strlist_push(opt.arena, &cli_arg->as_list, value);
             } else {
-                if (!cli__parse_value(cli_arg, key, value)) {
+                if (!cli__parse_value(cli_arg, key, value, ignore)) {
                     return_with(false);
                 }
             }
@@ -630,13 +643,13 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         if (cli_arg->type == CliArg_List) {
             // Extend list if there were previous arguments
             if (cli_arg->as_list.length == 0) {
-                cli_arg->as_list = items;
+                if (!ignore) cli_arg->as_list = items;
                 cli_arg->found = true;
             } else {
                 strlist_extend(&cli_arg->as_list, &items);
             }
         } else {
-            if (!cli__parse_value(cli_arg, key, items.head->string)) {
+            if (!cli__parse_value(cli_arg, key, items.head->string, ignore)) {
                 return_with(false);
             }
         }
