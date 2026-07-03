@@ -119,15 +119,12 @@ typedef struct {
     Str help;             // help text for the program as a whole
     bool ignore_first;    // whether to ignore the first argument (usually the name of the executable) [defaults to false and consumes it]
     Str executable;       // this is only used when `ignore_first` is true to set the executable name manually
-
-    // TODO: remove `nargs_atleast` as this case must be handled manually to give a good error message anyway
-    // check tools/build.c for such an example
-    int nargs_atleast;    // minimum number of positional arguments to expect
 } CliParseOpt;
 // bool cli_parse_args(argc, argv, ...);
 static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt);
 
-static void cli_free(Cli *cli);
+static void cli_free();             // Free the global CLI context
+static void clic_free(Cli *cli);
 
 typedef struct {
     Cli *cli;
@@ -184,10 +181,9 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name);
 threadvar Cli global_cli = {0};
 threadvar Arena *global_cli_arena = {0};
 
-// TODO: fix the "only one void side" warning
 #define cli_parse_args(argc, argv, ...)                \
     (global_cli_arena == NULL                          \
-        ? global_cli_arena = arena_init()              \
+        ? global_cli_arena = arena_init(), (void)0     \
         : (void)0,                                     \
     cli_parse_args_opt((argc), (argv), (CliParseOpt) { \
         .cli = &global_cli,                            \
@@ -196,29 +192,29 @@ threadvar Arena *global_cli_arena = {0};
     }))
 
 
-#define cli_add_str(name, help, ...)                        \
-    (global_cli_arena == NULL                               \
-        ? global_cli_arena = arena_init(.type=Arena_Linear) \
-        : (void)0,                                          \
-    cli_add_str_opt((name), (help), (CliStrOpt) {           \
-        .cli = &global_cli,                                 \
-        .arena = global_cli_arena,                          \
-        __VA_ARGS__                                         \
+#define cli_add_str(name, help, ...)               \
+    (global_cli_arena == NULL                      \
+        ? global_cli_arena = arena_init(), (void)0 \
+        : (void)0,                                 \
+    cli_add_str_opt((name), (help), (CliStrOpt) {  \
+        .cli = &global_cli,                        \
+        .arena = global_cli_arena,                 \
+        __VA_ARGS__                                \
     }))
 
-#define cli_add_i64(name, help, ...)             \
-    (global_cli_arena == NULL                    \
-        ? global_cli_arena = arena_init()        \
-        : (void)0,                               \
-    cli_add_i64_opt((name), (help), (CliIntOpt){ \
-        .cli = &global_cli,                      \
-        .arena = global_cli_arena,               \
-        __VA_ARGS__                              \
+#define cli_add_i64(name, help, ...)               \
+    (global_cli_arena == NULL                      \
+        ? global_cli_arena = arena_init(), (void)0 \
+        : (void)0,                                 \
+    cli_add_i64_opt((name), (help), (CliIntOpt){   \
+        .cli = &global_cli,                        \
+        .arena = global_cli_arena,                 \
+        __VA_ARGS__                                \
     }))
 
 #define cli_add_bool(name, help, ...)              \
     (global_cli_arena == NULL                      \
-        ? global_cli_arena = arena_init()          \
+        ? global_cli_arena = arena_init(), (void)0 \
         : (void)0,                                 \
     cli_add_bool_opt((name), (help), (CliBoolOpt){ \
         .cli = &global_cli,                        \
@@ -228,7 +224,7 @@ threadvar Arena *global_cli_arena = {0};
 
 #define cli_add_double(name, help, ...)                \
     (global_cli_arena == NULL                          \
-        ? global_cli_arena = arena_init()              \
+        ? global_cli_arena = arena_init(), (void)0     \
         : (void)0,                                     \
     cli_add_double_opt((name), (help), (CliDoubleOpt){ \
         .cli = &global_cli,                            \
@@ -238,7 +234,7 @@ threadvar Arena *global_cli_arena = {0};
 
 #define cli_add_list(name, help, ...)                 \
     (global_cli_arena == NULL                         \
-        ? global_cli_arena = arena_init()             \
+        ? global_cli_arena = arena_init(), (void)0    \
         : (void)0,                                    \
     cli_list_str_opt((name), (help), (CliListStrOpt){ \
         .cli = &global_cli,                           \
@@ -255,8 +251,14 @@ static void cli__init(Arena *arena, Cli *cli) {
     cli->args = arena_push(arena, CliArg, CLI_MAX_OPTIONS);
 }
 
+
+static void cli_free() {
+    mem_clear(&global_cli);
+    arena_free(global_cli_arena);
+}
+
 // Doesnt actually free the memory as that is stored on an arena
-static void cli_free(Cli *cli) {
+static void clic_free(Cli *cli) {
     mem_clear(cli);
 }
 
@@ -482,7 +484,7 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name) {
     return &cli->args[*arg_index];
 }
 
-static bool cli__validate_args(Cli *cli, int32_t nargs_atleast) {
+static bool cli__validate_args(Cli *cli) {
     // Validation for required arguments
     clic_foreach(cli, arg) {
         if (arg->type == CliArg_List) {
@@ -502,11 +504,6 @@ static bool cli__validate_args(Cli *cli, int32_t nargs_atleast) {
         }
     }
 
-    if (cli->pos_args.length < (size_t)nargs_atleast) {
-        migi_log(Log_Error, "too few positional arguments, expected at least %d but got %zu",
-                nargs_atleast, cli->pos_args.length);
-        return false ;
-    }
     return true;
 }
 
@@ -610,7 +607,10 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         // -opt=foo,bar,baz
         StrList items = {0};
 
-        // TODO: `-opt="foo,bar"` is currently parsed like [`"foo`, `bar"`]
+        // NOTE: `-opt="foo,bar"` is currently parsed like [`foo`, `bar`]
+        // However since quotes are handled by the shell, by the time the program
+        // gets access to the `argv` array, they have already been removed.
+        // This makes it impossible to check for this case.
         StrCut values_cut = str_cut(value, S(","));
         Str prev_tail = {0};
         do {
@@ -642,7 +642,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         }
     }
 
-    if (!cli__validate_args(opt.cli, opt.nargs_atleast)) return_with(false);
+    if (!cli__validate_args(opt.cli)) return_with(false);
 
 end:
     if (handle_help_flag) {

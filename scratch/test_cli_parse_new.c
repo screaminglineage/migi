@@ -21,7 +21,7 @@ void print_arg(CliArg *arg) {
         case CliArg_List: {
             printf("[ ");
             strlist_foreach(&arg->as_list, str) {
-                printf("%.*s, ", SArg(str->string));
+                printf("'%.*s', ", SArg(str->string));
             }
             printf("]\n");
         } break;
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     Temp tmp = arena_temp();
 
     // NOTE: the arenas in the parse_args and cli_* functions may or may not be provided
-    // They can even be separate arenas if required
+    // They can even be separate arenas if required (why tho?)
     Cli cli = {0};
     Str *str       = cli_add_str   (S("str"),  S("help: str"),                    .cli = &cli, /*.arena = tmp.arena*/);
     int64_t *num   = cli_add_i64   (S("num"),  S("help: num"),  .required = true, .cli = &cli, /*.arena = tmp.arena*/);
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     bool *check     = cli_add_bool(S("check"), S("help: check"), .takes_arg = true, .cli = &cli, /*.arena = tmp.arena*/);
     StrList *list   = cli_add_list(S("list"),  S("help: list"),  .nargs = 3,        .cli = &cli, /*.arena = tmp.arena*/);
 
-    if (!cli_parse_args(argc, argv, .help = S("help: prog"), .nargs_atleast = 2, .cli = &cli, /* .arena = tmp.arena */)) return 1;
+    if (!cli_parse_args(argc, argv, .help = S("help: prog"), .cli = &cli, /* .arena = tmp.arena */)) return 1;
 
     printf("Executable: '%.*s'\n\n", SArg(cli.executable));
     clic_foreach(&cli, arg) {
