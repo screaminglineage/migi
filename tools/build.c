@@ -1,4 +1,5 @@
 // TODO: automatically rebuild this file if it is newer than build/build
+// TODO: for the debug option do not use sanitizers as they may conflict
 
 #include <stddef.h>
 #include <stdint.h>
@@ -144,7 +145,7 @@ int main(int argc, char **argv) {
 
     if (*run && *debug) {
         migi_log(Log_Error, "options '-%.*s' and '-%.*s' are mutually exclusive", 
-                SArg(cli_var_to_arg(run)->name), SArg(cli_var_to_arg(optimize)->name));
+                SArg(cli_arg_from_var(run)->name), SArg(cli_arg_from_var(optimize)->name));
         return 1;
     }
 
@@ -172,6 +173,14 @@ int main(int argc, char **argv) {
         if (*debug) cmd_push(&command, S("gf2"));
 
         cmd_push(&command, executable_path);
+
+        if (*debug) {
+            // Extra arguments to gf2 are passed to gdb
+            // This ensures that the meta args are handled correctly
+            cmd_push(&command, S("--args"));
+            cmd_push(&command, executable_path);
+        }
+
         strlist_extend(&command.args, &cli_meta_args());
         CmdResult res = cmd_run(&command, .shell=*debug, .background=*debug);
 

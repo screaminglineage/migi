@@ -25,6 +25,10 @@ typedef uint8_t byte;
 #define type_of(type) __typeof__(type)
 #define bool_to_str(boolean) ((boolean)? S("true"): S("false"))
 
+// Obtains a pointer to the parent struct from a pointer to a member element
+#define parent_of(T, member_name, elem) (T *)((uintptr_t)(elem) - offsetof(T, member_name))
+
+
 #if defined(__GNUC__) || defined (__clang__)
     #define migi_crash() __builtin_trap()
 #elif defined(_MSC_VER)
@@ -107,6 +111,14 @@ typedef uint8_t byte;
 
 #define unused(a) ((void)a)
 
+#if defined(__GNUC__) || defined (__clang__)
+    #define breakpoint() asm("int3")
+#elif defined(_MSC_VER)
+    #define breakpoint() __debugbreak()
+#else
+    #error "breakpoint() not supported for this compiler"
+#endif
+
 // Useful for defining bit flags or selecting a particular bit
 #define bit(n) (1ULL << (n))
 
@@ -159,11 +171,11 @@ typedef enum {
 #endif
 
 
-#define mem_swap(a, b)  \
-do {                    \
+#define mem_swap(a, b)   \
+do {                     \
     type_of(a) temp = a; \
-    a = b;              \
-    b = temp;           \
+    a = b;               \
+    b = temp;            \
 } while(0)
 
 // Incrementally shift command line arguments

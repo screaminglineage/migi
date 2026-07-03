@@ -147,13 +147,13 @@ static Str cli_arg_type_to_str(CliArgType type);
 // Lower level function to directly access the options table by name
 static CliArg *cli_arg_by_name(Cli *cli, Str name);
 
-#define cli_var_to_arg(var)                                                  \
-    _Generic((var),                                                          \
-        Str *:     (CliArg *)((uintptr_t)var - offsetof(CliArg, as_str)),    \
-        int64_t *: (CliArg *)((uintptr_t)var - offsetof(CliArg, as_int)),    \
-        bool *:    (CliArg *)((uintptr_t)var - offsetof(CliArg, as_bool)),   \
-        double *:  (CliArg *)((uintptr_t)var - offsetof(CliArg, as_double)), \
-        StrList *: (CliArg *)((uintptr_t)var - offsetof(CliArg, as_list))    \
+#define cli_arg_from_var(var)                            \
+    _Generic((var),                                      \
+        Str *:      parent_of(CliArg, as_str,    (var)), \
+        int64_t *:  parent_of(CliArg, as_int,    (var)), \
+        bool *:     parent_of(CliArg, as_bool,   (var)), \
+        double *:   parent_of(CliArg, as_double, (var)), \
+        StrList *:  parent_of(CliArg, as_list,   (var))  \
     )
 
 
@@ -482,7 +482,7 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name) {
     return &cli->args[*arg_index];
 }
 
-bool cli__validate_args(Cli *cli, int32_t nargs_atleast) {
+static bool cli__validate_args(Cli *cli, int32_t nargs_atleast) {
     // Validation for required arguments
     clic_foreach(cli, arg) {
         if (arg->type == CliArg_List) {
@@ -643,8 +643,6 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     }
 
     if (!cli__validate_args(opt.cli, opt.nargs_atleast)) return_with(false);
-
-
 
 end:
     if (handle_help_flag) {
