@@ -7,28 +7,29 @@ void print_arg(CliArg *arg) {
     printf("%.*s => ", SArg(arg->name));
     switch (arg->type) {
         case CliArg_Str: {
-            printf("'%.*s'\n", SArg(arg->as_str));
+            printf("'%.*s'", SArg(arg->as_str));
         } break;
         case CliArg_Int: {
-            printf("%"PRId64"\n", arg->as_int);
+            printf("%"PRId64"", arg->as_int);
         } break;
         case CliArg_Bool: {
-            printf("%.*s\n", SArg(bool_to_str(arg->as_bool)));
+            printf("%.*s", SArg(bool_to_str(arg->as_bool)));
         } break;
         case CliArg_Double: {
-            printf("%f\n", arg->as_double);
+            printf("%f", arg->as_double);
         } break;
         case CliArg_List: {
             printf("[ ");
             strlist_foreach(&arg->as_list, str) {
                 printf("'%.*s', ", SArg(str->string));
             }
-            printf("]\n");
+            printf("]");
         } break;
         case CliArg_None: {
             migi_unreachable();
         } break;
     }
+    printf("\n");
 }
 
 
@@ -50,9 +51,18 @@ int main(int argc, char **argv) {
 
     // NOTE: bools can be passed an argument if `takes_arg` is true
     bool *check     = cli_add_bool(S("check"), S("help: check"), .takes_arg = true, .cli = &cli, /*.arena = tmp.arena*/);
-    StrList *list   = cli_add_list(S("list"),  S("help: list"),  .nargs = 3,        .cli = &cli, /*.arena = tmp.arena*/);
+    StrList *list   = cli_add_list(S("list"),  S("help: list"),  .required=true, .nargs = 3,        .cli = &cli, /*.arena = tmp.arena*/);
 
     if (!cli_parse_args(argc, argv, .help = S("help: prog"), .cli = &cli, /* .arena = tmp.arena */)) return 1;
+
+    printf("Is Set:\n");
+    printf("-str:   %.*s\n",  SArg(bool_to_str(cli_var_was_set(str))));
+    printf("-num:   %.*s\n",  SArg(bool_to_str(cli_var_was_set(num))));
+    printf("-flag:  %.*s\n",  SArg(bool_to_str(cli_var_was_set(flag))));
+    printf("-real:  %.*s\n",  SArg(bool_to_str(cli_var_was_set(real))));
+    printf("-list:  %.*s\n",  SArg(bool_to_str(cli_var_was_set(list))));
+    printf("-check: %.*s\n",  SArg(bool_to_str(cli_var_was_set(check))));
+    printf("\n\n");
 
     printf("Executable: '%.*s'\n\n", SArg(cli.executable));
     clic_foreach(&cli, arg) {

@@ -1,4 +1,5 @@
 // TODO: needs some modifications to bring it up to the current standards
+// TODO: remove PROFILER_H_IMPLEMENTATION
 // TODO: doesnt compile on windows msvc
 
 #ifndef PROFILER_H

@@ -1,3 +1,6 @@
+// TODO: display the default value in the help for each option
+// This will require storing the default as another arg in CliArg
+
 #ifndef MIGI_CLI_PARSE_NEW_H
 #define MIGI_CLI_PARSE_NEW_H
 
@@ -21,6 +24,13 @@ typedef enum {
 } CliArgType;
 
 typedef struct {
+    Str name;
+    Str help;
+    StrSpan aliases;
+    int32_t nargs;
+    int32_t found_args;  // NOTE: for bool's that do not take any arguments, this is set to -1 if the flag was set
+    bool required;
+
     CliArgType type;
     union {
         Str as_str;
@@ -29,13 +39,6 @@ typedef struct {
         double as_double;
         StrList as_list;
     };
-
-    Str help;
-    Str name;
-    StrSpan aliases;
-    int32_t nargs;
-    bool required;
-    bool found;
 } CliArg;
 
 typedef struct {
@@ -153,6 +156,13 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name);
         StrList *:  parent_of(CliArg, as_list,   (var))  \
     )
 
+// Check whether an option was actually set in the command line
+static bool cli_arg_was_set(CliArg *arg);
+
+// Convenience macros for operating on variables returned by `cli_add_*` functions
+#define cli_var_name(var) cli_arg_from_var((var))->name
+#define cli_var_was_set(var) cli_arg_was_set(cli_arg_from_var((var)))
+
 
 // Get global cli fields
 #define cli_executable() global_cli.executable
@@ -173,7 +183,6 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name);
 #define cli_foreach(arg)            clic_foreach(&global_cli, arg)
 #define cli_args_foreach(arg)       clic_args_foreach(&global_cli, arg)
 #define cli_meta_args_foreach(arg)  clic_meta_args_foreach(&global_cli, arg)
-
 
 
 
@@ -467,7 +476,7 @@ static bool cli__parse_value(CliArg *cli_arg, Str key, Str value, bool ignore) {
         default:
             migi_unreachable();
     }
-    cli_arg->found = true;
+    cli_arg->found_args = 1;
 
     result = true;
 end:
@@ -488,17 +497,17 @@ static bool cli__validate_args(Cli *cli) {
     // Validation for required arguments
     clic_foreach(cli, arg) {
         if (arg->type == CliArg_List) {
-            if (arg->required && arg->nargs != CLI_NARGS_INF && (size_t)arg->nargs != arg->as_list.length) {
-                migi_log(Log_Error, "too %s arguments for option: '-%.*s', expected %d but got %zu",
-                        arg->as_list.length < (size_t)arg->nargs? "few": "many",
-                        SArg(arg->name), arg->nargs, arg->as_list.length);
+            if (arg->required && arg->nargs != CLI_NARGS_INF && arg->nargs != arg->found_args) {
+                migi_log(Log_Error, "too %s arguments for option: '-%.*s', expected %d but got %d",
+                        arg->found_args < arg->nargs? "few": "many",
+                        SArg(arg->name), arg->nargs, arg->found_args);
                 return false ;
             } else if ((size_t)arg->nargs < arg->as_list.length) {
                 migi_log(Log_Error, "too many arguments for option: '-%.*s', expected %d but got %zu",
                         SArg(arg->name), arg->nargs, arg->as_list.length);
                 return false ;
             }
-        } else if (arg->required && !arg->found) {
+        } else if (arg->required && arg->found_args == 0) {
             migi_log(Log_Error, "option: '-%.*s' is required but was not provided", SArg(arg->name));
             return false ;
         }
@@ -587,7 +596,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
             if (cli_arg->nargs == 0) {
                 assertf(cli_arg->type == CliArg_Bool, "only boolean flags can have no arguments");
                 if (!ignore) cli_arg->as_bool = true;
-                cli_arg->found = true;
+                cli_arg->found_args = -1;
                 continue;
             }
 
@@ -601,7 +610,8 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
             if (cli_arg->type == CliArg_List) {
                 // -list item1 ... -list item2 ... -list item3
-                strlist_push(opt.arena, &cli_arg->as_list, value);
+                if (!ignore) strlist_push(opt.arena, &cli_arg->as_list, value);
+                cli_arg->found_args += 1;
             } else {
                 if (!cli__parse_value(cli_arg, key, value, ignore)) {
                     return_with(false);
@@ -642,12 +652,14 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
         if (cli_arg->type == CliArg_List) {
             // Extend list if there were previous arguments
-            if (cli_arg->as_list.length == 0) {
-                if (!ignore) cli_arg->as_list = items;
-                cli_arg->found = true;
-            } else {
-                strlist_extend(&cli_arg->as_list, &items);
+            if (!ignore) {
+                if (cli_arg->as_list.length == 0) {
+                    cli_arg->as_list = items;
+                } else {
+                    strlist_extend(&cli_arg->as_list, &items);
+                }
             }
+            cli_arg->found_args += items.length;
         } else {
             if (!cli__parse_value(cli_arg, key, items.head->string, ignore)) {
                 return_with(false);
@@ -681,6 +693,10 @@ static Str cli_arg_type_to_str(CliArgType type) {
         case CliArg_List:   return S("list");
     }
     migi_unreachable();
+}
+
+static bool cli_arg_was_set(CliArg *arg) {
+    return arg->found_args != 0;
 }
 
 static Str cli_options_list_opt(Arena *arena, CliOpt opt) {
