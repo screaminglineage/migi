@@ -48,8 +48,8 @@ int main(int argc, char **argv) {
     double *real   = cli_add_double(S("real"), S("help: real"),                   .cli = &cli);
 
     // NOTE: bools can be passed an argument if `takes_arg` is true
-    bool *check     = cli_add_bool(S("check"), S("help: check"), .takes_arg = true,          .cli = &cli);
-    StrList *list   = cli_add_list(S("list"),  S("help: list"),  .required=true, .nargs = 3, .cli = &cli);
+    bool *check     = cli_add_bool(S("check"), S("help: check"), .takes_arg = true, .cli = &cli);
+    StrList *list   = cli_add_list(S("list"),  S("help: list"),  .nargs     = 3,    .cli = &cli);
 
     if (!cli_parse_args(argc, argv, .help = S("help: prog"), .cli = &cli)) return 1;
 

@@ -7,8 +7,115 @@
 #include <stdint.h>
 #include <string.h>    // needed for mem_* functions
 
+
+// Determining OS, compiler, and architecture
+// Taken from: https://github.com/EpicGames/raddebugger/blob/master/src/base/base_context_cracking.h
+//
+// Clang
+#if defined(__clang__)
+    #define COMPILER_CLANG 1
+
+#if defined(_WIN32)
+    #define OS_WINDOWS 1
+#elif defined(__gnu_linux__) || defined(__linux__)
+    #define OS_LINUX 1
+#elif defined(__APPLE__) && defined(__MACH__)
+    #define OS_MAC 1
+#else
+    #error Unsupported compiler/OS combo
+#endif
+
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
+    #define ARCH_X64 1
+#elif defined(i386) || defined(__i386) || defined(__i386__)
+    #define ARCH_X86 1
+#elif defined(__aarch64__)
+    #define ARCH_ARM64 1
+#elif defined(__arm__)
+    #define ARCH_ARM32 1
+#else
+    #error Unsupported architecture
+#endif
+
+
+// MSVC
+#elif defined(_MSC_VER)
+    #define COMPILER_MSVC 1
+
+#if defined(_WIN32)
+    #define OS_WINDOWS 1
+#else
+    #error Unsupported compiler/OS combo (cursed usage of MSVC outside of windows)
+#endif
+
+#if defined(_M_AMD64)
+    #define ARCH_X64 1
+#elif defined(_M_IX86)
+    #define ARCH_X86 1
+#elif defined(_M_ARM64)
+    #define ARCH_ARM64 1
+#elif defined(_M_ARM)
+    #define ARCH_ARM32 1
+#else
+    #error Unsupported architecture
+#endif
+
+
+// GCC
+#elif defined(__GNUC__) || defined(__GNUG__)
+    #define COMPILER_GCC 1
+
+#if defined(__gnu_linux__) || defined(__linux__)
+    #define OS_LINUX 1
+#elif defined(_WIN32)
+    #define OS_WINDOWS 1  // mingw
+#else
+    #error Unsupported OS/compiler combo
+#endif
+
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
+    #define ARCH_X64 1
+#elif defined(i386) || defined(__i386) || defined(__i386__)
+    #define ARCH_X86 1
+#elif defined(__aarch64__)
+    #define ARCH_ARM64 1
+#elif defined(__arm__)
+    #define ARCH_ARM32 1
+#else
+    #error Unsupported architecture
+#endif
+
+#else
+    #error Unsupported compiler
+#endif
+
+// Most things are shared between both gcc and clang
+#if defined(COMPILER_GCC) || defined(COMPILER_CLANG)
+    #define COMPILER_GCC_OR_CLANG 1
+#endif
+
+#if defined(COMPILER_GCC) && defined(OS_WINDOWS)
+    #define COMPILER_MINGW 1
+#endif
+
+#if defined(ARCH_X64)
+    #define ARCH_64BIT 1
+#elif defined(ARCH_X86)
+    #define ARCH_32BIT 1
+#endif
+
+#if ARCH_ARM32 || ARCH_ARM64 || ARCH_X64 || ARCH_X86
+    #define ARCH_LITTLE_ENDIAN 1
+#else
+    #error Endianness of this architecture cannot be understood
+#endif
+
+
+
 typedef uint8_t byte;
 
+// TODO: make these function like macros to prevent ambiguity with the order of operations
+// For example 2/4*MS == (2/4)*MS but 2/(4*MS) is what is generally expected
 #define KB 1024ull
 #define MB (1024ull*KB)
 #define GB (1024ull*MB)
@@ -29,9 +136,9 @@ typedef uint8_t byte;
 #define parent_of(T, member_name, elem) (T *)((uintptr_t)(elem) - offsetof(T, member_name))
 
 
-#if defined(__GNUC__) || defined (__clang__)
+#if COMPILER_GCC_OR_CLANG
     #define migi_crash() __builtin_trap()
-#elif defined(_MSC_VER)
+#elif COMPILER_MSVC
     #define migi_crash() __debugbreak()
 #else
     #define migi_crash() (*(volatile int *)0 = 0)
@@ -75,7 +182,7 @@ typedef uint8_t byte;
 #if defined( __STDC_VERSION__ ) && __STDC_VERSION__ >= 201112L
     #define static_assert(expr, msg) _Static_assert(expr, msg)
 #else
-    #if defined(_MSC_VER)
+    #if COMPILER_MSVC
         #define static__assert__tmp1(count) static__assert__tmp_##count
         #define static__assert__tmp(count) static__assert__tmp1(count)
         #define static_assert(expr, msg) typedef char static__assert__tmp(__COUNTER__)[(expr)? 1: -1]
@@ -103,7 +210,7 @@ typedef uint8_t byte;
 #define todof_expr(type, ...) (todof(__VA_ARGS__), (type){0})
 
 // GCC defines `migi_unreachable` in stddef.h since C23 (why squat this name???!!!!)
-#ifdef _WIN32
+#ifdef OS_WINDOWS
     #define migi_unreachable() (crash_with_message("%s: migi_unreachable!", __func__), __assume(0))
     #define migi_unreachablef(...)  (crash_with_message(__VA_ARGS__), __assume(0))
 #else
@@ -113,9 +220,9 @@ typedef uint8_t byte;
 
 #define unused(a) ((void)a)
 
-#if defined(__GNUC__) || defined (__clang__)
+#if COMPILER_GCC_OR_CLANG
     #define breakpoint() asm("int3")
-#elif defined(_MSC_VER)
+#elif COMPILER_MSVC
     #define breakpoint() __debugbreak()
 #else
     #error "breakpoint() not supported for this compiler"
@@ -164,9 +271,9 @@ typedef enum {
     #define migi_printf_format(format_index, vararg_index)
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
+#if COMPILER_GCC_OR_CLANG
     #define threadvar __thread
-#elif defined(_MSC_VER)
+#elif COMPILER_MSVC
     #define threadvar __declspec(thread)
 #else
     #error "threadvar is not supported for compiler"

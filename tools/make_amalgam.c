@@ -27,6 +27,13 @@ int main() {
     strlist_push(a, &amalgam, S("#ifndef MIGI_AMALGAM_H\n"));
     strlist_push(a, &amalgam, S("#define MIGI_AMALGAM_H\n\n"));
 
+    Str no_crt_warnings = S("#ifdef OS_WINDOWS\n"
+        "// Disabling microsoft's \"security\" warnings\n"
+        "// https://learn.microsoft.com/en-us/cpp/c-runtime-library/security-features-in-the-crt?view=msvc-170#eliminating-deprecation-warnings\n"
+        "    #define _CRT_SECURE_NO_WARNINGS\n"
+        "#endif\n\n");
+    strlist_push(a, &amalgam, no_crt_warnings);
+
     for (size_t i = 0; i < array_len(files); i++) {
         Str str = str_from_file(a, files[i]);
         strcut_foreach(str, S("\n"), 0, line) {

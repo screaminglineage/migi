@@ -8,10 +8,10 @@
 #include <string.h>
 #include <time.h>
 
-#ifdef __GNUC__
+#ifdef COMPILER_GCC
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wunused-function"
-#endif // ifdef _GNU_C
+#endif
 
 #include "timing.h"
 
@@ -40,7 +40,7 @@
 #include "file.h"
 
 
-#ifdef __GNUC__
+#ifdef COMPILER_GCC
     #pragma GCC diagnostic pop
 #endif
 

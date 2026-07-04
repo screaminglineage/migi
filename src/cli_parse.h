@@ -520,6 +520,7 @@ static bool cli__validate_args(Cli *cli) {
     return true;
 }
 
+// TODO: look into simplifying this function a bit
 static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     bool result = true;
 
@@ -644,7 +645,8 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         StrCut values_cut = str_cut(value, S(","));
         Str prev_tail = {0};
         do {
-            if (values_cut.head.length == 0) {
+            // Disallow empty options for lists like `-list=1,,3` but not in case of `-str=""`
+            if (values_cut.head.length == 0 && values_cut.found) {
                 migi_log(Log_Error, "empty argument passed to list option: '-%.*s'", SArg(cli_arg->name));
                 goto end;
             }
@@ -668,6 +670,11 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
             }
             cli_arg->found_args += items.length;
         } else {
+            if (items.length > 0) {
+                migi_log(Log_Error, "expected a single argument for option: '-%.*s' "
+                        "but got a list of %zu elements", SArg(cli_arg->name), items.length);
+                return_with(false);
+            }
             if (!cli__parse_value(cli_arg, key, items.head->string, ignore)) {
                 return_with(false);
             }

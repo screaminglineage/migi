@@ -42,8 +42,8 @@ static bool set_cwd(Str cwd);
 static Str get_cwd_executable(Arena *arena);
 static Str get_executable_path(Arena *a);
 
-// IWYU pragma: begin_exports
-#ifdef _WIN32
+
+#ifdef OS_WINDOWS
 
 #include <windows.h>
 #include "filepath.h"
@@ -468,7 +468,7 @@ static Str get_cwd_executable(Arena *a) {
     return result;
 }
 
-#else // LINUX
+#elif OS_LINUX
 
 #include <sys/sendfile.h>
 #include <sys/stat.h>
@@ -917,6 +917,8 @@ static Str get_cwd_executable(Arena *a) {
     return result;
 }
 
+#else
+    #error Unsupported OS
 #endif // ifdef _WIN32
 
 
