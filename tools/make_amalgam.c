@@ -1,11 +1,23 @@
-// A single file with all the basics
+// A single file with all the main headers concatenated to have a single header library
 // Inspired by SQLite Amalgamation
 
+#define DEFAULT_OUTPUT_PATH S("build/migi_amalgam.h")
 
 #include "migi.h"
+#include "cli_parse.h"
 #include "file.h"
 
-int main() {
+int main(int argc, char **argv) {
+    Arena *a = arena_init();
+
+    Str *output_path = cli_add_str(S("out"), S("amalgam output path"),
+                                   .value=DEFAULT_OUTPUT_PATH,
+                                   .aliases=str_span(S("o")));
+    bool *show_headers = cli_add_bool(S("headers"), S("show all the included headers"),
+                                   .aliases=str_span(S("H")));
+    if (!cli_parse_args(argc, argv, .help=S("Generate a single amalgamated header "
+                                           "containing all the main headers in migi"))) return 1;
+
     Str files[] = {
         S("src/migi_core.h"),
         S("src/migi_math.h"),
@@ -21,7 +33,13 @@ int main() {
         S("src/migi_random.h"),
     };
 
-    Arena *a = arena_init();
+    if (*show_headers) {
+        printf("Included Headers:\n");
+        for (size_t i = 0; i < array_len(files); i++) {
+            Str header = str_skip(files[i], S("src/").length);
+            printf("  %.*s\n", SArg(header));
+        }
+    }
 
     StrList amalgam = {0};
     strlist_push(a, &amalgam, S("#ifndef MIGI_AMALGAM_H\n"));
@@ -50,10 +68,12 @@ int main() {
             strlist_push(a, &amalgam, S("\n"));
         }
     }
+
     strlist_push(a, &amalgam, S("#endif // #ifndef MIGI_AMALGAM_H\n"));
-    if (!str_to_file(strlist_to_str(a, &amalgam), S("src/migi_amalgam.h"))) {
+    if (!str_to_file(strlist_to_str(a, &amalgam), *output_path)) {
         return 1;
     }
+    migi_log(Log_Info, "Generated '%.*s'", SArg(*output_path));
 
     return 0;
 }

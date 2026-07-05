@@ -430,14 +430,15 @@ static StrList *cli_list_str_opt(Str name, Str help, CliListStrOpt opt) {
     return &opt.cli->args[index].as_list;
 }
 
-static bool cli__parse_value(CliArg *cli_arg, Str key, Str value, bool ignore) {
+static bool cli__parse_value(Arena *arena, CliArg *cli_arg, Str key, Str value, bool ignore) {
     bool result = false;
 
-    Temp tmp = arena_temp();
+    Temp tmp = arena_temp_excl(arena);
 
     switch (cli_arg->type) {
         case CliArg_Str: {
             if (!ignore) cli_arg->as_str = value;
+            cli_arg->found_args = 1;
         } break;
         case CliArg_Int: {
             char *endptr;
@@ -450,20 +451,31 @@ static bool cli__parse_value(CliArg *cli_arg, Str key, Str value, bool ignore) {
                 goto end;
             }
             if (!ignore) cli_arg->as_int = num;
+            cli_arg->found_args = 1;
         } break;
         case CliArg_Bool: {
+            bool bool_value = false;
+            int32_t found_args = 0;
+
             Str arg_lower = str_to_lower(tmp.arena, value);
             if (str_eq_any(arg_lower, S("1"), S("y"), S("yes"), S("true"))) {
-                if (!ignore) cli_arg->as_bool = true;
-
+                bool_value = true;
+                found_args = 1;
             } else if (str_eq_any(arg_lower, S("0"), S("n"), S("no"), S("false"))) {
-                if (!ignore) cli_arg->as_bool = false;
+                bool_value = false;
+                found_args = 1;
+            } else if (cli_arg->nargs == 0) {
+                // flag variables that take no arguments
+                bool_value = true;
+                found_args = CLI_BOOL_FOUND;
             } else {
                 migi_log(Log_Error, "expected value of type bool for option: '-%.*s' "
                         "(supported values are: 1/0, y[es]/n[o], true/false) but got: '%.*s'",
                         SArg(key), SArg(value));
                 goto end;
             }
+            if (!ignore) cli_arg->as_bool = bool_value;
+            cli_arg->found_args = found_args;
         } break;
         case CliArg_Double: {
             char *endptr;
@@ -476,11 +488,31 @@ static bool cli__parse_value(CliArg *cli_arg, Str key, Str value, bool ignore) {
                 goto end;
             }
             if (!ignore) cli_arg->as_double = num;
+            cli_arg->found_args = 1;
+        } break;
+        case CliArg_List: {
+            StrCut values_cut = str_cut(value, S(","));
+            StrList items = {0};
+            Str prev_tail = {0};
+            do {
+                if (values_cut.head.length == 0) {
+                    migi_log(Log_Error, "empty argument passed to list option: '-%.*s'", SArg(cli_arg->name));
+                    goto end;
+                }
+                strlist_push(arena, &items, values_cut.head);
+                prev_tail = values_cut.tail;
+                values_cut = str_cut(values_cut.tail, S(","));
+            } while (values_cut.found);
+
+            if (prev_tail.length != 0) {
+                strlist_push(arena, &items, prev_tail);
+            }
+            if (!ignore) strlist_extend(&cli_arg->as_list, &items);
+            cli_arg->found_args += items.length;
         } break;
         default:
             migi_unreachable();
     }
-    cli_arg->found_args = 1;
 
     result = true;
 end:
@@ -520,35 +552,27 @@ static bool cli__validate_args(Cli *cli) {
     return true;
 }
 
-// TODO: look into simplifying this function a bit
+
 static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
     bool result = true;
 
     Temp tmp = arena_temp();
 
-    Arena *arena = opt.cli->arena;
-    if (!arena) arena = arena_init();
+    Arena *cli_arena = opt.cli->arena;
+    if (!cli_arena) cli_arena = arena_init();
 
     if (opt.cli->slots == NULL) {
-        cli__init(arena, opt.cli);
+        cli__init(cli_arena, opt.cli);
     }
 
-    bool handle_help_flag = false;
     // Insert help option and handle it if it wasnt provided
+    bool handle_help_flag = false;
     if (!cli__lookup(opt.cli, S("help"))) {
-        CliArg help_arg = {
-            .name    = S("help"),
-            .aliases = str_span_new(arena, S("h")),
-            .help    = S("show this help message"),
-            .type    = CliArg_Bool,
-            .as_bool = false,
-            .nargs   = 0,
-        };
-        int32_t index = cli__push_arg(arena, opt.cli, help_arg);
-        cli__insert(arena, opt.cli, S("help"), index);
-        array_foreach(&help_arg.aliases, alias) {
-            cli__insert(arena, opt.cli, *alias, index);
-        }
+        cli_add_bool_opt(S("help"), S("show this help message"),
+            (CliBoolOpt){
+                .aliases = str_span_new(cli_arena, S("h")),
+                .cli     = opt.cli,
+        });
         handle_help_flag = true;
     }
 
@@ -563,7 +587,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
         // parse as a positional argument
         if (arg.data[0] != '-') {
-            strlist_push(arena, &opt.cli->pos_args, arg);
+            strlist_push(cli_arena, &opt.cli->pos_args, arg);
             continue;
         }
 
@@ -576,7 +600,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         if (key.data[0] == '-') {
             i++;
             while (i < argc) {
-                strlist_push_cstr(arena, &opt.cli->meta_args, argv[i++]);
+                strlist_push_cstr(cli_arena, &opt.cli->meta_args, argv[i++]);
             }
             break;
 
@@ -594,90 +618,42 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         }
 
         StrCut cut = str_cut(key, S("="));
-
+        Str value = str_zero();
+        CliArg *cli_arg = NULL;
         // -opt foo
         if (!cut.found) {
-            CliArg *cli_arg = cli_arg_by_name(opt.cli, key);
-            if (!cli_arg) {
-                return_with(false);
-            }
-            if (cli_arg->nargs == 0) {
-                assertf(cli_arg->type == CliArg_Bool, "only flags of type bool can have no arguments");
-                if (!ignore) cli_arg->as_bool = true;
-                cli_arg->found_args = CLI_BOOL_FOUND;
-                continue;
-            }
+            cli_arg = cli_arg_by_name(opt.cli, key);
+            if (!cli_arg) return_with(false);
 
-            if (i + 1 == argc) {
-                migi_log(Log_Error, "expected argument after option: '%.*s'", SArg(key));
-                return_with(false);
-            }
-
-            i++;
-            Str value = str_from_cstr(argv[i]);
-
-            if (cli_arg->type == CliArg_List) {
-                // -list item1 ... -list item2 ... -list item3
-                if (!ignore) strlist_push(arena, &cli_arg->as_list, value);
-                cli_arg->found_args += 1;
-            } else {
-                if (!cli__parse_value(cli_arg, key, value, ignore)) {
+            if (cli_arg->nargs > 0) {
+                if (i + 1 == argc) {
+                    migi_log(Log_Error, "expected argument after option: '%.*s'", SArg(key));
                     return_with(false);
                 }
+                // Consume the next argument as the value
+                value = str_from_cstr(argv[++i]);
             }
-            continue;
-        };
 
+        // -opt=foo
+        } else {
+            key = cut.head;
+            value = cut.tail;
+            cli_arg = cli_arg_by_name(opt.cli, key);
+            if (!cli_arg) return_with(false);
 
-        key = cut.head;
-        Str value = cut.tail;
+            // NOTE: `-opt="foo,bar"` is currently parsed like [`foo`, `bar`]
+            // However since quotes are handled by the shell, by the time the program
+            // gets access to the `argv` array, they have already been removed.
+            // This makes it impossible to check for this case.
 
-        CliArg *cli_arg = cli_arg_by_name(opt.cli, key);
-        if (!cli_arg) return_with(false);
-
-        // -opt=foo,bar,baz
-        StrList items = {0};
-
-        // NOTE: `-opt="foo,bar"` is currently parsed like [`foo`, `bar`]
-        // However since quotes are handled by the shell, by the time the program
-        // gets access to the `argv` array, they have already been removed.
-        // This makes it impossible to check for this case.
-        StrCut values_cut = str_cut(value, S(","));
-        Str prev_tail = {0};
-        do {
-            // Disallow empty options for lists like `-list=1,,3` but not in case of `-str=""`
-            if (values_cut.head.length == 0 && values_cut.found) {
-                migi_log(Log_Error, "empty argument passed to list option: '-%.*s'", SArg(cli_arg->name));
-                goto end;
+            if (value.length == 0) {
+                migi_log(Log_Error, "expected value after: '-%.*s='", SArg(key));
+                return_with(false);
             }
-            strlist_push(arena, &items, values_cut.head);
-            prev_tail = values_cut.tail;
-            values_cut = str_cut(values_cut.tail, S(","));
-        } while (values_cut.found);
-
-        if (prev_tail.length != 0) {
-            strlist_push(arena, &items, prev_tail);
         }
 
-        if (cli_arg->type == CliArg_List) {
-            // Extend list if there were previous arguments
-            if (!ignore) {
-                if (cli_arg->as_list.length == 0) {
-                    cli_arg->as_list = items;
-                } else {
-                    strlist_extend(&cli_arg->as_list, &items);
-                }
-            }
-            cli_arg->found_args += items.length;
-        } else {
-            if (items.length > 0) {
-                migi_log(Log_Error, "expected a single argument for option: '-%.*s' "
-                        "but got a list of %zu elements", SArg(cli_arg->name), items.length);
-                return_with(false);
-            }
-            if (!cli__parse_value(cli_arg, key, items.head->string, ignore)) {
-                return_with(false);
-            }
+        if (!cli__parse_value(cli_arena, cli_arg, key, value, ignore)) {
+            return_with(false);
         }
     }
 
@@ -790,12 +766,9 @@ static Str cli_help_text_opt(Arena *arena, CliOpt opt) {
     Cli *cli = opt.cli;
     Str help_text = {0};
 
-    help_text = str_cat(arena, help_text, strf(tmp.arena, "usage: %.*s [OPTIONS]\n", SArg(cli->executable)));
-
-    if (cli->help.length > 0) {
-        help_text = str_cat(arena, help_text, S("\n"));
-        help_text = str_cat(arena, help_text, cli->help);
-        help_text = str_cat(arena, help_text, S("\n\n"));
+    help_text = str_catf(arena, help_text, "usage: %.*s [OPTIONS]\n", SArg(cli->executable));
+    if (cli->help.length != 0) {
+        help_text = str_catf(arena, help_text, "\n%.*s\n\n", SArg(cli->help));
     }
 
     if (cli->args_length > 0) {

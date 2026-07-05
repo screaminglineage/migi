@@ -71,14 +71,14 @@ int main(int argc, char **argv) {
     Arena *arena = arena_init();
 
     bool *run           = cli_add_bool(S("run"),        S("run the program after compiling"),               .aliases=str_span(S("r")));
-    bool *dry_run       = cli_add_bool(S("dry-run"),    S("only print the compiler flags"),                 .aliases=str_span(S("dr")));
+    bool *dry_run       = cli_add_bool(S("dry-run"),    S("only print the compiler invokation"),            .aliases=str_span(S("dr")));
     Str  *output        = cli_add_str (S("output"),     S("path to output executable"),                     .aliases=str_span(S("o")));
     bool *optimize      = cli_add_bool(S("optimize"),   S("enable optimizations"),                          .aliases=str_span(S("O")));
     bool *debug         = cli_add_bool(S("debug"),      S("debug program in gf2"),                          .aliases=str_span(S("d")));
     bool *sanitizers    = cli_add_bool(S("sanitizers"), S("add sanitizers"),  .value=true, .takes_arg=true, .aliases=str_span(S("s")));
     bool *help          = cli_add_bool(S("help"),       S("show this help message"),                        .aliases=str_span(S("h")));
 
-    if (!cli_parse_args(argc, argv)) return 1;
+    if (!cli_parse_args(argc, argv, .help=S("Build and Run C Files"))) return 1;
 
     if (*run && *debug) {
         migi_log(Log_Error, "options '-%.*s' and '-%.*s' are mutually exclusive", 
@@ -129,14 +129,18 @@ int main(int argc, char **argv) {
 
         cmd_push(&command, executable_path);
 
-        if (*debug && cli_meta_args().length > 0) {
-            // Extra arguments to gf2 are passed to gdb
-            // This ensures that the meta args are handled correctly
-            cmd_push(&command, S("--args"));
-            cmd_push(&command, executable_path);
+        // Arguments passed to GDB
+        if (*debug) {
+            // Start running the program immediately
+            cmd_push(&command, S("-ex"), S("start"));
+            if (cli_meta_args().length > 0) {
+                // This ensures that the meta args are handled correctly
+                cmd_push(&command, S("--args"));
+                cmd_push(&command, executable_path);
+            }
         }
-
         strlist_extend(&command.args, &cli_meta_args());
+
         if (*dry_run) {
             migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
             cmd_reset(&command);
