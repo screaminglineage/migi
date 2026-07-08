@@ -30,6 +30,7 @@ typedef struct {
     bool shell;             // run through the shell
     bool background;        // run in background (only possible when running through shell)
     bool no_reset;          // dont reset the cmd after running the command
+    bool no_log_cmd;        // dont log the command being executed
 } CmdOpt;
 
 static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt);
@@ -64,8 +65,12 @@ char **cmd__to_args(Arena *arena, Cmd *cmd) {
 
 static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
     CmdResult result = {0};
-
     if (cmd->args.length == 0) return result;
+
+    LogLevel prev_log_level = MIGI_GLOBAL_LOG_LEVEL;
+    if (opt.no_log_cmd) {
+        migi_log_set_level(Log_Error);
+    }
 
     Temp tmp = arena_save(cmd->arena);
     migi_log(Log_Info, "Running: %.*s", SArg(strlist_join(tmp.arena, &cmd->args, S(" "))));
@@ -123,7 +128,7 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
     if (!opt.no_reset) {
         cmd_reset(cmd);
     }
-
+    MIGI_GLOBAL_LOG_LEVEL = prev_log_level;
     return result;
 }
 

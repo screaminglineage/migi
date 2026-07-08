@@ -1,4 +1,6 @@
 // TODO: automatically rebuild this file if it is newer than build/build
+// TODO: add support for msvc
+// TODO: add support for choosing the compiler (clang/gcc on linux for the time being)
 
 #include <stddef.h>
 #include <stdint.h>
@@ -13,7 +15,14 @@
 #include "cli_parse.h"
 #include "process.h"
 
-#define COMPILER S("gcc")
+#if OS_LINUX
+    #define COMPILER S("gcc")
+#elif OS_WINDOWS
+    #define COMPILER S("cl")
+#else
+    #error "Unsupported OS"
+#endif
+
 #define BUILD_FOLDER S("./build")
 
 void command_to_args(Arena *arena, char **command_args, StrList *command) {
@@ -27,6 +36,7 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
     Cmd command = {0};
     cmd_push(&command, compiler);
 
+#if OS_LINUX
     cmd_push(&command, filename);
     cmd_push(&command, S("-o"));
     cmd_push(&command, output_path);
@@ -47,6 +57,42 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
         cmd_push(&command, S("-DMIGI_DEBUG_LOGS"));
         if (sanitizers) cmd_push(&command, S("-fsanitize=undefined,address"));
     }
+
+#elif OS_WINDOWS
+    cmd_push(&command, filename);
+    // TODO: find out how to specify output directory in msvc
+    // If that works then there will be no need to `cd` into `build`
+    // The only problem would be setting the exact output path using the `-o` flag to `build`
+    // cmd_push(&command, S("-o"));
+    // cmd_push(&command, output_path);
+
+    cmd_push(&command, S("/nologo"));
+
+    cmd_push(&command, S("/I../src"));
+    cmd_push(&command, S("/W4"));
+    cmd_push(&command, S("/wd4200"));
+    cmd_push(&command, S("/wd4146"));
+    cmd_push(&command, S("/wd4127"));
+    cmd_push(&command, S("/wd4034"));
+    cmd_push(&command, S("/wd4201"));
+    cmd_push(&command, S("/wd4189"));
+
+    cmd_push(&command, S("/std:c11"));
+    cmd_push(&command, S("/link"), S("/INCREMENTAL:NO"));
+
+
+    if (optimize) {
+        cmd_push(&command, S("/O2"));
+        cmd_push(&command, S("/DMIGI_DISABLE_ASSERTS"));
+    } else {
+        cmd_push(&command, S("/Zi"));
+        cmd_push(&command, S("/DMIGI_DEBUG_LOGS"));
+        // if (sanitizers) cmd_push(&command, S("/fsanitize=address")); // TODO: seems to not work?
+    }
+
+#else
+#error "Unsupported OS"
+#endif
 
     return command;
 }
@@ -71,7 +117,8 @@ int main(int argc, char **argv) {
     Arena *arena = arena_init();
 
     bool *run           = cli_add_bool(S("run"),        S("run the program after compiling"),               .aliases=str_span(S("r")));
-    bool *dry_run       = cli_add_bool(S("dry-run"),    S("only print the compiler invokation"),            .aliases=str_span(S("dr")));
+    bool *run_old       = cli_add_bool(S("run-old"),    S("run the old executable without compiling"),      .aliases=str_span(S("ro")));
+    bool *dry_run       = cli_add_bool(S("dry-run"),    S("only print the compiler invocation"),            .aliases=str_span(S("dr")));
     Str  *output        = cli_add_str (S("output"),     S("path to output executable"),                     .aliases=str_span(S("o")));
     bool *optimize      = cli_add_bool(S("optimize"),   S("enable optimizations"),                          .aliases=str_span(S("O")));
     bool *debug         = cli_add_bool(S("debug"),      S("debug program in gf2"),                          .aliases=str_span(S("d")));
@@ -107,26 +154,32 @@ int main(int argc, char **argv) {
     }
 
     Str filename = cli_pos_args().head->string;
-    migi_log(Log_Info, "Compiling%s: %.*s", run? " and Running": "", SArg(filename));
+    if (!*run_old) {
+        migi_log(Log_Info, "Compiling%s: '%.*s'", run? " and Running": "", SArg(filename));
+    } else if (*run || *run_old) {
+        migi_log(Log_Info, "Running: '%.*s'", SArg(filename));
+    }
 
     Str executable_path = output->length != 0
         ? *output
         : filename_to_output_path(arena, filename, BUILD_FOLDER);
 
-    Cmd command = prepare_compiler(COMPILER, *optimize, *sanitizers, filename, executable_path);
-    if (*dry_run) {
-        migi_log(Log_Info, "Compiling (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
-        cmd_reset(&command);
-    } else {
-        if (cmd_run(&command).code != 0) {
-            return 1;
+    if (!*run_old) {
+        Cmd command = prepare_compiler(COMPILER, *optimize, *sanitizers, filename, executable_path);
+        if (*dry_run) {
+            migi_log(Log_Info, "Compiling (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
+            cmd_reset(&command);
+        } else {
+            if (cmd_run(&command).code != 0) {
+                return 1;
+            }
         }
     }
 
-    if (*debug || *run) {
+    if (*debug || *run || *run_old) {
+#if OS_LINUX
         Cmd command = {0};
         if (*debug) cmd_push(&command, S("gf2"));
-
         cmd_push(&command, executable_path);
 
         // Arguments passed to GDB
@@ -140,7 +193,11 @@ int main(int argc, char **argv) {
             }
         }
         strlist_extend(&command.args, &cli_meta_args());
-
+#elif OS_WINDOWS
+        incomplete();
+#else
+#error "Unsupported OS"
+#endif
         if (*dry_run) {
             migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
             cmd_reset(&command);

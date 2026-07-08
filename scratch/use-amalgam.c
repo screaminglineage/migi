@@ -1,4 +1,4 @@
-#include "migi_amalgam.h"
+#include "../build/migi_amalgam.h"
 
 int main() {
     Temp tmp = arena_temp();
@@ -9,6 +9,7 @@ int main() {
     strlist_foreach(&a, node) {
         printf("%.*s, ", SArg(node->string));
     }
+    printf("\n");
 
     arena_temp_release(tmp);
 

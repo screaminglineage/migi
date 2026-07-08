@@ -439,6 +439,13 @@ static void migi_log_opt(LogLevel level, const char *file, int line, const char 
     va_end(args);
 }
 
+// Returns the previous log level
+static LogLevel migi_log_set_level(LogLevel level) {
+    LogLevel prev_log_level = MIGI_GLOBAL_LOG_LEVEL;
+    MIGI_GLOBAL_LOG_LEVEL = level;
+    return prev_log_level;
+}
+
 // migi_log_with_ctx will print the name of the function where the logger was called
 #define migi_log_with_ctx(level, ...) migi_log_opt(level, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define migi_log(level, ...) migi_log_opt(level, __FILE__, __LINE__, NULL, __VA_ARGS__)
