@@ -1,21 +1,22 @@
 #ifndef PROCESS_H
 #define PROCESS_H
 
-#include <sys/wait.h>
-
 #include "migi_core.h"
 #include "arena.h"
 #include "migi_list.h"
+#include "file.h"
 
 typedef struct {
     Arena *arena;
     StrList args;
+    bool owns_arena;    // false if the arena was passed from the outside
 } Cmd;
 
 typedef struct {
     int code;
-    StrList stdout;
-    StrList stderr;
+    bool error;
+    StrList cmd_stdout;
+    StrList cmd_stderr;
 } CmdResult;
 
 #define cmd_push(cmd, ...) \
@@ -27,9 +28,9 @@ typedef struct {
     bool capture_stdout;
     bool capture_stderr;
 
-    bool shell;             // run through the shell
+    bool shell;             // run through the shell (TODO: seems to be not needed on windows)
     bool background;        // run in background (only possible when running through shell)
-    bool no_reset;          // dont reset the cmd after running the command
+    bool no_reset;          // dont reset after running the command, the internal arena is reset only if it wasn't passed from the outside
     bool no_log_cmd;        // dont log the command being executed
 } CmdOpt;
 
@@ -39,15 +40,136 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt);
     cmd_run_opt((cmd), (CmdOpt){__VA_ARGS__})
 
 static void cmd_reset(Cmd *cmd);
-
-
+static void cmd_free(Cmd *cmd);
 
 static void cmd__push(Cmd *cmd, StrSpan args) {
-    if (!cmd->arena) cmd->arena = arena_init(.type=Arena_Linear);
+    if (!cmd->arena) {
+        cmd->owns_arena = true;
+        cmd->arena = arena_init();
+    }
     array_foreach(&args, arg) {
         strlist_push(cmd->arena, &cmd->args, *arg);
     }
 }
+
+#if OS_WINDOWS
+
+// Taken and adapted from: https://github.com/tsoding/nob.h/
+Str win32_quote_command_line(Arena *arena, StrList *cmd) {
+    Str quoted = {0};
+    size_t i = 0;
+    for (StrNode *arg = cmd->head; arg; i++, arg = arg->next) {
+        if (i > 0) quoted = str_cat(arena, quoted, S(" "));
+
+        // TODO: does the following need to be ASCII_WHITESPACES instead?
+        // Check for more info: https://learn.microsoft.com/en-gb/archive/blogs/twistylittlepassagesallalike/everyone-quotes-command-line-arguments-the-wrong-way
+        if (str_find_ex(arg->string, S(" \t\n\v\""), Find_Any) == (int64_t)arg->string.length) {
+            // no need to quote
+            quoted = str_cat(arena, quoted, arg->string);
+        } else {
+            // we need to escape:
+            // 1. double quotes in the original arg
+            // 2. consequent backslashes before a double quote
+            size_t backslashes = 0;
+            quoted = str_cat(arena, quoted, S("\""));
+            for (size_t j = 0; j < arg->string.length; ++j) {
+                char x = arg->string.data[j];
+
+                if (x == '\\') {
+                    backslashes += 1;
+                } else {
+                    if (x == '\"') {
+                        // escape backslashes (if any) and the double quote
+                        for (size_t k = 0; k < 1+backslashes; ++k) {
+                            quoted = str_cat(arena, quoted, S("\\"));
+                        }
+                    }
+                    backslashes = 0;
+                }
+                Str ch = str_from(&x, 1);
+                quoted = str_cat(arena, quoted, ch);
+            }
+            // escape backslashes (if any)
+            for (size_t k = 0; k < backslashes; ++k) {
+                quoted = str_cat(arena, quoted, S("\\"));
+            }
+            quoted = str_cat(arena, quoted, S("\""));
+        }
+    }
+    return quoted;
+}
+
+
+static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
+    CmdResult result = {0};
+    if (cmd->args.length == 0) return result;
+
+    LogLevel prev_log_level = MIGI_GLOBAL_LOG_LEVEL;
+    if (opt.no_log_cmd) {
+        migi_log_set_level(Log_Error);
+    }
+
+    Temp tmp = arena_save(cmd->arena);
+
+
+    Str command_line = win32_quote_command_line(cmd->arena, &cmd->args);
+    command_line     = str_cat(cmd->arena, command_line, S("\0"));
+
+    // if (opt.shell) {
+    //     command_line = str_cat(cmd->arena, command_line, S("cmd "));
+    //     command_line = str_cat(cmd->arena, command_line, S("/s /c \""));
+    //     if (opt.background) command_line = str_cat(cmd->arena, command_line, S("start "));
+    //     command_line.length += strlist_join(cmd->arena, &cmd->args, S(" ")).length;
+    //     command_line = str_cat(cmd->arena, command_line, S("\""));
+    // } else {
+    //     command_line = strlist_join(cmd->arena, &cmd->args, S(" "));
+    // }
+    // command_line = str_cat(cmd->arena, command_line, S("\0"));
+
+    migi_log(Log_Info, "Running: '%s'", command_line.data);
+
+    STARTUPINFO info = { .cb = sizeof(info) };
+    PROCESS_INFORMATION process_info;
+    if (!CreateProcessA(NULL, command_line.data, NULL, NULL, true, 0, NULL, NULL, &info, &process_info)) {
+        migi_log(Log_Error, "Failed to run `%.*s`: %.*s",
+                SArg(cmd->args.head->string), SArg(str_last_error(tmp.arena)));
+        result.error = true;
+        goto end;
+    }
+
+    if (WaitForSingleObject(process_info.hProcess, INFINITE) == WAIT_FAILED) {
+        migi_log(Log_Error, "Failed to wait for child process: %.*s", SArg(str_last_error(tmp.arena)));
+        result.error = true;
+        goto end;
+    }
+
+    DWORD exit_code;
+    if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) {
+        migi_log(Log_Error, "Failed to get process exit code: %.*s", SArg(str_last_error(tmp.arena)));
+        result.error = true;
+        goto end;
+    }
+    result.code = exit_code;
+
+    CloseHandle(process_info.hProcess);
+    CloseHandle(process_info.hThread);
+
+end:
+    arena_rewind(tmp);
+
+    if (!opt.no_reset) {
+        cmd_reset(cmd);
+    }
+
+    MIGI_GLOBAL_LOG_LEVEL = prev_log_level;
+    return result;
+}
+
+#else
+
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 
 // Converts cmd to args to pass to exec functions
@@ -133,9 +255,17 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
 }
 
 
+#endif
+
+
 static void cmd_reset(Cmd *cmd) {
-    arena_reset(cmd->arena);
+    if (cmd->owns_arena) arena_reset(cmd->arena);
     strlist_reset(&cmd->args);
+}
+
+static void cmd_free(Cmd *cmd) {
+    if (cmd->owns_arena) arena_free(cmd->arena);
+    mem_clear(cmd);
 }
 
 #endif // ifndef PROCESS_H

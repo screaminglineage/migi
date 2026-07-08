@@ -158,7 +158,7 @@ static bool file_move_opt(Str from, Str to, FileOpt opt) {
 }
 
 static bool file__delete(const char *filepath) {
-    incomplete();
+    todo();
 }
 
 static bool file_delete(Str filepath) {
