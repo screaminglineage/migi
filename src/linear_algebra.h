@@ -463,122 +463,56 @@ typedef struct {
 // Constructors
 #define v2i64(x_, y_) (Vec2I64){.x = x_, .y = y_}
 #define v2i32(x_, y_) (Vec2I32){.x = x_, .y = y_}
-#define v2f(x_, y_) (Vec2F){.x = x_, .y = y_}
-#define v2d(x_, y_) (Vec2D){.x = x_, .y = y_}
+#define v2f(x_, y_) (Vec2F){    .x = x_, .y = y_}
+#define v2d(x_, y_) (Vec2D){    .x = x_, .y = y_}
 
 #define v3i64(x_, y_, z_) (Vec3I64){.x = x_, .y = y_, .z = z_}
 #define v3i32(x_, y_, z_) (Vec3I32){.x = x_, .y = y_, .z = z_}
-#define v3f(x_, y_, z_) (Vec3F){.x = x_, .y = y_, .z = z_}
-#define v3d(x_, y_, z_) (Vec3D){.x = x_, .y = y_, .z = z_}
+#define v3f(x_, y_, z_) (Vec3F){    .x = x_, .y = y_, .z = z_}
+#define v3d(x_, y_, z_) (Vec3D){    .x = x_, .y = y_, .z = z_}
 
 #define v4i64(x_, y_, z_, w_) (Vec4I64){.x = x_, .y = y_, .z = z_, .w = w_}
 #define v4i32(x_, y_, z_, w_) (Vec4I32){.x = x_, .y = y_, .z = z_, .w = w_}
-#define v4f(x_, y_, z_, w_) (Vec4F){.x = x_, .y = y_, .z = z_, .w = w_}
-#define v4d(x_, y_, z_, w_) (Vec4D){.x = x_, .y = y_, .z = z_, .w = w_}
+#define v4f(x_, y_, z_, w_) (Vec4F){    .x = x_, .y = y_, .z = z_, .w = w_}
+#define v4d(x_, y_, z_, w_) (Vec4D){    .x = x_, .y = y_, .z = z_, .w = w_}
+
 
 // Matrix Constructors
 // Each take the value of the diagonal, rest is set to 0
 #define m2x2i64(d) (Mat2x2I64){.m[0][0] = d, .m[1][1] = d}
 #define m2x2i32(d) (Mat2x2I32){.m[0][0] = d, .m[1][1] = d}
-#define m2x2f(d) (Mat2x2F){.m[0][0] = d, .m[1][1] = d}
-#define m2x2d(d) (Mat2x2D){.m[0][0] = d, .m[1][1] = d}
+#define m2x2f(d) (Mat2x2F){    .m[0][0] = d, .m[1][1] = d}
+#define m2x2d(d) (Mat2x2D){    .m[0][0] = d, .m[1][1] = d}
 
 #define m3x3i64(d) (Mat3x3I64){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d}
 #define m3x3i32(d) (Mat3x3I32){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d}
-#define m3x3f(d) (Mat3x3F){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d}
-#define m3x3d(d) (Mat3x3D){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d}
+#define m3x3f(d) (Mat3x3F){    .m[0][0] = d, .m[1][1] = d, .m[2][2] = d}
+#define m3x3d(d) (Mat3x3D){    .m[0][0] = d, .m[1][1] = d, .m[2][2] = d}
 
 #define m4x4i64(d) (Mat4x4I64){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d, .m[3][3] = d}
 #define m4x4i32(d) (Mat4x4I32){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d, .m[3][3] = d}
-#define m4x4f(d) (Mat4x4F){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d, .m[3][3] = d}
-#define m4x4d(d) (Mat4x4D){.m[0][0] = d, .m[1][1] = d, .m[2][2] = d, .m[3][3] = d}
-
-
-// Equality operations
-//
-// Equality for integer vectors
-#define v2i_eq(v1, v2) \
-    ((v1).x == (v2).x  \
-  && (v1).y == (v2).y)
-
-#define v3i_eq(v1, v2) \
-    ((v1).x == (v2).x  \
-  && (v1).y == (v2).y  \
-  && (v1).z == (v2).z)
-
-#define v4i_eq(v1, v2) \
-    ((v1).x == (v2).x  \
-  && (v1).y == (v2).y  \
-  && (v1).z == (v2).z  \
-  && (v1).w == (v2).w)
-
-
-// Approximate Equality for float vectors
-#define v2_isclose(v1, v2)   \
-    (isclose((v1).x, (v2).x) \
-  && isclose((v1).y, (v2).y))
-
-#define v3_isclose(v1, v2)   \
-    (isclose((v1).x, (v2).x) \
-  && isclose((v1).y, (v2).y) \
-  && isclose((v1).z, (v2).z))
-
-#define v4_isclose(v1, v2)   \
-    (isclose((v1).x, (v2).x) \
-  && isclose((v1).y, (v2).y) \
-  && isclose((v1).z, (v2).z) \
-  && isclose((v1).w, (v2).w))
-
-
-// Equality for integer matrics
-#define m2x2_eq(m1, m2)                \
-    v2i_eq((m1).rows[0], (m2).rows[0]) \
- && v2i_eq((m1).rows[1], (m2).rows[1])
-
-#define m3x3_eq(m1, m2)                \
-    v3i_eq((m1).rows[0], (m2).rows[0]) \
- && v3i_eq((m1).rows[1], (m2).rows[1]) \
- && v3i_eq((m1).rows[2], (m2).rows[2])
-
-#define m4x4_eq(m1, m2)                \
-    v4i_eq((m1).rows[0], (m2).rows[0]) \
- && v4i_eq((m1).rows[1], (m2).rows[1]) \
- && v4i_eq((m1).rows[2], (m2).rows[2]) \
- && v4i_eq((m1).rows[3], (m2).rows[3])
-
-
-// Approximate Equality for float matrices
-#define m2x2_isclose(m1, m2)               \
-    v2_isclose((m1).rows[0], (m2).rows[0]) \
- && v2_isclose((m1).rows[1], (m2).rows[1])
-
-#define m3x3_isclose(m1, m2)               \
-    v3_isclose((m1).rows[0], (m2).rows[0]) \
- && v3_isclose((m1).rows[1], (m2).rows[1]) \
- && v3_isclose((m1).rows[2], (m2).rows[2])
-
-#define m4x4_isclose(m1, m2)               \
-    v4_isclose((m1).rows[0], (m2).rows[0]) \
- && v4_isclose((m1).rows[1], (m2).rows[1]) \
- && v4_isclose((m1).rows[2], (m2).rows[2]) \
- && v4_isclose((m1).rows[3], (m2).rows[3])
+#define m4x4f(d) (Mat4x4F){    .m[0][0] = d, .m[1][1] = d, .m[2][2] = d, .m[3][3] = d}
+#define m4x4d(d) (Mat4x4D){    .m[0][0] = d, .m[1][1] = d, .m[2][2] = d, .m[3][3] = d}
 
 
 // Vector operations
 
 // 2D
+static bool v2i32_eq(Vec2I32 a, Vec2I32 b);
 static Vec2I32 v2i32_fill(int32_t n);
 static Vec2I32 v2i32_scale(Vec2I32 a, int32_t s);
 static Vec2I32 v2i32_add(Vec2I32 a, Vec2I32 b);
 static Vec2I32 v2i32_sub(Vec2I32 a, Vec2I32 b);
 static int32_t v2i32_len(Vec2I32 v);
 
+static bool v2i64_eq(Vec2I64 a, Vec2I64 b);
 static Vec2I64 v2i64_fill(int64_t n);
 static Vec2I64 v2i64_scale(Vec2I64 a, int64_t s);
 static Vec2I64 v2i64_add(Vec2I64 a, Vec2I64 b);
 static Vec2I64 v2i64_sub(Vec2I64 a, Vec2I64 b);
 static int64_t v2i64_len(Vec2I64 v);
 
+static bool v2f_isclose(Vec2F a, Vec2F b);
 static Vec2F v2f_fill(float n);
 static Vec2F v2f_scale(Vec2F a, float s);
 static Vec2F v2f_add(Vec2F a, Vec2F b);
@@ -592,6 +526,7 @@ static Vec2F v2f_normalize(Vec2F v);
 static Vec2F v2f_lerp(Vec2F a, Vec2F b, float t);
 static Vec2F v2f_transform(Vec2F v, Mat2x2F transform);
 
+static bool v2d_isclose(Vec2D a, Vec2D b);
 static Vec2D v2d_fill(double n);
 static Vec2D v2d_scale(Vec2D a, double s);
 static Vec2D v2d_add(Vec2D a, Vec2D b);
@@ -607,18 +542,21 @@ static Vec2D v2d_transform(Vec2D v, Mat2x2D transform);
 
 
 // 3D
+static bool v3i32_eq(Vec3I32 a, Vec3I32 b);
 static Vec3I32 v3i32_fill(int32_t n);
 static Vec3I32 v3i32_scale(Vec3I32 a, int32_t s);
 static Vec3I32 v3i32_add(Vec3I32 a, Vec3I32 b);
 static Vec3I32 v3i32_sub(Vec3I32 a, Vec3I32 b);
 static int32_t v3i32_len(Vec3I32 v);
 
+static bool v3i64_eq(Vec3I64 a, Vec3I64 b);
 static Vec3I64 v3i64_fill(int64_t n);
 static Vec3I64 v3i64_scale(Vec3I64 a, int64_t s);
 static Vec3I64 v3i64_add(Vec3I64 a, Vec3I64 b);
 static Vec3I64 v3i64_sub(Vec3I64 a, Vec3I64 b);
 static int64_t v3i64_len(Vec3I64 v);
 
+static bool v3f_isclose(Vec3F a, Vec3F b);
 static Vec3F v3f_fill(float n);
 static Vec3F v3f_scale(Vec3F a, float s);
 static Vec3F v3f_add(Vec3F a, Vec3F b);
@@ -632,6 +570,7 @@ static Vec3F v3f_normalize(Vec3F v);
 static Vec3F v3f_lerp(Vec3F a, Vec3F b, float t);
 static Vec3F v3f_transform(Vec3F v, Mat3x3F transform);
 
+static bool v3d_isclose(Vec3D a, Vec3D b);
 static Vec3D v3d_fill(double n);
 static Vec3D v3d_scale(Vec3D a, double s);
 static Vec3D v3d_add(Vec3D a, Vec3D b);
@@ -651,18 +590,21 @@ static Vec3D v3d_cross(Vec3D a, Vec3D b);
 
 
 // 4D
+static bool v4i32_eq(Vec4I32 a, Vec4I32 b);
 static Vec4I32 v4i32_fill(int32_t n);
 static Vec4I32 v4i32_scale(Vec4I32 a, int32_t s);
 static Vec4I32 v4i32_add(Vec4I32 a, Vec4I32 b);
 static Vec4I32 v4i32_sub(Vec4I32 a, Vec4I32 b);
 static int32_t v4i32_len(Vec4I32 v);
 
+static bool v4i64_eq(Vec4I64 a, Vec4I64 b);
 static Vec4I64 v4i64_fill(int64_t n);
 static Vec4I64 v4i64_scale(Vec4I64 a, int64_t s);
 static Vec4I64 v4i64_add(Vec4I64 a, Vec4I64 b);
 static Vec4I64 v4i64_sub(Vec4I64 a, Vec4I64 b);
 static int64_t v4i64_len(Vec4I64 v);
 
+static bool v4f_isclose(Vec4F a, Vec4F b);
 static Vec4F v4f_fill(float n);
 static Vec4F v4f_scale(Vec4F a, float s);
 static Vec4F v4f_add(Vec4F a, Vec4F b);
@@ -676,6 +618,7 @@ static Vec4F v4f_normalize(Vec4F v);
 static Vec4F v4f_lerp(Vec4F a, Vec4F b, float t);
 static Vec4F v4f_transform(Vec4F v, Mat4x4F transform);
 
+static bool v4d_isclose(Vec4D a, Vec4D b);
 static Vec4D v4d_fill(double n);
 static Vec4D v4d_scale(Vec4D a, double s);
 static Vec4D v4d_add(Vec4D a, Vec4D b);
@@ -692,15 +635,20 @@ static Vec4D v4d_transform(Vec4D v, Mat4x4D transform);
 
 // Matrix Operations
 // 2x2
+static bool m2x2i32_eq(Mat2x2I32 a, Mat2x2I32 b);
 static Mat2x2I32 m2x2i32_fill(int32_t n);
+
+static bool m2x2i64_eq(Mat2x2I64 a, Mat2x2I64 b);
 static Mat2x2I64 m2x2i64_fill(int64_t n);
 
+static bool m2x2f_isclose(Mat2x2F a, Mat2x2F b);
 static Mat2x2F m2x2f_fill(float n);
 static Mat2x2F m2x2f_scale(Mat2x2F a, float s);
 static Mat2x2F m2x2f_mul(Mat2x2F a, Mat2x2F b);
 static Mat2x2F m2x2f_transpose(Mat2x2F m);
 static float m2x2f_determinant(Mat2x2F m);
 
+static bool m2x2d_isclose(Mat2x2D a, Mat2x2D b);
 static Mat2x2D m2x2d_fill(double n);
 static Mat2x2D m2x2d_scale(Mat2x2D a, double s);
 static Mat2x2D m2x2d_mul(Mat2x2D a, Mat2x2D b);
@@ -708,15 +656,20 @@ static Mat2x2D m2x2d_transpose(Mat2x2D m);
 static double m2x2d_determinant(Mat2x2D m);
 
 // 3x3
+static bool m3x3i32_eq(Mat3x3I32 a, Mat3x3I32 b);
 static Mat3x3I32 m3x3i32_fill(int32_t n);
+
+static bool m3x3i64_eq(Mat3x3I64 a, Mat3x3I64 b);
 static Mat3x3I64 m3x3i64_fill(int64_t n);
 
+static bool m3x3f_isclose(Mat3x3F a, Mat3x3F b);
 static Mat3x3F m3x3f_fill(float n);
 static Mat3x3F m3x3f_scale(Mat3x3F a, float s);
 static Mat3x3F m3x3f_mul(Mat3x3F a, Mat3x3F b);
 static Mat3x3F m3x3f_transpose(Mat3x3F m);
 static float m3x3f_determinant(Mat3x3F m);
 
+static bool m3x3d_isclose(Mat3x3D a, Mat3x3D b);
 static Mat3x3D m3x3d_fill(double n);
 static Mat3x3D m3x3d_scale(Mat3x3D a, double s);
 static Mat3x3D m3x3d_mul(Mat3x3D a, Mat3x3D b);
@@ -725,15 +678,20 @@ static double m3x3d_determinant(Mat3x3D m);
 
 
 // 4x4
+static bool m4x4i32_eq(Mat4x4I32 a, Mat4x4I32 b);
 static Mat4x4I32 m4x4i32_fill(int32_t n);
+
+static bool m4x4i64_eq(Mat4x4I64 a, Mat4x4I64 b);
 static Mat4x4I64 m4x4i64_fill(int64_t n);
 
+static bool m4x4f_isclose(Mat4x4F a, Mat4x4F b);
 static Mat4x4F m4x4f_fill(float n);
 static Mat4x4F m4x4f_scale(Mat4x4F a, float s);
 static Mat4x4F m4x4f_mul(Mat4x4F a, Mat4x4F b);
 static Mat4x4F m4x4f_transpose(Mat4x4F m);
 static float m4x4f_determinant(Mat4x4F m);
 
+static bool m4x4d_isclose(Mat4x4D a, Mat4x4D b);
 static Mat4x4D m4x4d_fill(double n);
 static Mat4x4D m4x4d_scale(Mat4x4D a, double s);
 static Mat4x4D m4x4d_mul(Mat4x4D a, Mat4x4D b);
@@ -755,13 +713,30 @@ static MatD matd_mul(Arena *arena, MatD a, MatD b);
 
 // Overloaded macros using _Generic for ease of use
 //
-// NOTE: The *_eq and *_isclose operations are defined as macros
-// TODO: make these into functions
-// to not have as many variants, so the same cannot be done for them
 // NOTE: *_fill operations cannot be disambiguated since they do not
 // take in a vector or matrix as an argument
 
 // Vector Operations
+#define vec_eq(a, b)       \
+    _Generic((a),          \
+        Vec2I32: v2i32_eq, \
+        Vec3I32: v3i32_eq, \
+        Vec4I32: v4i32_eq, \
+        Vec2I64: v2i64_eq, \
+        Vec3I64: v3i64_eq, \
+        Vec4I64: v4i64_eq  \
+    )((a), (b))
+
+#define vec_isclose(a, b)   \
+    _Generic((a),           \
+        Vec2F: v2f_isclose, \
+        Vec3F: v3f_isclose, \
+        Vec4F: v4f_isclose, \
+        Vec2D: v2d_isclose, \
+        Vec3D: v3d_isclose, \
+        Vec4D: v4d_isclose  \
+    )((a), (b))
+
 #define vec_scale(v, factor)  \
     _Generic((v),             \
         Vec2I32: v2i32_scale, \
@@ -905,6 +880,26 @@ static MatD matd_mul(Arena *arena, MatD a, MatD b);
 
 
 // Matrix Operations
+#define mat_eq(a, b)           \
+    _Generic((a),              \
+        Mat2x2I32: m2x2i32_eq, \
+        Mat3x3I32: m3x3i32_eq, \
+        Mat4x4I32: m4x4i32_eq, \
+        Mat2x2I64: m2x2i64_eq, \
+        Mat3x3I64: m3x3i64_eq, \
+        Mat4x4I64: m4x4i64_eq  \
+    )((a), (b))
+
+#define mat_isclose(a, b)       \
+    _Generic((a),               \
+        Mat2x2F: m2x2f_isclose, \
+        Mat3x3F: m3x3f_isclose, \
+        Mat4x4F: m4x4f_isclose, \
+        Mat2x2D: m2x2d_isclose, \
+        Mat3x3D: m3x3d_isclose, \
+        Mat4x4D: m4x4d_isclose  \
+    )((a), (b))
+
 #define mat_scale(m, factor)  \
     _Generic((m),             \
         Mat2x2F: m2x2f_scale, \
@@ -957,6 +952,10 @@ static MatD matd_mul(Arena *arena, MatD a, MatD b);
 // Vector Operations
 // 2D
 // I32
+static bool v2i32_eq(Vec2I32 a, Vec2I32 b) {
+    return a.x == b.x && a.y == b.y;
+}
+
 static Vec2I32 v2i32_fill(int32_t n) {
     return v2i32(n, n);
 }
@@ -979,6 +978,10 @@ static int32_t v2i32_len(Vec2I32 v) {
 
 
 // I64
+static bool v2i64_eq(Vec2I64 a, Vec2I64 b) {
+    return a.x == b.x && a.y == b.y;
+}
+
 static Vec2I64 v2i64_fill(int64_t n) {
     return v2i64(n, n);
 }
@@ -1001,6 +1004,10 @@ static int64_t v2i64_len(Vec2I64 v) {
 
 
 // F32
+static bool v2f_isclose(Vec2F a, Vec2F b) {
+    return isclose(a.x, b.x) && isclose(a.y, b.y);
+}
+
 static Vec2F v2f_fill(float n) {
     return v2f(n, n);
 }
@@ -1055,6 +1062,10 @@ static Vec2F v2f_transform(Vec2F v, Mat2x2F transform) {
 
 
 // F64
+static bool v2d_isclose(Vec2D a, Vec2D b) {
+    return isclose(a.x, b.x) && isclose(a.y, b.y);
+}
+
 static Vec2D v2d_fill(double n) {
     return v2d(n, n);
 }
@@ -1110,6 +1121,10 @@ static Vec2D v2d_transform(Vec2D v, Mat2x2D transform) {
 
 // 3D
 // I32
+static bool v3i32_eq(Vec3I32 a, Vec3I32 b) {
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
 static Vec3I32 v3i32_fill(int32_t n) {
     return v3i32(n, n, n);
 }
@@ -1132,6 +1147,10 @@ static int32_t v3i32_len(Vec3I32 v) {
 
 
 // I64
+static bool v3i64_eq(Vec3I64 a, Vec3I64 b) {
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
 static Vec3I64 v3i64_fill(int64_t n) {
     return v3i64(n, n, n);
 }
@@ -1154,6 +1173,11 @@ static int64_t v3i64_len(Vec3I64 v) {
 
 
 // F32
+static bool v3f_isclose(Vec3F a, Vec3F b) {
+    return isclose(a.x, b.x) && isclose(a.y, b.y)
+        && isclose(a.z, b.z);
+}
+
 static Vec3F v3f_fill(float n) {
     return v3f(n, n, n);
 }
@@ -1214,6 +1238,11 @@ static Vec3F v3f_cross(Vec3F a, Vec3F b) {
 
 
 // F64
+static bool v3d_isclose(Vec3D a, Vec3D b) {
+    return isclose(a.x, b.x) && isclose(a.y, b.y)
+        && isclose(a.z, b.z);
+}
+
 static Vec3D v3d_fill(double n) {
     return v3d(n, n, n);
 }
@@ -1275,6 +1304,11 @@ static Vec3D v3d_transform(Vec3D v, Mat3x3D transform) {
 
 // 4D
 // I32
+static bool v4i32_eq(Vec4I32 a, Vec4I32 b) {
+    return a.x == b.x && a.y == b.y
+        && a.z == b.z && a.w == b.w;
+}
+
 static Vec4I32 v4i32_fill(int32_t n) {
     return v4i32(n, n, n, n);
 }
@@ -1297,6 +1331,11 @@ static int32_t v4i32_len(Vec4I32 v) {
 
 
 // I64
+static bool v4i64_eq(Vec4I64 a, Vec4I64 b) {
+    return a.x == b.x && a.y == b.y
+        && a.z == b.z && a.w == b.w;
+}
+
 static Vec4I64 v4i64_fill(int64_t n) {
     return v4i64(n, n, n, n);
 }
@@ -1319,6 +1358,11 @@ static int64_t v4i64_len(Vec4I64 v) {
 
 
 // F32
+static bool v4f_isclose(Vec4F a, Vec4F b) {
+    return isclose(a.x, b.x) && isclose(a.y, b.y)
+        && isclose(a.z, b.z) && isclose(a.w, b.w);
+}
+
 static Vec4F v4f_fill(float n) {
     return v4f(n, n, n, n);
 }
@@ -1376,6 +1420,11 @@ static Vec4F v4f_transform(Vec4F v, Mat4x4F transform) {
 
 
 // F64
+static bool v4d_isclose(Vec4D a, Vec4D b) {
+    return isclose(a.x, b.x) && isclose(a.y, b.y)
+        && isclose(a.z, b.z) && isclose(a.w, b.w);
+}
+
 static Vec4D v4d_fill(double n) {
     return v4d(n, n, n, n);
 }
@@ -1435,6 +1484,11 @@ static Vec4D v4d_transform(Vec4D v, Mat4x4D transform) {
 // Matrix Operations
 // 2x2
 // I32
+static bool m2x2i32_eq(Mat2x2I32 a, Mat2x2I32 b) {
+    return v2i32_eq((a).rows[0], (b).rows[0])
+        && v2i32_eq((a).rows[1], (b).rows[1]);
+}
+
 static Mat2x2I32 m2x2i32_fill(int32_t n) {
     return (Mat2x2I32){
         n, n,
@@ -1443,6 +1497,11 @@ static Mat2x2I32 m2x2i32_fill(int32_t n) {
 }
 
 // I64
+static bool m2x2i64_eq(Mat2x2I64 a, Mat2x2I64 b) {
+    return v2i64_eq((a).rows[0], (b).rows[0])
+        && v2i64_eq((a).rows[1], (b).rows[1]);
+}
+
 static Mat2x2I64 m2x2i64_fill(int64_t n) {
     return (Mat2x2I64){
         n, n,
@@ -1451,6 +1510,11 @@ static Mat2x2I64 m2x2i64_fill(int64_t n) {
 }
 
 // F32
+static bool m2x2f_isclose(Mat2x2F a, Mat2x2F b) {
+    return v2f_isclose((a).rows[0], (b).rows[0])
+        && v2f_isclose((a).rows[1], (b).rows[1]);
+}
+
 static Mat2x2F m2x2f_fill(float n) {
     return (Mat2x2F){
         n, n,
@@ -1502,6 +1566,11 @@ float m2x2f_determinant(Mat2x2F m) {
 }
 
 // F64
+static bool m2x2d_isclose(Mat2x2D a, Mat2x2D b) {
+    return v2d_isclose((a).rows[0], (b).rows[0])
+        && v2d_isclose((a).rows[1], (b).rows[1]);
+}
+
 static Mat2x2D m2x2d_fill(double n) {
     return (Mat2x2D){
         n, n,
@@ -1555,6 +1624,12 @@ static double m2x2d_determinant(Mat2x2D m) {
 
 // 3x3
 // I32
+static bool m3x3i32_eq(Mat3x3I32 a, Mat3x3I32 b) {
+    return v3i32_eq((a).rows[0], (b).rows[0])
+        && v3i32_eq((a).rows[1], (b).rows[1])
+        && v3i32_eq((a).rows[2], (b).rows[2]);
+}
+
 static Mat3x3I32 m3x3i32_fill(int32_t n) {
     return (Mat3x3I32){
         n, n, n,
@@ -1564,6 +1639,12 @@ static Mat3x3I32 m3x3i32_fill(int32_t n) {
 }
 
 // I64
+static bool m3x3i64_eq(Mat3x3I64 a, Mat3x3I64 b) {
+    return v3i64_eq((a).rows[0], (b).rows[0])
+        && v3i64_eq((a).rows[1], (b).rows[1])
+        && v3i64_eq((a).rows[2], (b).rows[2]);
+}
+
 static Mat3x3I64 m3x3i64_fill(int64_t n) {
     return (Mat3x3I64){
         n, n, n,
@@ -1573,6 +1654,12 @@ static Mat3x3I64 m3x3i64_fill(int64_t n) {
 }
 
 // F32
+static bool m3x3f_isclose(Mat3x3F a, Mat3x3F b) {
+    return v3f_isclose((a).rows[0], (b).rows[0])
+        && v3f_isclose((a).rows[1], (b).rows[1])
+        && v3f_isclose((a).rows[2], (b).rows[2]);
+}
+
 static Mat3x3F m3x3f_fill(float n) {
     return (Mat3x3F){
         n, n, n,
@@ -1628,6 +1715,12 @@ float m3x3f_determinant(Mat3x3F m) {
 }
 
 // F64
+static bool m3x3d_isclose(Mat3x3D a, Mat3x3D b) {
+    return v3d_isclose((a).rows[0], (b).rows[0])
+        && v3d_isclose((a).rows[1], (b).rows[1])
+        && v3d_isclose((a).rows[2], (b).rows[2]);
+}
+
 static Mat3x3D m3x3d_fill(double n) {
     return (Mat3x3D){
         n, n, n,
@@ -1685,6 +1778,13 @@ static double m3x3d_determinant(Mat3x3D m) {
 
 // 4x4
 // I32
+static bool m4x4i32_eq(Mat4x4I32 a, Mat4x4I32 b) {
+    return v4i32_eq((a).rows[0], (b).rows[0])
+        && v4i32_eq((a).rows[1], (b).rows[1])
+        && v4i32_eq((a).rows[2], (b).rows[2])
+        && v4i32_eq((a).rows[3], (b).rows[3]);
+}
+
 static Mat4x4I32 m4x4i32_fill(int32_t n) {
     return (Mat4x4I32){
         n, n, n, n,
@@ -1695,6 +1795,13 @@ static Mat4x4I32 m4x4i32_fill(int32_t n) {
 }
 
 // I64
+static bool m4x4i64_eq(Mat4x4I64 a, Mat4x4I64 b) {
+    return v4i64_eq((a).rows[0], (b).rows[0])
+        && v4i64_eq((a).rows[1], (b).rows[1])
+        && v4i64_eq((a).rows[2], (b).rows[2])
+        && v4i64_eq((a).rows[3], (b).rows[3]);
+}
+
 static Mat4x4I64 m4x4i64_fill(int64_t n) {
     return (Mat4x4I64){
         n, n, n, n,
@@ -1705,6 +1812,13 @@ static Mat4x4I64 m4x4i64_fill(int64_t n) {
 }
 
 // F32
+static bool m4x4f_isclose(Mat4x4F a, Mat4x4F b) {
+    return v4f_isclose((a).rows[0], (b).rows[0])
+        && v4f_isclose((a).rows[1], (b).rows[1])
+        && v4f_isclose((a).rows[2], (b).rows[2])
+        && v4f_isclose((a).rows[3], (b).rows[3]);
+}
+
 static Mat4x4F m4x4f_fill(float n) {
     return (Mat4x4F){
         n, n, n, n,
@@ -1792,6 +1906,13 @@ float m4x4f_determinant(Mat4x4F m) {
 }
 
 // F64
+static bool m4x4d_isclose(Mat4x4D a, Mat4x4D b) {
+    return v4d_isclose((a).rows[0], (b).rows[0])
+        && v4d_isclose((a).rows[1], (b).rows[1])
+        && v4d_isclose((a).rows[2], (b).rows[2])
+        && v4d_isclose((a).rows[3], (b).rows[3]);
+}
+
 static Mat4x4D m4x4d_fill(double n) {
     return (Mat4x4D){
         n, n, n, n,

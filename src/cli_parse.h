@@ -690,7 +690,7 @@ end:
 static Str cli_arg_type_to_str(CliArgType type) {
     switch (type) {
         case CliArg_None:   return S("NONE");
-        case CliArg_Str:    return S("string");
+        case CliArg_Str:    return S("str");
         case CliArg_Int:    return S("int");
         case CliArg_Bool:   return S("bool");
         case CliArg_Double: return S("float");
@@ -715,10 +715,10 @@ static Str cli_options_list_opt(Arena *arena, CliOpt opt) {
             options_str = str_catf(tmp.arena, options_str, "-%.*s <%.*s>",
                     SArg(arg->name), SArg(cli_arg_type_to_str(arg->type)));
         } else if (arg->nargs > 1) {
-            options_str = str_catf(tmp.arena, options_str, "-%.*s <%.*s[%d]>",
-                    SArg(arg->name), SArg(cli_arg_type_to_str(arg->type)), arg->nargs);
+            options_str = str_catf(tmp.arena, options_str, "-%.*s <str[%d]>", SArg(arg->name), arg->nargs);
+        } else if (arg->nargs == CLI_NARGS_INF) {
+            options_str = str_catf(tmp.arena, options_str, "-%.*s <str[..]>", SArg(arg->name));
         }
-
 
         if (arg->required) {
             options_str = str_cat(tmp.arena, options_str, S(" (required)"));
