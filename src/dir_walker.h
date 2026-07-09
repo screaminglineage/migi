@@ -12,26 +12,26 @@
 #include <stdbool.h>
 #include <string.h>
 
-#ifdef _WIN32
+#if OS_WINDOWS
 #include <windows.h>
 #else
 #include <dirent.h>
 #include <sys/stat.h>
 #endif
 
-#ifdef _WIN32
+#if OS_WINDOWS
     typedef HANDLE Directory;
     #define DIRECTORY_INVALID INVALID_HANDLE_VALUE
 #else
     typedef DIR *Directory;
     #define DIRECTORY_INVALID NULL
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 
-#ifdef _WIN32
+#if OS_WINDOWS
     #define DIRECTORY_SEPARATOR S("\\")
 #else
     #define DIRECTORY_SEPARATOR S("/")
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 
 typedef struct {
     Str path;
@@ -129,7 +129,7 @@ static DirIterNode *dir_get_all_children(Arena *arena, Str dirpath);
 
 
 
-#ifdef _WIN32
+#if OS_WINDOWS
 // Taken from https://stackoverflow.com/a/46024468
 static int64_t win32__system_time_to_unix(FILETIME ft) {
    int64_t unix_time_start  = 0x019DB1DED53E8000; // January 1, 1970 (start of Unix epoch) in "ticks"
@@ -145,7 +145,7 @@ static int64_t win32__system_time_to_unix(FILETIME ft) {
 
 
 // TODO: maybe move these into an os specific header file?
-#ifdef _WIN32
+#if OS_WINDOWS
 static void win32__os_to_entry(WIN32_FIND_DATA *file_info, DStr *parent_dir, uint32_t depth, DirIter *entry) {
     size_t end = parent_dir->length;
     dstr_pushf(parent_dir, "\\%s", file_info->cFileName);
@@ -196,11 +196,11 @@ static bool posix__os_to_entry(DStr *parent_dir, char *filename, uint32_t depth,
     entry->time_accessed = statbuf.st_atim.tv_sec;
     return true;
 }
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 
 
 static bool walker__open_dir(DirWalker *w) {
-#ifdef _WIN32
+#if OS_WINDOWS
     // TODO: also prepend "\\?\" to the path to extend the file path size from MAX_PATH
     // https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilea
 
@@ -232,7 +232,7 @@ static bool walker__open_dir(DirWalker *w) {
     struct dirent *entry = readdir(w->dir);
     assertf(entry, "walker_open_dir: readdir cannot fail since dir was just opened");
     return posix__os_to_entry(parent_dir, entry->d_name, w->depth, &w->entry);
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 typedef enum {
@@ -242,7 +242,7 @@ typedef enum {
 } ReadDirResult;
 
 static ReadDirResult walker__read_dir(DirWalker *w) {
-#ifdef _WIN32
+#if OS_WINDOWS
     WIN32_FIND_DATA file_info;
     if (!FindNextFile(w->dir, &file_info)) {
         DWORD error = GetLastError();
@@ -270,15 +270,15 @@ static ReadDirResult walker__read_dir(DirWalker *w) {
     dstr_push(parent_dir, w->current_dir.as_string);
     if (!posix__os_to_entry(parent_dir, entry->d_name, w->depth, &w->entry)) return Read_Error;
     return Read_Ok;
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 static void walker__close_dir(Directory dir) {
-#ifdef _WIN32
+#if OS_WINDOWS
     FindClose(dir);
 #else
     if (dir != DIRECTORY_INVALID) closedir(dir);
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 static DirWalker walker_init_opt(Str filepath, WalkerInitOpt opt) {

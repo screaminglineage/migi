@@ -33,10 +33,10 @@ void print_arg(CliArg *arg) {
 }
 
 
-#ifdef __GNUC__
+#if COMPILER_GCC_OR_CLANG
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wunused-variable"
-#endif // ifdef _GNU_C
+#endif
 
 int main(int argc, char **argv) {
     Temp tmp = arena_temp();
@@ -121,7 +121,7 @@ int main1(int argc, char **argv) {
 }
 
 
-#ifdef __GNUC__
+#if COMPILER_GCC_OR_CLANG
     #pragma GCC diagnostic pop
 #endif
 

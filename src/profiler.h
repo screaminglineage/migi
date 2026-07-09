@@ -1,26 +1,18 @@
 // TODO: needs some modifications to bring it up to the current standards
-// TODO: remove PROFILER_H_IMPLEMENTATION
+// TODO: add a `end_profiling` function which simply clears
+// the timestamp state and returns them without printing anything
 // TODO: doesnt compile on windows msvc
 
 #ifndef PROFILER_H
 #define PROFILER_H
 
-// TODO: add a `end_profiling` function which simply clears
-// the timestamp state and returns them without printing anything
-
 static void begin_profiling();
 static void end_profiling_and_print_stats();
 
-#ifdef PROFILER_H_IMPLEMENTATION
-
-#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-#define TIMING_H_IMPLEMENTATION
 #include "timing.h"
-
-#include "migi_core.h"
 
 #define MAX_TIMESTAMPS 4096
 
@@ -120,12 +112,14 @@ static void print_timestamps(uint64_t total, uint64_t cpu_freq) {
     }
 }
 
-#else // ENABLE_PROFILING
+#else
+
 #define TIME_FUNCTION
 #define TIME_FUNCTION_BANDWIDTH(size)
 #define TIME_BLOCK(...)
 #define print_timestamps(...)
 #define PROFILER_END
+
 #endif  // ENABLE_PROFILING
 
 
@@ -155,6 +149,5 @@ static void end_profiling_and_print_stats() {
 }
 
 
-#endif // PROFILER_H_IMPLEMENTATION
 #endif // PROFILER_H
 

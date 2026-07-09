@@ -43,7 +43,7 @@ static Str get_cwd_executable(Arena *arena);
 static Str get_executable_path(Arena *a);
 
 
-#ifdef OS_WINDOWS
+#if OS_WINDOWS
 
 #include <windows.h>
 #include "filepath.h"
@@ -92,7 +92,7 @@ static bool file_touch(Str filepath) {
     if (file == INVALID_HANDLE_VALUE) {
         Str err_str = str_last_error(tmp.arena);
         migi_log(Log_Error, "failed to touch file: '%.*s': %.*s", SArg(filepath), SArg(err_str));
-        return_with(false);
+        goto_end_with(false);
     }
 
     SYSTEMTIME sys_time;
@@ -102,13 +102,13 @@ static bool file_touch(Str filepath) {
     if (!SystemTimeToFileTime(&sys_time, &file_time)) {
         Str err_str = str_last_error(tmp.arena);
         migi_log(Log_Error, "failed to convert system time to file time: '%.*s': %.*s", SArg(filepath), SArg(err_str));
-        return_with(false);
+        goto_end_with(false);
     }
 
     if (!SetFileTime(file, &file_time, &file_time, &file_time)) {
         Str err_str = str_last_error(tmp.arena);
         migi_log(Log_Error, "failed to set file time: '%.*s': %.*s", SArg(filepath), SArg(err_str));
-        return_with(false);
+        goto_end_with(false);
     }
 
 end:
@@ -475,27 +475,30 @@ static Str get_cwd_executable(Arena *a) {
 #include <limits.h>
 #include <time.h>
 #include <utime.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "filepath.h"
 #include "dir_walker.h"
 
 static FileType file_type(Str filepath) {
-    FileType result = {0};
+    FileType result = {.error=true};
     Temp tmp = arena_temp();
 
     int fd = open(str_to_cstr(tmp.arena, filepath), O_CREAT, S_IRUSR | S_IWUSR);
     if (fd == -1) {
         migi_log(Log_Error, "file: '%.*s' doesn't exist", SArg(filepath));
-        return_with((FileType){.error = true});
+        goto end;
     }
 
     struct stat file_stat;
     if (fstat(fd, &file_stat) != 0) {
         migi_log(Log_Error, "failed to stat file: '%.*s'", SArg(filepath));
-        return_with((FileType){.error = true});
+        close(fd);
+        goto end;
     }
 
+    result.error              = false;
     result.is_directory       = S_ISDIR(file_stat.st_mode);
     result.is_symbolic_link   = S_ISLNK(file_stat.st_mode);
 
@@ -527,13 +530,13 @@ static bool file_touch(Str filepath) {
     int fd = open(filepath_cstr, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
     if (fd == -1) {
         migi_log(Log_Error, "failed to touch file: '%.*s': %s", SArg(filepath), strerror(errno));
-        return_with(false);
+        goto_end_with(false);
     }
     close(fd);
 
     if (utime(filepath_cstr, NULL) == -1) {
         migi_log(Log_Error, "failed to update file time: '%.*s': %s", SArg(filepath), strerror(errno));
-        return_with(false);
+        goto_end_with(false);
     }
 
 end:
@@ -919,7 +922,7 @@ static Str get_cwd_executable(Arena *a) {
 
 #else
     #error Unsupported OS
-#endif // ifdef _WIN32
+#endif // if OS_WINDOWS
 
 
 

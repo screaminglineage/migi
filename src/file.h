@@ -5,10 +5,17 @@
 #include "migi_string.h"
 #include "migi_list.h"
 
-// TODO: split into file_win32 and file_posix rather than the #ifdef hell
+#if OS_WINDOWS
+#include <windows.h>
+#else
+#include <fcntl.h>
+#endif
+
+// TODO: Divide the functions with separate implementations (like filesystem.h)
+// rather than using #if's inside the functions
 // TODO: complete the parts with todo()'s;
 
-#ifdef _WIN32
+#if OS_WINDOWS
     typedef HANDLE File;
     #define FILE_ERROR INVALID_HANDLE_VALUE
 #else
@@ -55,7 +62,7 @@ static bool strlist_to_file(StrList list, Str filepath);
 
 
 static int64_t file_length(File file) {
-#ifdef _WIN32
+#if OS_WINDOWS
     DWORD size_high = 0;
     DWORD size_low = GetFileSize(file, &size_high);
     // TODO: check if GetFileSize can return an error
@@ -70,26 +77,26 @@ static int64_t file_length(File file) {
         lseek(file, 0, SEEK_SET);
     }
     return length;
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 static int64_t file_pos(File file) {
-#ifdef _WIN32
+#if OS_WINDOWS
     unused(file);
     todof("get current file position");
 #else
     return lseek(file, 0, SEEK_CUR);
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 static bool file_set_pos(File file, size_t new_pos) {
-#ifdef _WIN32
+#if OS_WINDOWS
     unused(file);
     unused(new_pos);
     todof("set file position");
 #else
     return lseek(file, new_pos, SEEK_SET) != -1;
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 
@@ -114,7 +121,7 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
 
     // If read == false, default to read mode
     if (!opt.write) {
-#ifdef _WIN32
+#if OS_WINDOWS
         file = CreateFileA(filename_cstr,
             GENERIC_READ, 0, NULL, OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL, NULL);
@@ -122,7 +129,7 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
         file = open(filename_cstr, O_RDONLY);
 #endif
     } else {
-#ifdef _WIN32
+#if OS_WINDOWS
         DWORD create_mode = 0;
         if (opt.append || opt.dont_truncate) {
             create_mode = OPEN_ALWAYS;
@@ -163,7 +170,7 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
     }
 
     if (file != FILE_ERROR && opt.append) {
-#ifdef _WIN32
+#if OS_WINDOWS
         DWORD res = SetFilePointer(file, 0, NULL, FILE_END);
         if (res == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
             migi_log(Log_Error, "failed to open file `%.*s` in append mode: %.*s",
@@ -190,7 +197,7 @@ static bool file_read(Arena *arena, File file, char *buffer, size_t length) {
 
 static StrResult file_read_all(Arena *arena, File file) {
     StrResult result = {0};
-#ifdef _WIN32
+#if OS_WINDOWS
     // file position cannot be negative at this point
     // TODO: check if GetFileSize can return an error which is negative
     int64_t length = file_length(file);
@@ -225,7 +232,7 @@ static StrResult file_read_all(Arena *arena, File file) {
         }
         buf += m;
     }
-#endif // #ifndef _WIN32
+#endif // #if OS_WINDOWS
     result = (StrResult){
         .string.data = buf_start,
         .string.length = length,
@@ -236,7 +243,7 @@ static StrResult file_read_all(Arena *arena, File file) {
 
 
 static bool file_write_all(File file, Str str) {
-#ifdef _WIN32
+#if OS_WINDOWS
     while (str.length > 0) {
         DWORD n = 0;
         if (!WriteFile(file, str.data, (DWORD)str.length, &n, NULL)) {
@@ -254,23 +261,23 @@ static bool file_write_all(File file, Str str) {
         str = str_skip(str, n);
     }
     return true;
-#endif // #ifndef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 
 static bool file_close(File file) {
-#ifdef _WIN32
+#if OS_WINDOWS
     return CloseHandle(file);
 #else
     // TODO: can close return an error?
     close(file);
     return true;
-#endif // ifdef _WIN32
+#endif // #if OS_WINDOWS
 }
 
 // TODO: move this into its own file
 static Str str_last_error(Arena *arena) {
-#ifdef _WIN32
+#if OS_WINDOWS
     DWORD err = GetLastError();
 
     DWORD max_length = 64*KB - 1;

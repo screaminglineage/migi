@@ -12,12 +12,9 @@
 #include "migi_core.h"
 #include "arena.h"
 
-#ifdef _WIN32
-#else
-#include <fcntl.h>
-#include <unistd.h>
-#endif // ifdef _WIN32
-
+// TODO: Put the definitions of `Str` and `S` into migi_core so that
+// headers which do not use any str_* functions dont have to include
+// migi_string.h
 typedef struct {
     char *data;
     size_t length;

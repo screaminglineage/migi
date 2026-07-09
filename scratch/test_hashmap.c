@@ -3,7 +3,7 @@
 // #define HASHMAP_COLLECT_STATS
 #include "hashmap.h"
 #include "migi.h"
-#include "migi_random.h"
+#include "random.h"
 #include "file.h"
 
 void test_basic() {

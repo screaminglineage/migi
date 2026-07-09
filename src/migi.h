@@ -3,7 +3,7 @@
 #ifndef MIGI_H
 #define MIGI_H
 
-#ifdef _MSC_VER
+#if COMPILER_MSVC
 // Disabling microsoft's "security" warnings
 // https://learn.microsoft.com/en-us/cpp/c-runtime-library/security-features-in-the-crt?view=msvc-170#eliminating-deprecation-warnings
     #define _CRT_SECURE_NO_WARNINGS

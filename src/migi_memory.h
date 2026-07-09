@@ -3,10 +3,9 @@
 
 #include <stddef.h>
 #include <stdio.h>
-#define PROFILER_H_IMPLEMENTATION
 #include "profiler.h"
 
-#ifdef _WIN32
+#if OS_WINDOWS
     #include <windows.h>
 #endif
 
@@ -24,7 +23,7 @@ static void *memory_commit(void *mem, size_t size);
 static void memory_decommit(void *mem, size_t size);
 static void *memory_alloc(size_t size);
 
-#ifdef _WIN32
+#if OS_WINDOWS
 
 static size_t memory_page_size() {
     SYSTEM_INFO info = {0};
@@ -68,6 +67,7 @@ static void *memory_alloc(size_t size) {
     assertf(mem != NULL, "%s: failed to allocate memory: %ld", __func__, GetLastError());
     return mem;
 }
+
 #else
 
 #include <unistd.h>

@@ -15,6 +15,7 @@ int main(int argc, char **argv) {
                                    .aliases=str_span(S("o")));
     bool *show_headers = cli_add_bool(S("headers"), S("show all the included headers"),
                                    .aliases=str_span(S("H")));
+
     if (!cli_parse_args(argc, argv, .help=S("Generate a single amalgamated header "
                                            "containing all the main headers in migi"))) return 1;
 
@@ -30,7 +31,7 @@ int main(int argc, char **argv) {
         S("src/hashmap.h"),
         S("src/file.h"),
         S("src/cli_parse.h"),
-        S("src/migi_random.h"),
+        S("src/random.h"),
     };
 
     if (*show_headers) {
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
     strlist_push(a, &amalgam, S("#ifndef MIGI_AMALGAM_H\n"));
     strlist_push(a, &amalgam, S("#define MIGI_AMALGAM_H\n\n"));
 
-    Str no_crt_warnings = S("#ifdef OS_WINDOWS\n"
+    Str no_crt_warnings = S("#if COMPILER_MSVC\n"
         "// Disabling microsoft's \"security\" warnings\n"
         "// https://learn.microsoft.com/en-us/cpp/c-runtime-library/security-features-in-the-crt?view=msvc-170#eliminating-deprecation-warnings\n"
         "    #define _CRT_SECURE_NO_WARNINGS\n"
@@ -55,10 +56,6 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < array_len(files); i++) {
         Str str = str_from_file(a, files[i]);
         strcut_foreach(str, S("\n"), 0, line) {
-            if (str_eq(files[i], S("src/profiler.h"))) {
-                strlist_push(a, &amalgam, S("#define PROFILER_H_IMPLEMENTATION\n"));
-            }
-
             // Skip local includes as all the needed files are simply included
             // TODO: improve the parsing to take multi-line comments into account
             if (str_starts_with(str_trim_left(line.split), S("#include \""))) {

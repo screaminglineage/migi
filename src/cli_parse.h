@@ -29,6 +29,7 @@ typedef struct {
     int32_t nargs;
     int32_t found_args;  // NOTE: for bool's that do not take any arguments, this is set to `CLI_BOOL_FOUND` (-1) if the flag was set
     bool required;
+    bool was_set;        // whether the option was passed on the command line, "commented" options are not counted
 
     CliArgType type;
     union {
@@ -167,12 +168,10 @@ static CliArg *cli_arg_by_name(Cli *cli, Str name);
         StrList *:  parent_of(CliArg, as_list,   (var))  \
     )
 
-// Check whether an option was actually set in the command line
-static bool cli_arg_was_set(CliArg *arg);
 
 // Convenience macros for operating on variables returned by `cli_add_*` functions
 #define cli_var_name(var) cli_arg_from_var((var))->name
-#define cli_var_was_set(var) cli_arg_was_set(cli_arg_from_var((var)))
+#define cli_var_was_set(var) cli_arg_from_var((var))->was_set
 
 
 // Get global cli fields
@@ -437,7 +436,10 @@ static bool cli__parse_value(Arena *arena, CliArg *cli_arg, Str key, Str value, 
 
     switch (cli_arg->type) {
         case CliArg_Str: {
-            if (!ignore) cli_arg->as_str = value;
+            if (!ignore) {
+                cli_arg->as_str = value;
+                cli_arg->was_set = true;
+            }
             cli_arg->found_args = 1;
         } break;
         case CliArg_Int: {
@@ -450,7 +452,10 @@ static bool cli__parse_value(Arena *arena, CliArg *cli_arg, Str key, Str value, 
                         SArg(key), SArg(value));
                 goto end;
             }
-            if (!ignore) cli_arg->as_int = num;
+            if (!ignore) {
+                cli_arg->as_int = num;
+                cli_arg->was_set = true;
+            }
             cli_arg->found_args = 1;
         } break;
         case CliArg_Bool: {
@@ -474,7 +479,10 @@ static bool cli__parse_value(Arena *arena, CliArg *cli_arg, Str key, Str value, 
                         SArg(key), SArg(value));
                 goto end;
             }
-            if (!ignore) cli_arg->as_bool = bool_value;
+            if (!ignore) {
+                cli_arg->as_bool = bool_value;
+                cli_arg->was_set = true;
+            }
             cli_arg->found_args = found_args;
         } break;
         case CliArg_Double: {
@@ -487,7 +495,10 @@ static bool cli__parse_value(Arena *arena, CliArg *cli_arg, Str key, Str value, 
                         SArg(key), SArg(value));
                 goto end;
             }
-            if (!ignore) cli_arg->as_double = num;
+            if (!ignore) {
+                cli_arg->as_double = num;
+                cli_arg->was_set = true;
+            }
             cli_arg->found_args = 1;
         } break;
         case CliArg_List: {
@@ -507,7 +518,10 @@ static bool cli__parse_value(Arena *arena, CliArg *cli_arg, Str key, Str value, 
             if (prev_tail.length != 0) {
                 strlist_push(arena, &items, prev_tail);
             }
-            if (!ignore) strlist_extend(&cli_arg->as_list, &items);
+            if (!ignore) {
+                strlist_extend(&cli_arg->as_list, &items);
+                cli_arg->was_set = true;
+            }
             cli_arg->found_args += items.length;
         } break;
         default:
@@ -623,12 +637,12 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
         // -opt foo
         if (!cut.found) {
             cli_arg = cli_arg_by_name(opt.cli, key);
-            if (!cli_arg) return_with(false);
+            if (!cli_arg) goto_end_with(false);
 
             if (cli_arg->nargs > 0) {
                 if (i + 1 == argc) {
                     migi_log(Log_Error, "expected argument after option: '%.*s'", SArg(key));
-                    return_with(false);
+                    goto_end_with(false);
                 }
                 // Consume the next argument as the value
                 value = str_from_cstr(argv[++i]);
@@ -639,7 +653,7 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
             key = cut.head;
             value = cut.tail;
             cli_arg = cli_arg_by_name(opt.cli, key);
-            if (!cli_arg) return_with(false);
+            if (!cli_arg) goto_end_with(false);
 
             // NOTE: `-opt="foo,bar"` is currently parsed like [`foo`, `bar`]
             // However since quotes are handled by the shell, by the time the program
@@ -648,16 +662,16 @@ static bool cli_parse_args_opt(int argc, char **argv, CliParseOpt opt) {
 
             if (value.length == 0) {
                 migi_log(Log_Error, "expected value after: '-%.*s='", SArg(key));
-                return_with(false);
+                goto_end_with(false);
             }
         }
 
         if (!cli__parse_value(cli_arena, cli_arg, key, value, ignore)) {
-            return_with(false);
+            goto_end_with(false);
         }
     }
 
-    if (!cli__validate_args(opt.cli)) return_with(false);
+    if (!cli__validate_args(opt.cli)) goto_end_with(false);
 
 end:
     if (handle_help_flag) {
@@ -683,10 +697,6 @@ static Str cli_arg_type_to_str(CliArgType type) {
         case CliArg_List:   return S("list");
     }
     migi_unreachable();
-}
-
-static bool cli_arg_was_set(CliArg *arg) {
-    return arg->found_args != 0;
 }
 
 static Str cli_options_list_opt(Arena *arena, CliOpt opt) {

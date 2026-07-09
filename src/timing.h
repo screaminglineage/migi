@@ -18,7 +18,7 @@ static uint64_t timer_now_cpu();
 // Returns the current time after waking up
 static uint64_t sleep_until(uint64_t target_nanos);
 
-#if _WIN32
+#if OS_WINDOWS
 
 #include <intrin.h>
 #include <windows.h>
@@ -54,7 +54,7 @@ static uint64_t sleep_until(uint64_t target_nanos) {
     todof("implement for windows");
 }
 
-#else
+#elif OS_LINUX
 
 #include <x86intrin.h>
 #include <sys/time.h>
@@ -95,6 +95,8 @@ static uint64_t sleep_until(uint64_t target_nanos) {
     return last;
 }
 
+#else
+#error "Unsupported OS"
 #endif
 
 static uint64_t read_cpu_timer(void) {

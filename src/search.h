@@ -1,5 +1,14 @@
-#include "migi.h"
-#include "migi_random.h"
+#ifndef SEARCH_H
+#define SEARCH_H
+
+// Linear and Binary Search Functions
+// There are 2 kinds of functions: search/binary_search and search_key/binary_search_key
+// The `search_key` functions can be optionally passed a fields of a struct to compare
+// by instead of having to write a custom comparator for each kind.
+// See below for more info.
+
+#include "migi_core.h"
+#include "migi_string.h"
 
 typedef int (*BinSearchCompFn)(void *left, void *right, void *user_data);
 
@@ -12,7 +21,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
 
 // Convenience macros
 //
-// Search an array with a key
+// Search an array
 #define search(arr, length, key, ...)                                                \
     search_opt((byte *)(check_type(type_of(key), arr)), sizeof(*(arr)), (length), 0, \
             binarysearch__addr_of(*(arr), (key)),(SearchOpt){ .comparator = compare__func_for(*(arr)), __VA_ARGS__ })
@@ -20,7 +29,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
 
 // Search a particular field of a struct with a key
 // For example:
-// struct { int a, b; } *arr = { /* .... */ };
+// struct { int a, b; } *arr = { /* ... */ };
 // search_key(arr, array_len(arr), a, 12) will only search for items where the field `a` is `12`
 #define search_key(arr, length, field, key, ...)                                          \
     (check_type_value(type_of((arr)->field), (key)),                                      \
@@ -28,7 +37,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
             offsetof(type_of(*(arr)), field), binarysearch__addr_of((arr)->field, (key)), \
             (SearchOpt){ .comparator = compare__func_for((arr)->field), __VA_ARGS__ }))
 
-// Binary search an array with a key
+// Binary search an array
 #define binary_search(arr, length, key, ...)                                                \
     binary_search_opt((byte *)(check_type(type_of(key), arr)), sizeof(*(arr)), (length), 0, \
             binarysearch__addr_of(*(arr), (key)),(SearchOpt){ .comparator = compare__func_for(*(arr)), __VA_ARGS__ })
@@ -36,7 +45,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
 
 // Binary search a particular field of a struct with a key
 // For example:
-// struct { int a, b; } *arr = { /* .... */ };
+// struct { int a, b; } *arr = { /* ... */ };
 // binary_search_key(arr, array_len(arr), a, 12) will only search for items where the field `a` is `12`
 #define binary_search_key(arr, length, field, key, ...)                                   \
     (check_type_value(type_of((arr)->field), (key)),                                      \
@@ -188,106 +197,4 @@ static int compare_char(void *left, void *right, void *user_data) {
 #define binarysearch__addr_of(T, x) ((type_of(T)[1]){x})
 
 
-void test_search() {
-    Temp tmp = arena_temp();
-    {
-        int s = 10;
-        int *arr = arena_push(tmp.arena, int, s);
-        for (int i = 0; i < s; i++) {
-            arr[i] = i;
-        }
-        for (int i = 0; i <= s; i++) {
-            size_t n = search(arr, s, i);
-            assert((int)n == i);
-        }
-    }
-
-    {
-        Str arr[] = { S("bar"), S("baz"), S("foo"), S("hello"), S("world") };
-        for (size_t i = 0; i < array_len(arr); i++) {
-            size_t n = search(arr, array_len(arr), arr[i]);
-            assert(n == i);
-        }
-        assert(search(arr, array_len(arr), S("different string")) == array_len(arr));
-    }
-
-    {
-        typedef struct {
-            int num1, num2;
-            char ch;
-        } Foo;
-
-        int s = 10;
-        Foo *arr = arena_push(tmp.arena, Foo, s);
-        for (int i = 0; i < s; i++) {
-            arr[i] = (Foo){
-                .num1 = rand_range(0, 10),
-                .num2 = i,
-                .ch = rand_range('a', 'z'),
-            };
-        }
-
-        for (int i = 0; i < s; i++) {
-            size_t n = search_key(arr, s, num2, i);
-            assert((int)n == i);
-        }
-    }
-
-
-    arena_temp_release(tmp);
-}
-
-void test_binary_search() {
-    Temp tmp = arena_temp();
-    {
-        int s = 10;
-        int *arr = arena_push(tmp.arena, int, s);
-        for (int i = 0; i < s; i++) {
-            arr[i] = i;
-        }
-        for (int i = 0; i <= s; i++) {
-            size_t n = binary_search(arr, s, i);
-            assert((int)n == i);
-        }
-    }
-
-    {
-        Str arr[] = { S("bar"), S("baz"), S("foo"), S("hello"), S("world") };
-        for (size_t i = 0; i < array_len(arr); i++) {
-            size_t n = binary_search(arr, array_len(arr), arr[i]);
-            assert(n == i);
-        }
-        assert(binary_search(arr, array_len(arr), S("different string")) == array_len(arr));
-    }
-
-    {
-        typedef struct {
-            int num1, num2;
-            char ch;
-        } Foo;
-
-        int s = 10;
-        Foo *arr = arena_push(tmp.arena, Foo, s);
-        for (int i = 0; i < s; i++) {
-            arr[i] = (Foo){
-                .num1 = rand_range(0, 10),
-                .num2 = i,
-                .ch = rand_range('a', 'z'),
-            };
-        }
-
-        for (int i = 0; i < s; i++) {
-            size_t n = binary_search_key(arr, s, num2, i);
-            assert((int)n == i);
-        }
-    }
-
-
-    arena_temp_release(tmp);
-}
-
-int main() {
-    test_search();
-    test_binary_search();
-    return 0;
-}
+#endif // SEARCH_H

@@ -166,7 +166,7 @@ void tester_print_stats(Tester *tester) {
 }
 
 
-#ifdef _WIN32
+#if OS_WINDOWS
 #include <windows.h>
 #include <psapi.h>
 
@@ -198,7 +198,7 @@ i64 get_page_faults() {
     return usage.ru_majflt + usage.ru_minflt;
 }
 
-#endif // _WIN32
+#endif // OS_WINDOWS
 #endif // REPETITION_TESTER_AS_HEADER
 
 

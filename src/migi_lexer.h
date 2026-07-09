@@ -16,7 +16,6 @@
 #include "migi_core.h"
 #include "migi_string.h"
 
-#define PROFILER_H_IMPLEMENTATION
 #include "profiler.h"
 
 // TODO: add line and column count tracking

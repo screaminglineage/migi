@@ -1,7 +1,6 @@
 #ifndef MIGI_HASHMAP_H
 #define MIGI_HASHMAP_H
 
-#define PROFILER_H_IMPLEMENTATION
 #define ENABLE_PROFILING
 #include "profiler.h"
 

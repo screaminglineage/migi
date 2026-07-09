@@ -19,12 +19,11 @@
 #define REPETITION_TESTER_LIVE_VIEW
 #include "repetition_tester.h"
 
-#define PROFILER_H_IMPLEMENTATION
 // #define ENABLE_PROFILING
 #include "profiler.h"
 
 // #define MIGI_DONT_AUTO_SEED_RNG
-#include "migi_random.h"
+#include "random.h"
 
 #include "dynamic_array.h"
 

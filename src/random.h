@@ -1,11 +1,6 @@
 #ifndef MIGI_RANDOM_H
 #define MIGI_RANDOM_H
 
-// TODO: rename to random.h since there are no name conflicts
-// TODO: collapse the rand_* and randr_* functions into macros which optionally
-// take the rng context, similar to how cli_parse_new does it
-// Eg. `rand_random(.rng=&my_rng)` and `rand_random()`
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

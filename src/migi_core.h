@@ -210,7 +210,7 @@ typedef uint8_t byte;
 #define todof_expr(type, ...) (todof(__VA_ARGS__), (type){0})
 
 // GCC defines `migi_unreachable` in stddef.h since C23 (why squat this name???!!!!)
-#ifdef OS_WINDOWS
+#if OS_WINDOWS
     #define migi_unreachable() (crash_with_message("%s: migi_unreachable!", __func__), __assume(0))
     #define migi_unreachablef(...)  (crash_with_message(__VA_ARGS__), __assume(0))
 #else
@@ -260,7 +260,7 @@ typedef enum {
 // Allows typechecking of printf-like format arguments
 // `format_index` - index of format string in parameters
 // `vararg_index` - index of var arg start in parameters
-#if defined(__GNUC__) || defined(__clang__)
+#if COMPILER_GCC_OR_CLANG
     #ifdef __MINGW_PRINTF_FORMAT
         #define migi_printf_format(format_index, vararg_index) __attribute__ ((format (__MINGW_PRINTF_FORMAT, format_index, vararg_index)))
     #else
@@ -385,13 +385,12 @@ do {                                                \
         return val;                         \
     }
 
-// Set `result` to a value and goto `end` label
+// Set `result` to a value and goto the `end` label
 // Useful for cleaning up stuff before exiting
-// TODO: rename this to goto_end_with?
-#define return_with(expr) \
-do {                      \
-    result = expr;        \
-    goto end;             \
+#define goto_end_with(expr) \
+do {                        \
+    result = expr;          \
+    goto end;               \
 } while (0)
 
 
