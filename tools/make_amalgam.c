@@ -1,11 +1,13 @@
 // A single file with all the main headers concatenated to have a single header library
 // Inspired by SQLite Amalgamation
 
-#define DEFAULT_OUTPUT_PATH S("build/migi_amalgam.h")
+#define DEFAULT_OUTPUT_PATH S("gen/migi_amalgam.h")
 
 #include "migi.h"
 #include "cli_parse.h"
 #include "file.h"
+#include "filepath.h"
+#include "filesystem.h"
 
 int main(int argc, char **argv) {
     Arena *a = arena_init();
@@ -65,11 +67,11 @@ int main(int argc, char **argv) {
             strlist_push(a, &amalgam, S("\n"));
         }
     }
-
     strlist_push(a, &amalgam, S("#endif // #ifndef MIGI_AMALGAM_H\n"));
-    if (!str_to_file(strlist_to_str(a, &amalgam), *output_path)) {
-        return 1;
-    }
+
+    Str output_dir = path_dirname(*output_path, S("/"));
+    if (!dir_make_if_not_exists(output_dir))                     return 1;
+    if (!str_to_file(strlist_to_str(a, &amalgam), *output_path)) return 1;
     migi_log(Log_Info, "Generated '%.*s'", SArg(*output_path));
 
     return 0;

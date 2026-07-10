@@ -394,6 +394,8 @@ do {                        \
 } while (0)
 
 
+
+// Logging functions
 typedef enum {
     Log_Debug,
     Log_Info,
@@ -448,5 +450,10 @@ static LogLevel migi_log_set_level(LogLevel level) {
 // migi_log_with_ctx will print the name of the function where the logger was called
 #define migi_log_with_ctx(level, ...) migi_log_opt(level, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define migi_log(level, ...) migi_log_opt(level, __FILE__, __LINE__, NULL, __VA_ARGS__)
+
+#define log_debug(...) migi_log_opt(Log_Debug, __FILE__, __LINE__, NULL, __VA_ARGS__)
+#define log_info(...) migi_log_opt(Log_Info, __FILE__, __LINE__, NULL, __VA_ARGS__)
+#define log_warning(...) migi_log_opt(Log_Warning, __FILE__, __LINE__, NULL, __VA_ARGS__)
+#define log_error(...) migi_log_opt(Log_Error, __FILE__, __LINE__, NULL, __VA_ARGS__)
 
 #endif // MIGI_CORE_H

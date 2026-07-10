@@ -57,7 +57,7 @@ static FileType file_type(Str filepath) {
     int attrs = GetFileAttributes(str_to_cstr(tmp.arena, filepath));
     if (attrs == INVALID_FILE_ATTRIBUTES) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to get file type for: '%.*s': %.*s", SArg(filepath), SArg(err_str));
+        migi_log(Log_Error, "Failed to get file type for: '%.*s': %.*s", SArg(filepath), SArg(err_str));
         result.error = true;
     } else {
         result.is_directory       = attrs & FILE_ATTRIBUTE_DIRECTORY;
@@ -91,7 +91,7 @@ static bool file_touch(Str filepath) {
 
     if (file == INVALID_HANDLE_VALUE) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to touch file: '%.*s': %.*s", SArg(filepath), SArg(err_str));
+        migi_log(Log_Error, "Failed to touch file: '%.*s': %.*s", SArg(filepath), SArg(err_str));
         goto_end_with(false);
     }
 
@@ -101,13 +101,13 @@ static bool file_touch(Str filepath) {
     FILETIME file_time;
     if (!SystemTimeToFileTime(&sys_time, &file_time)) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to convert system time to file time: '%.*s': %.*s", SArg(filepath), SArg(err_str));
+        migi_log(Log_Error, "Failed to convert system time to file time: '%.*s': %.*s", SArg(filepath), SArg(err_str));
         goto_end_with(false);
     }
 
     if (!SetFileTime(file, &file_time, &file_time, &file_time)) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to set file time: '%.*s': %.*s", SArg(filepath), SArg(err_str));
+        migi_log(Log_Error, "Failed to set file time: '%.*s': %.*s", SArg(filepath), SArg(err_str));
         goto_end_with(false);
     }
 
@@ -127,7 +127,7 @@ static bool file_copy_opt(Str from, Str to, FileOpt opt) {
 
     if (!CopyFileA(from_cstr, to_cstr, !opt.replace_existing)) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to copy file: '%.*s' => '%.*s': %.*s", SArg(from), SArg(to), SArg(err_str));
+        migi_log(Log_Error, "Failed to copy file: '%.*s' => '%.*s': %.*s", SArg(from), SArg(to), SArg(err_str));
         result = false;
     }
 
@@ -149,7 +149,7 @@ static bool file_move_opt(Str from, Str to, FileOpt opt) {
 
     if (result && !MoveFileExA(from_cstr, to_cstr, flags)) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to move file: '%.*s' => '%.*s': %.*s", SArg(from), SArg(to), SArg(err_str));
+        migi_log(Log_Error, "Failed to move file: '%.*s' => '%.*s': %.*s", SArg(from), SArg(to), SArg(err_str));
         result = false;
     }
 
@@ -166,7 +166,7 @@ static bool file_delete(Str filepath) {
     Temp tmp = arena_temp();
     if (!DeleteFileA(str_to_cstr(tmp.arena, filepath))) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to delete file: '%.*s': %.*s", SArg(filepath), SArg(err_str));
+        migi_log(Log_Error, "Failed to delete file: '%.*s': %.*s", SArg(filepath), SArg(err_str));
         result = false;
     }
     arena_temp_release(tmp);
@@ -180,10 +180,10 @@ static bool dir_make_if_not_exists(Str dirpath) {
     if (!CreateDirectoryA(str_to_cstr(tmp.arena, dirpath), NULL)) {
         if (GetLastError() != ERROR_ALREADY_EXISTS) {
             Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "failed to create directory: '%.*s': %.*s", SArg(dirpath), SArg(err_str));
+            migi_log(Log_Error, "Failed to create directory: '%.*s': %.*s", SArg(dirpath), SArg(err_str));
             result = false;
         } else {
-            migi_log(Log_Info, "directory: '%.*s' already exists", SArg(dirpath));
+            Migi_log(Log_Info, "Directory: '%.*s' already exists", SArg(dirpath));
         }
     }
 
@@ -202,7 +202,7 @@ static bool dir_copy(Str from, Str to) {
     bool error = false;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
-            migi_log(Log_Error, "failed to copy file: '%.*s': ", SArg(file.path));
+            migi_log(Log_Error, "Failed to copy file: '%.*s': ", SArg(file.path));
             error = true;
         }
 
@@ -254,7 +254,7 @@ static bool dir_move(Str from, Str to) {
     uint32_t prev_depth = 0;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
-            migi_log(Log_Error, "failed to move file: '%.*s': ", SArg(file.path));
+            migi_log(Log_Error, "Failed to move file: '%.*s': ", SArg(file.path));
             error = true;
         }
         if (file.depth < prev_depth) {
@@ -263,7 +263,7 @@ static bool dir_move(Str from, Str to) {
                 if (dir->depth >= file.depth) continue;
                 if (!RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path))) {
                     Str err_str = str_last_error(tmp.arena);
-                    migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
                     goto end;
                 }
                 prev->next = dir->next;
@@ -292,7 +292,7 @@ static bool dir_move(Str from, Str to) {
     list_foreach(dirs_to_delete, dir) {
         if (!RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path))) {
             Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+            migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
             goto end;
         }
     }
@@ -313,7 +313,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
             result = true;
         } else {
             Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(root_path), SArg(err_str));
+            migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(root_path), SArg(err_str));
         }
         arena_temp_release(tmp);
         return result;
@@ -330,7 +330,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
     uint32_t prev_depth = 0;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
-            migi_log(Log_Error, "failed to delete file: '%.*s': ", SArg(file.path));
+            migi_log(Log_Error, "Failed to delete file: '%.*s': ", SArg(file.path));
             goto end;
         }
         if (file.depth < prev_depth) {
@@ -339,7 +339,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
                 if (dir->depth >= file.depth) continue;
                 if (RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path)) == -1) {
                     Str err_str = str_last_error(tmp.arena);
-                    migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
                     goto end;
                 }
                 prev->next = dir->next;
@@ -357,7 +357,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
         } else {
             if (!DeleteFileA(str_to_cstr(tmp.arena, file.path))) {
                 Str err_str = str_last_error(tmp.arena);
-                migi_log(Log_Error, "failed to delete file: '%.*s': %.*s", SArg(file.path), SArg(err_str));
+                migi_log(Log_Error, "Failed to delete file: '%.*s': %.*s", SArg(file.path), SArg(err_str));
                 goto end;
             }
         }
@@ -366,7 +366,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
     list_foreach(dirs_to_delete, dir) {
         if (!RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path))) {
             Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+            migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
             goto end;
         }
     }
@@ -387,7 +387,7 @@ static Str get_cwd(Arena *a) {
     int ret = GetCurrentDirectory(size, buf);
     if (ret == 0) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to get working directory: %.*s", SArg(err_str));
+        migi_log(Log_Error, "Failed to get working directory: %.*s", SArg(err_str));
         arena_pop(a, char, size);
         goto end;
     } else if (ret > size) {
@@ -399,7 +399,7 @@ static Str get_cwd(Arena *a) {
         // null terminator is not included in return value if it succeeds
         if (ret != size - 1) {
             Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "failed to get working directory: %.*s", SArg(err_str));
+            migi_log(Log_Error, "Failed to get working directory: %.*s", SArg(err_str));
             arena_pop(a, char, size);
             goto end;
         }
@@ -421,7 +421,7 @@ static bool set_cwd(Str cwd) {
     Temp tmp = arena_temp();
     if (!SetCurrentDirectoryA(str_to_cstr(tmp.arena, cwd))) {
         Str err_str = str_last_error(tmp.arena);
-        migi_log(Log_Error, "failed to set working directory to '%.*s': %.*s", SArg(cwd), SArg(err_str));
+        migi_log(Log_Error, "Failed to set working directory to '%.*s': %.*s", SArg(cwd), SArg(err_str));
         result = false;
     }
     arena_temp_release(tmp);
@@ -446,7 +446,7 @@ static Str get_executable_path(Arena *a) {
         }
         if (ret == 0) {
             Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "failed to get executable path: %.*s", SArg(err_str));
+            migi_log(Log_Error, "Failed to get executable path: %.*s", SArg(err_str));
             arena_pop(a, char, size);
             goto end;
         }
@@ -487,13 +487,13 @@ static FileType file_type(Str filepath) {
 
     int fd = open(str_to_cstr(tmp.arena, filepath), O_CREAT, S_IRUSR | S_IWUSR);
     if (fd == -1) {
-        migi_log(Log_Error, "file: '%.*s' doesn't exist", SArg(filepath));
+        migi_log(Log_Error, "File: '%.*s' doesn't exist", SArg(filepath));
         goto end;
     }
 
     struct stat file_stat;
     if (fstat(fd, &file_stat) != 0) {
-        migi_log(Log_Error, "failed to stat file: '%.*s'", SArg(filepath));
+        migi_log(Log_Error, "Failed to stat file: '%.*s'", SArg(filepath));
         close(fd);
         goto end;
     }
@@ -529,13 +529,13 @@ static bool file_touch(Str filepath) {
     const char *filepath_cstr = str_to_cstr(tmp.arena, filepath);
     int fd = open(filepath_cstr, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
     if (fd == -1) {
-        migi_log(Log_Error, "failed to touch file: '%.*s': %s", SArg(filepath), strerror(errno));
+        migi_log(Log_Error, "Failed to touch file: '%.*s': %s", SArg(filepath), strerror(errno));
         goto_end_with(false);
     }
     close(fd);
 
     if (utime(filepath_cstr, NULL) == -1) {
-        migi_log(Log_Error, "failed to update file time: '%.*s': %s", SArg(filepath), strerror(errno));
+        migi_log(Log_Error, "Failed to update file time: '%.*s': %s", SArg(filepath), strerror(errno));
         goto_end_with(false);
     }
 
@@ -552,7 +552,7 @@ static bool file_delete(Str filepath) {
     bool result = true;
     Temp tmp = arena_temp();
     if (!file__delete(str_to_cstr(tmp.arena, filepath))) {
-        migi_log(Log_Error, "failed to delete file: '%.*s': %s", SArg(filepath), strerror(errno));
+        migi_log(Log_Error, "Failed to delete file: '%.*s': %s", SArg(filepath), strerror(errno));
         result = false;
     }
     arena_temp_release(tmp);
@@ -563,7 +563,7 @@ static bool file_delete(Str filepath) {
 static bool file__copy(const char *from, const char *to, bool replace_existing, int *from_fd, int *to_fd) {
     *from_fd = open(from, O_RDONLY);
     if (*from_fd == -1) {
-        migi_log(Log_Error, "failed to open file: '%s': %s", from, strerror(errno));
+        migi_log(Log_Error, "Failed to open file: '%s': %s", from, strerror(errno));
         return false;
     }
 
@@ -576,14 +576,14 @@ static bool file__copy(const char *from, const char *to, bool replace_existing, 
     // TODO: use the constants for the `mode` parameter rather than the number directly
     *to_fd = creat(to, 0660);
     if (*to_fd == -1) {
-        migi_log(Log_Error, "failed to create file: '%s': %s", to, strerror(errno));
+        migi_log(Log_Error, "Failed to create file: '%s': %s", to, strerror(errno));
         close(*from_fd);
         return false;
     }
 
     struct stat from_stat;
     if (fstat(*from_fd, &from_stat) != 0) {
-        migi_log(Log_Error, "failed to stat file: '%s': %s", from, strerror(errno));
+        migi_log(Log_Error, "Failed to stat file: '%s': %s", from, strerror(errno));
         close(*from_fd);
         close(*to_fd);
         return false;
@@ -593,7 +593,7 @@ static bool file__copy(const char *from, const char *to, bool replace_existing, 
     while (copied < from_stat.st_size) {
         ssize_t sent = sendfile(*to_fd, *from_fd, NULL, SSIZE_MAX);
         if (sent == -1) {
-            migi_log(Log_Error, "failed to copy file: '%s': %s", from, strerror(errno));
+            migi_log(Log_Error, "Failed to copy file: '%s': %s", from, strerror(errno));
             close(*from_fd);
             close(*to_fd);
             return false;
@@ -637,7 +637,7 @@ static bool file_move_opt(Str from, Str to, FileOpt opt) {
     }
 
     if (!file__delete(from_cstr)) {
-        migi_log(Log_Error, "failed to delete source file: '%.*s': %s", SArg(from), strerror(errno));
+        migi_log(Log_Error, "Failed to delete source file: '%.*s': %s", SArg(from), strerror(errno));
         result = false;
     }
 
@@ -654,10 +654,10 @@ static bool dir_make_if_not_exists(Str dirpath) {
 
     if (mkdir(str_to_cstr(tmp.arena, dirpath), 0700) < 0) {
         if (errno != EEXIST) {
-            migi_log(Log_Error, "failed to create directory: '%.*s': %s", SArg(dirpath), strerror(errno));
+            migi_log(Log_Error, "Failed to create directory: '%.*s': %s", SArg(dirpath), strerror(errno));
             result = false;
         } else {
-            migi_log(Log_Info, "directory: '%.*s' already exists", SArg(dirpath));
+            migi_log(Log_Info, "Directory: '%.*s' already exists", SArg(dirpath));
         }
     }
 
@@ -676,7 +676,7 @@ static bool dir_copy(Str from, Str to) {
     bool error = false;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
-            migi_log(Log_Error, "failed to copy file: '%.*s': ", SArg(file.path));
+            migi_log(Log_Error, "Failed to copy file: '%.*s': ", SArg(file.path));
             error = true;
         }
 
@@ -728,7 +728,7 @@ static bool dir_move(Str from, Str to) {
     uint32_t prev_depth = 0;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
-            migi_log(Log_Error, "failed to move file: '%.*s': ", SArg(file.path));
+            migi_log(Log_Error, "Failed to move file: '%.*s': ", SArg(file.path));
             error = true;
         }
         if (file.depth < prev_depth) {
@@ -736,7 +736,7 @@ static bool dir_move(Str from, Str to) {
             for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
                 if (dir->depth >= file.depth) continue;
                 if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-                    migi_log(Log_Error, "failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
+                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
                     goto end;
                 }
                 prev->next = dir->next;
@@ -763,7 +763,7 @@ static bool dir_move(Str from, Str to) {
 
     list_foreach(dirs_to_delete, dir) {
         if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-            migi_log(Log_Error, "failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
+            migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
             goto end;
         }
     }
@@ -783,7 +783,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
         if (dir__delete_empty(str_to_cstr(tmp.arena, root_path))) {
             result = true;
         } else {
-            migi_log(Log_Error, "failed to delete directory: '%.*s': %s", SArg(root_path), strerror(errno));
+            migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(root_path), strerror(errno));
         }
         arena_temp_release(tmp);
         return result;
@@ -800,7 +800,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
     uint32_t prev_depth = 0;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
-            migi_log(Log_Error, "failed to delete file: '%.*s': ", SArg(file.path));
+            migi_log(Log_Error, "Failed to delete file: '%.*s': ", SArg(file.path));
             goto end;
         }
         if (file.depth < prev_depth) {
@@ -808,7 +808,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
             for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
                 if (dir->depth >= file.depth) continue;
                 if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-                    migi_log(Log_Error, "failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
+                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
                     goto end;
                 }
                 prev->next = dir->next;
@@ -824,7 +824,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
             stack_push(dirs_to_delete, node);
         } else {
             if (!file__delete(str_to_cstr(tmp.arena, file.path))) {
-                migi_log(Log_Error, "failed to delete file: '%.*s': %s", SArg(file.path), strerror(errno));
+                migi_log(Log_Error, "Failed to delete file: '%.*s': %s", SArg(file.path), strerror(errno));
                 goto end;
             }
         }
@@ -832,7 +832,7 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
 
     list_foreach(dirs_to_delete, dir) {
         if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-            migi_log(Log_Error, "failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
+            migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
             goto end;
         }
     }
@@ -861,7 +861,7 @@ static Str get_cwd(Arena *a) {
         ret = getcwd(buf, size);
     }
     if (ret == NULL) {
-        migi_log(Log_Error, "failed to get working directory: %s", strerror(errno));
+        migi_log(Log_Error, "Failed to get working directory: %s", strerror(errno));
         arena_pop(a, char, size);
         return str_zero();
     }
@@ -875,7 +875,7 @@ static bool set_cwd(Str cwd) {
     bool result = true;
     Temp tmp = arena_temp();
     if (chdir(str_to_cstr(tmp.arena, cwd)) == -1) {
-        migi_log(Log_Error, "failed to set working directory to '%.*s': %s", SArg(cwd), strerror(errno));
+        migi_log(Log_Error, "Failed to set working directory to '%.*s': %s", SArg(cwd), strerror(errno));
         result = false;
     }
     arena_temp_release(tmp);
@@ -907,7 +907,7 @@ static Str get_executable_path(Arena *a) {
     return cwd;
 
 err:
-    migi_log(Log_Error, "failed to get executable path: %s", strerror(errno));
+    migi_log(Log_Error, "Failed to get executable path: %s", strerror(errno));
     arena_pop(a, char, size);
     return str_zero();
 }
