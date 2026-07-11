@@ -259,12 +259,13 @@ static void rand_shuffle_bytes(byte *buf, size_t elem_size, size_t size, RandOpt
     Temp tmp = arena_temp();
     byte *temp_buf = arena_push_nonzero(tmp.arena, byte, elem_size);
 
-    for (size_t i = 0; i < size - 1; i++) {
-        int64_t rand_index = rand_range_exclusive_opt(0, size, opt);
+    // Fisher-Yates Shuffle
+    for (size_t i = 0; i < size - 2; i++) {
+        int64_t j = rand_range_exclusive_opt(i, size, opt);
 
         memcpy(temp_buf, &buf[elem_size*i], elem_size);
-        memcpy(&buf[elem_size*i], &buf[elem_size*rand_index], elem_size);
-        memcpy(&buf[elem_size*rand_index], temp_buf, elem_size);
+        memcpy(&buf[elem_size*i], &buf[elem_size*j], elem_size);
+        memcpy(&buf[elem_size*j], temp_buf, elem_size);
     }
     arena_temp_release(tmp);
 }

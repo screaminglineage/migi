@@ -106,12 +106,9 @@ static Str str_advance(Str *str, size_t amount);
 
 
 typedef enum {
-    Find_Reverse         = bit(0),
+    Find_Reverse         = bit(0),      // Returns the last match
     Find_IgnoreCase      = bit(1),
-
-    // Treat needle as a sequence of chars, and 
-    // return index of the first match of any of them
-    Find_Any         = bit(2),
+    Find_Any             = bit(2),      // Search for each character in needle separately
 } StrFindOpt;
 
 // Find `needle` within `haystack`
@@ -137,7 +134,6 @@ static Str str_chop_suffix(Str str, Str suffix);
 // Function type for str_skip_while_ functions
 // Gets passed in a character of the string and an optional `void *data`
 typedef bool (str_skip_while_func) (char ch, void *data);
-
 
 typedef enum {
     SkipWhile_Reverse = bit(0),

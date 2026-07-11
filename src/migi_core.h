@@ -209,7 +209,8 @@ typedef uint8_t byte;
 #define todo_expr(type) (todo(), (type){0})
 #define todof_expr(type, ...) (todof(__VA_ARGS__), (type){0})
 
-// GCC defines `migi_unreachable` in stddef.h since C23 (why squat this name???!!!!)
+// GCC defines `unreachable` in stddef.h since C23 (why squat this name???!!!!)
+// TODO: rename migi_unreachable to unreachable_code
 #if OS_WINDOWS
     #define migi_unreachable() (crash_with_message("%s: migi_unreachable!", __func__), __assume(0))
     #define migi_unreachablef(...)  (crash_with_message(__VA_ARGS__), __assume(0))
@@ -232,8 +233,7 @@ typedef uint8_t byte;
 #define bit(n) (1ULL << (n))
 
 // Fill n bits (Eg. bit_fill(4) == 0b1111)
-// TODO: bit_fill(63) will overflow since it will try to do (1 << 64)
-#define bit_fill(n) (assertf(n < 63, "bit_fill: number must be lower than 63"), (1ULL << (n + 1ULL)) - 1ULL)
+#define bit_fill(n) (assertf(n < 64, "bit_fill: number must be lower than 64"), (1ULL << (n)) - 1ULL)
 
 
 typedef enum {
