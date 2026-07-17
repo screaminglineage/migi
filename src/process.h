@@ -19,8 +19,19 @@ typedef struct {
     StrList cmd_stderr;
 } CmdResult;
 
-#define cmd_push(cmd, ...) \
-    cmd__push((cmd), str_span(__VA_ARGS__ ))
+// NOTE: These two are separate since `str_span("foo")` is suprisingly valid.
+// This is because `(Str[]){"foo"}` gets parsed into `(Str){.data="foo", .length=0}`,
+// resulting in no errors in case `cmd_push_many(&cmd, "foo")` is used
+//
+// On the other hand, `cmd_push_many(&cmd, "foo", "bar")`, is not valid since
+// it implies `(Str[]){"foo", "bar"}` which is parsed as `(Str){.data="foo", .length="bar"}`
+// so everything will be fine as long as multiple elements are passed to cmd_push_many
+#define cmd_push(cmd, arg) \
+    cmd__push((cmd), (arg))
+
+#define cmd_push_many(cmd, ...) \
+    cmd__push_many((cmd), str_span( __VA_ARGS__ ))
+
 
 typedef struct {
     // TODO: implement these
@@ -42,7 +53,15 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt);
 static void cmd_reset(Cmd *cmd);
 static void cmd_free(Cmd *cmd);
 
-static void cmd__push(Cmd *cmd, StrSpan args) {
+static void cmd__push(Cmd *cmd, Str arg) {
+    if (!cmd->arena) {
+        cmd->owns_arena = true;
+        cmd->arena = arena_init();
+    }
+    strlist_push(cmd->arena, &cmd->args, arg);
+}
+
+static void cmd__push_many(Cmd *cmd, StrSpan args) {
     if (!cmd->arena) {
         cmd->owns_arena = true;
         cmd->arena = arena_init();

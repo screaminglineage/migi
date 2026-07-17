@@ -2,6 +2,7 @@
 // TODO: add support for choosing the compiler (clang/gcc on linux for the time being)
 
 // TODO: add support for both forward and backslashes on windows somehow
+// TODO: this file cannot replace the old exe when compiled on windows, deal with that somehow
 
 #include <stddef.h>
 #include <stdint.h>
@@ -18,13 +19,13 @@
     #define COMPILER S("gcc")
 #elif OS_WINDOWS
     #define COMPILER S("cl")
+    #define VCVARS_PATH S("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat")
 #else
     #error "Unsupported OS"
 #endif
 
 #define BUILD_FOLDER S("./build")
 
-#define VCVARS_PATH S("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat")
 
 void command_to_args(Arena *arena, char **command_args, StrList *command) {
     StrNode *arg = command->head;
@@ -61,11 +62,17 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
     }
 
 #elif OS_WINDOWS
-    // TODO: resolve the absolute path of filename instead of using a relative path here
-    Str input_file = strf(command.arena, "..\\%.*s", SArg(filename));
-    cmd_push(&command, input_file);
+    // Resolves the absolute path of filename instead of using a relative path here
+    char *input_absolute_path = arena_push_nonzero(command.arena, char, MAX_PATH);
+    if (!GetFullPathNameA(str_to_cstr(command.arena, filename),
+                          MAX_PATH, input_absolute_path, NULL)) {
+        migi_log(Log_Error, "Failed to resolve absolute path of input file: %.*s",
+                SArg(str_last_error(command.arena)));
+        return (Cmd){0};
+    }
+    Str input_absolute_path_str = str_from_cstr(input_absolute_path);
+    cmd_push(&command, input_absolute_path_str);
 
-    // TODO: support specifying the exe name like linux
     // Getting the basename since it sets the CWD to the build directory on windows
     Str exe_path = strf(command.arena, "/Fe%.*s", SArg(path_basename(output_path, S("\\"))));
     cmd_push(&command, exe_path);
@@ -94,7 +101,7 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
         cmd_push(&command, S("/DMIGI_DEBUG_LOGS"));
         // if (sanitizers) cmd_push(&command, S("/fsanitize=address")); // TODO: seems to not work?
     }
-    cmd_push(&command, S("/link"), S("/INCREMENTAL:NO"));
+    cmd_push_many(&command, S("/link"), S("/INCREMENTAL:NO"));
 
 #else
 #error "Unsupported OS"
@@ -232,7 +239,7 @@ int main(int argc, char **argv) {
         // Arguments passed to GDB
         if (*debug) {
             // Start running the program immediately
-            cmd_push(&command, S("-ex"), S("start"));
+            cmd_push_many(&command, S("-ex"), S("start"));
             if (cli_meta_args().length > 0) {
                 // This ensures that the meta args are handled correctly
                 cmd_push(&command, S("--args"));
