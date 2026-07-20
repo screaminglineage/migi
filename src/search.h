@@ -24,7 +24,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
 // Search an array
 #define search(arr, length, key, ...)                                                \
     search_opt((byte *)(check_type(type_of(key), arr)), sizeof(*(arr)), (length), 0, \
-            binarysearch__addr_of(*(arr), (key)),(SearchOpt){ .comparator = compare__func_for(*(arr)), __VA_ARGS__ })
+            address_of(*(arr), (key)),(SearchOpt){ .comparator = compare__func_for(*(arr)), __VA_ARGS__ })
 
 
 // Search a particular field of a struct with a key
@@ -34,13 +34,13 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
 #define search_key(arr, length, field, key, ...)                                          \
     (check_type_value(type_of((arr)->field), (key)),                                      \
     search_opt((byte *)arr, sizeof(*(arr)), (length),                                     \
-            offsetof(type_of(*(arr)), field), binarysearch__addr_of((arr)->field, (key)), \
+            offsetof(type_of(*(arr)), field), address_of((arr)->field, (key)), \
             (SearchOpt){ .comparator = compare__func_for((arr)->field), __VA_ARGS__ }))
 
 // Binary search an array
 #define binary_search(arr, length, key, ...)                                                \
     binary_search_opt((byte *)(check_type(type_of(key), arr)), sizeof(*(arr)), (length), 0, \
-            binarysearch__addr_of(*(arr), (key)),(SearchOpt){ .comparator = compare__func_for(*(arr)), __VA_ARGS__ })
+            address_of(*(arr), (key)),(SearchOpt){ .comparator = compare__func_for(*(arr)), __VA_ARGS__ })
 
 
 // Binary search a particular field of a struct with a key
@@ -50,7 +50,7 @@ static size_t binary_search_opt(byte *arr, size_t elem_size, size_t length, size
 #define binary_search_key(arr, length, field, key, ...)                                   \
     (check_type_value(type_of((arr)->field), (key)),                                      \
     binary_search_opt((byte *)arr, sizeof(*(arr)), (length),                              \
-            offsetof(type_of(*(arr)), field), binarysearch__addr_of((arr)->field, (key)), \
+            offsetof(type_of(*(arr)), field), address_of((arr)->field, (key)), \
             (SearchOpt){ .comparator = compare__func_for((arr)->field), __VA_ARGS__ }))
 
 
@@ -193,8 +193,5 @@ static int compare_char(void *left, void *right, void *user_data) {
         uint64_t: compare_u64,  \
         default:  NULL          \
     )
-
-#define binarysearch__addr_of(T, x) ((type_of(T)[1]){x})
-
 
 #endif // SEARCH_H

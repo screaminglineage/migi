@@ -1,7 +1,8 @@
 #ifndef STR_STYLE_H
 #define STR_STYLE_H
 
-#include "migi_string.h"
+#include "migi_core.h"
+#include "arena.h"
 #include "migi_list.h"
 
 // Convert text to different styles

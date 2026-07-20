@@ -1,9 +1,14 @@
 #ifndef MIGI_FILEPATH_H
 #define MIGI_FILEPATH_H
 
+// TODO: make it so that backslashes are only handled when parsing paths,
+// but functions like path_push, path_cannonicalize etc. always use forward slashes
+// in the paths they create
+
 #include "arena.h"
 #include "migi_string.h"
 #include "migi_list.h"
+#include "string_builder.h"
 
 static Str path_dirname(Str path, Str dir_sep);
 static Str path_basename(Str path, Str dir_sep);
@@ -70,24 +75,25 @@ static Str path_cannonicalize(Arena *a, Str path, Str dir_sep) {
         dll_push_tail(head, tail, node);
     }
 
-    Str result = header;
+    StrBuilder sb = {.arena=a};
+    sb_push(&sb, header);
     for (int i = 0; i < leading_slashes; i++) {
-        result = str_cat(a, result, dir_sep);
+        sb_push(&sb, dir_sep);
     }
 
     list_foreach(head, comp) {
-        result = str_cat(a, result, comp->string);
+        sb_push(&sb, comp->string);
         if (comp->next || trailing_slash) {
-            result = str_cat(a, result, dir_sep);
+            sb_push(&sb, dir_sep);
         }
     }
     arena_temp_release(tmp);
 
-    if (result.length == 0) {
-        result = S("/");
+    if (sb.length == 0) {
+        sb_push_char(&sb, '/');
     }
 
-    return result;
+    return sb_to_str(&sb);
 }
 
 #endif // ifndef MIGI_FILEPATH_H

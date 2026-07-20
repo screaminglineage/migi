@@ -103,5 +103,6 @@ void test_binary_search() {
 int main() {
     test_search();
     test_binary_search();
+    printf("\nExiting Successfully\n");
     return 0;
 }

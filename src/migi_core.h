@@ -136,6 +136,12 @@ typedef uint8_t byte;
 // Obtains a pointer to the parent struct from a pointer to a member element
 #define parent_of(T, member_name, elem) (T *)((uintptr_t)(elem) - offsetof(T, member_name))
 
+// Array with a single element that decays to a pointer
+// Needed for calls like `hashmap_put(&h, 1, foo)`, since `&1` is invalid
+// NOTE: `type_of(value)` cannot be used here since if `value` is a c-string,
+// then `type_of(value)` returns `char[1][LEN(cstr)]` instead of `char**`
+#define address_of(typevar, value) ((type_of(typevar)[1]){value})
+
 
 #if COMPILER_GCC_OR_CLANG
     #define migi_crash() __builtin_trap()
@@ -179,26 +185,13 @@ typedef uint8_t byte;
          : (void)0)
 #endif
 
-
-#if defined( __STDC_VERSION__ ) && __STDC_VERSION__ >= 201112L
-    #define static_assert(expr, msg) _Static_assert(expr, msg)
-#else
-    #if COMPILER_MSVC
-        #define static__assert__tmp1(count) static__assert__tmp_##count
-        #define static__assert__tmp(count) static__assert__tmp1(count)
-        #define static_assert(expr, msg) typedef char static__assert__tmp(__COUNTER__)[(expr)? 1: -1]
-    #else
-        #define static_assert(expr, msg) \
-            typedef char static__assert__tmp[!(expr)? -1: 1] __attribute__((unused))
-    #endif
-#endif
-
 #define crash_with_message(...)                      \
     (fprintf(stderr, "%s:%d: ", __FILE__, __LINE__), \
     fprintf(stderr, __VA_ARGS__),                    \
     fprintf(stderr, "\n"),                           \
     migi_crash())
 
+#define static_assert(expr, msg) _Static_assert(expr, msg)
 #define todo() crash_with_message("%s: not yet implemented!", __func__)
 #define todof(...) crash_with_message(__VA_ARGS__)
 #define incomplete() static_assert(false, "incomplete")
@@ -235,6 +228,26 @@ typedef uint8_t byte;
 
 // Fill n bits (Eg. bit_fill(4) == 0b1111)
 #define bit_fill(n) (assertf(n < 64, "bit_fill: number must be lower than 64"), (1ULL << (n)) - 1ULL)
+
+
+// Basic definitions so that migi_string.h doesnt need to always be included
+typedef struct {
+    char *data;
+    size_t length;
+} Str;
+
+typedef struct {
+    Str *data;
+    size_t length;
+} StrSpan;
+
+// TODO: find what other basic string functions should instead be here
+#define str_span(...) span(Str, StrSpan, __VA_ARGS__)
+#define str_span_new(arena, ...) span_new((arena), Str, StrSpan, __VA_ARGS__)
+
+#define S(str_lit)  ((Str){(str_lit), sizeof((str_lit)) - 1})
+#define SArg(sv) (int)(sv).length, (sv).data
+#define str_zero() ((Str){0})
 
 
 typedef enum {

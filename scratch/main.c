@@ -214,16 +214,16 @@ void test_chained_arena() {
 }
 
 void test_string_builder_formatted() {
-    StrBuilder sb = sb_init();
+    StrBuilder sb = {0};
     sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99),
              "what is this even doing????");
-    assert(sb_length(&sb) == 67);
+    assert(sb.length == 67);
     sb_pushf(&sb, "Hello world, %d, %.10f - %s\n\n", -3723473, sin(25.6212e99),
              "what is this even doing????");
-    assert(sb_length(&sb) == 67 + 67);
+    assert(sb.length == 67 + 67);
 
     {
-        StrBuilder sb1 = sb_init();
+        StrBuilder sb1 = {0};
         sb_push(&sb1, S("foo"));
         sb_push(&sb1, S("bar"));
         sb_push(&sb1, S("baz"));
@@ -242,12 +242,13 @@ void test_string_builder_formatted() {
 
     sb_pushf(&sb, "%s\n", cstr);
     printf("%s", sb_to_cstr(&sb, .no_reset=true));
-    assert(sb_length(&sb) == 67 + 67 + str.length + 1);
+    assert(sb.length == 67 + 67 + (int64_t)str.length + 1);
 
     {
-
         char buffer[2048] = {0};
-        StrBuilder sb_static = sb_init_static(buffer, sizeof(buffer));
+        StrBuilder sb_static = {
+            .arena = arena_init_static(buffer, sizeof(buffer))
+        };
         sb_pushf(&sb_static, "%.*s/%s:%d\n", SArg(S("FILE PATH")), __FILE__, __LINE__);
         printf("%.*s", SArg(sb_to_str(&sb_static)));
     }
@@ -256,7 +257,58 @@ void test_string_builder_formatted() {
 void test_string_builder() {
     test_string_builder_formatted();
 
-    StrBuilder sb = sb_init();
+    // sb_to_str: Arena is not reset if it was passed from the outside
+    {
+        char buf[4096];
+        StrBuilder sb = {
+            .arena = arena_init_static(buf, sizeof(buf))
+        };
+        sb_push(&sb, "foo");
+        Str foo = sb_to_str(&sb);
+
+        sb_push(&sb, "bar");
+        Str bar = sb_to_str(&sb);
+
+        assertf(str_eq(foo, S("foo")), "old values persist in the arena after sb_reset");
+        assertf(str_eq(bar, S("bar")), "old values persist in the arena after sb_reset");
+        assertf(sb.arena->position > sizeof(Arena), "arena was not reset");
+    }
+
+    // sb_to_str: Arena is reset if it is owned by the StrBuilder
+    {
+        StrBuilder sb = {0};
+        sb_push(&sb, "foo");
+        Str foo = sb_to_str(&sb);
+
+        sb_push(&sb, "bar");
+        Str bar = sb_to_str(&sb);
+
+        assertf(str_eq(foo, S("bar")), "old values do not persist in the arena after sb_reset");
+        assertf(str_eq(bar, S("bar")), "old values do not persist in the arena after sb_reset");
+        assertf(sb.arena->position == sizeof(Arena), "arena was reset");
+    }
+
+    // sb_from_str: If `str` was the last allocation on `arena`, no extra copies are done
+    {
+        {
+            Str hello = S("hello");
+            StrBuilder sb = sb_from_str(hello);
+            Str hello_new = sb_to_str(&sb);
+            assertf(hello.data != hello_new.data, "hello_new is a copy of hello");
+        }
+
+        {
+            Arena *a = arena_init();
+            Str hello_copy = str_copy(a, S("hello"));
+            StrBuilder sb = sb_from_str(hello_copy, .arena=a);
+            sb_push(&sb, S(" world"));
+
+            Str hello_world = sb_to_str(&sb);
+            assertf(hello_copy.data == hello_world.data, "hello_copy was not copied again");
+        }
+    }
+
+    StrBuilder sb = {0};
     defer_block(sb_reset(&sb)) {
         sb_push(&sb, S("foo-bar-baz"));
         sb_push(&sb, " ");
@@ -271,11 +323,12 @@ void test_string_builder() {
         sb_push(&sb, false);
         sb_push(&sb, " ");
         sb_push(&sb, &sb);
+        sb_push(&sb, str_span(S(" some"), S(" more"), S(" stuff")));
 
         printf("%s\n", sb_to_cstr(&sb, .no_reset=true));
-        printf("len: %zu\n", sb_length(&sb));
+        printf("len: %zu\n", sb.length);
     }
-    printf("len: %zu\n", sb_length(&sb));
+    printf("len: %zu\n", sb.length);
 }
 
 
@@ -1477,6 +1530,7 @@ void test_ring_buffer() {
 
 int main() {
     Arena *a = arena_init();
+
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

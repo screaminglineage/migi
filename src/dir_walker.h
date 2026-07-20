@@ -2,7 +2,6 @@
 #define MIGI_DIR_WALKER_H
 
 #include "migi_core.h"
-#include "migi_string.h"
 #include "migi_list.h"
 #include "dynamic_string.h"
 

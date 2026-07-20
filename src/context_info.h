@@ -4,7 +4,6 @@
 // Get info about OS, compiler, architecture as a string
 
 #include "migi_core.h"
-#include "migi_string.h"
 
 static Str os_name() {
 #if OS_WINDOWS

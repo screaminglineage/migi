@@ -2,8 +2,8 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #include "migi.h"
-#include "migi_string.h"
 #include "string_builder.h"
+#include "file.h"
 #include "migi_lexer.h"
 #pragma GCC diagnostic pop
 
@@ -36,7 +36,7 @@ bool dump_tokens(Lexer *lexer) {
 }
 
 int main() {
-    StrBuilder sb = sb_init();
+    StrBuilder sb = {0};
     sb_push_file(&sb, S("scratch/test_lexer.c"));
 
     Lexer l = {.string = sb_to_str(&sb, .no_reset=true)};

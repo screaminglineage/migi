@@ -1,7 +1,6 @@
 #ifndef MIGI_FILESYSTEM_H
 #define MIGI_FILESYSTEM_H
 
-#include "migi_string.h"
 #include "file.h"
 
 // TODO: add file_info() for basic file info (size/times/etc.)

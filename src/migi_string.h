@@ -12,26 +12,6 @@
 #include "migi_core.h"
 #include "arena.h"
 
-// TODO: Put the definitions of `Str` and `S` into migi_core so that
-// headers which do not use any str_* functions dont have to include
-// migi_string.h
-typedef struct {
-    char *data;
-    size_t length;
-} Str;
-
-typedef struct {
-    Str *data;
-    size_t length;
-} StrSpan;
-
-#define str_span(...) span(Str, StrSpan, __VA_ARGS__)
-#define str_span_new(arena, ...) span_new((arena), Str, StrSpan, __VA_ARGS__)
-
-#define S(str_lit)  ((Str){(str_lit), sizeof((str_lit)) - 1})
-#define SArg(sv) (int)(sv).length, (sv).data
-#define str_zero() ((Str){0})
-
 // TODO: check for other whitespace characters
 // https://stackoverflow.com/a/46637343
 // Cannot use S macro here since compound literals are apparently not constants on MSVC
@@ -52,9 +32,7 @@ static Str str_copy(Arena *arena, Str str);
 // Concatenates `tail` to the end of `head` if that was the last allocation,
 // otherwise copies both `head` and `tail` to a new continuous allocation.
 // Returns the concatenated string, so it can be chained.
-// `str_catf` behaves the same, but uses the formatted printing instead.
 static Str str_cat(Arena *arena, Str head, Str tail);
-migi_printf_format(3, 4) static Str str_catf(Arena *arena, Str head, const char *fmt, ...);
 
 typedef enum {
     Eq_IgnoreCase = bit(0),
@@ -246,28 +224,6 @@ static Str str_cat(Arena *arena, Str head, Str tail) {
         head = str_copy(arena, head);
     }
     head.length += str_copy(arena, tail).length;
-    return head;
-}
-
-static Str str_catf(Arena *arena, Str head, const char *fmt, ...) {
-    Arena *current = arena->current;
-    if ((byte *)current + current->position != (byte *)head.data + head.length) {
-        Temp tmp = arena_temp_excl(arena);
-        va_list args;
-        va_start(args, fmt);
-        Str tail = str__format(tmp.arena, fmt, args);
-        va_end(args);
-        head = str_copy(arena, head);
-        head.length += str_copy(arena, tail).length;
-        arena_temp_release(tmp);
-        return head;
-    }
-
-    va_list args;
-    va_start(args, fmt);
-    Str tail = str__format(arena, fmt, args);
-    va_end(args);
-    head.length += tail.length;
     return head;
 }
 

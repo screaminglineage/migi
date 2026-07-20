@@ -2,10 +2,10 @@
 #include <stddef.h>
 #include <stdio.h>
 #include "migi.h"
-#include "migi_string.h"
 #include "string_builder.h"
 #include "migi_lexer.h"
 #include "dynamic_array.h"
+#include "file.h"
 
 // TODO: generate special case for:
 // - unions [?] (undefined behaviour to access the wrong member)
@@ -247,7 +247,7 @@ int main(int argc, char *argv[]) {
         output_dir = shift_args(argc, argv);
     }
 
-    StrBuilder reader = sb_init();
+    StrBuilder reader = {0};
     sb_push_file(&reader, input_file);
     Str file_data = sb_to_str(&reader);
 
@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    StrBuilder writer = sb_init();
+    StrBuilder writer = {0};
 
     generate_string_printer(&writer);
     Str filename_string = strf(tmp.arena, "%s/String_printer.gen.c", output_dir);

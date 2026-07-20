@@ -5,6 +5,7 @@
 #include "profiler.h"
 
 #include "migi_string.h"
+
 #include "arena.h"
 
 // NOTE: HASHMAP_INIT_CAP *must* always be a power of two or bad things will happen
@@ -102,14 +103,6 @@ typedef struct {
         .elem_size    = sizeof(type_of(*(hashmap)->pairs)),          \
         .elem_align   = align_of(type_of(*(hashmap)->pairs)),        \
     }
-
-
-// Array with a single element that decays to a pointer
-// Needed for calls like `hashmap_put(&h, 1, foo)`, since `&1` is invalid
-// NOTE: type_of(x) cannot be used here since if x is a c-string,
-// then type_of(x) returns `char[1][LEN(cstr)]` instead of `char**`
-#define hashmap__addr_of(T, x) ((type_of(T)[1]){x})
-
 
 
 // TODO: move the hash functions to a hash.h and add some more stuff
@@ -377,7 +370,7 @@ static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
 #define hashmap_put(arena, hashmap, k, v)                                                              \
     (void)(                                                                                            \
         (hashmap)->pairs = hashmap__put((arena), &(hashmap)->_h, hashmap__generic((hashmap)),          \
-                                        (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
+                                        (hashmap)->pairs, address_of((hashmap)->pairs->key, k)), \
         (hashmap)->pairs[(hashmap)->_temp_index].key = (k),                                            \
         (hashmap)->pairs[(hashmap)->_temp_index].value = (v)                                           \
     )
@@ -396,7 +389,7 @@ static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
 // If key is not present, it is inserted with the default value
 #define hashmap_entry(arena, hashmap, k)                                                           \
     ((hashmap)->pairs = hashmap__put((arena), &(hashmap)->_h, hashmap__generic((hashmap)),         \
-                                    (hashmap)->pairs, hashmap__addr_of((hashmap)->pairs->key, k)), \
+                                    (hashmap)->pairs, address_of((hashmap)->pairs->key, k)), \
     (hashmap)->pairs[(hashmap)->_temp_index].key = (k),                                            \
     (hashmap)->pairs[(hashmap)->_temp_index].value = (hashmap)->pairs[0].value,                    \
     &(hashmap)->pairs[(hashmap)->_temp_index].value)
@@ -421,7 +414,7 @@ static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
 #define hashmap_get(hashmap, k)                                                  \
     (check_type_value(type_of((hashmap)->pairs->key), (k)),                      \
     (hashmap__get(&(hashmap)->_h, hashmap__generic((hashmap)), (hashmap)->pairs, \
-                   hashmap__addr_of((hashmap)->pairs->key, k)),                  \
+                   address_of((hashmap)->pairs->key, k)),                  \
     (hashmap)->pairs[(hashmap)->_temp_index].value))                             \
 
 
@@ -430,7 +423,7 @@ static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
 #define hashmap_at(hashmap, k)                                                   \
     (check_type_value(type_of((hashmap)->pairs->key), (k)),                      \
     (hashmap__get(&(hashmap)->_h, hashmap__generic((hashmap)), (hashmap)->pairs, \
-                   hashmap__addr_of((hashmap)->pairs->key, k)),                  \
+                   address_of((hashmap)->pairs->key, k)),                  \
     (hashmap)->_temp_index == 0                                                  \
         ? NULL                                                                   \
         : (&(hashmap)->pairs[(hashmap)->_temp_index].value)))
@@ -448,7 +441,7 @@ static void hashmap__del(HashMapHeader *h, HashMapGeneric g, void *pairs, void *
 #define hashmap_del(hashmap, k)                                                            \
     (check_type_value(type_of((hashmap)->pairs->key), (k)),                                \
     hashmap__del(&(hashmap)->_h, hashmap__generic((hashmap)), (hashmap)->pairs,            \
-                  hashmap__addr_of((hashmap)->pairs->key, k)),                             \
+                  address_of((hashmap)->pairs->key, k)),                             \
     (hashmap)->_temp_index == 0                                                            \
       ? (hashmap)->pairs[0].value                                                          \
       : ((hashmap)->pairs[(hashmap)->size + 2] = (hashmap)->pairs[(hashmap)->_temp_index], \

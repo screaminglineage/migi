@@ -23,6 +23,7 @@ void html_end(StrBuilder *html) {
 }
 
 // TODO: can the str_cat be done in bulk rather than character by character in the default branch?
+// TODO: is str_cat really needed here or can the string_builder itself suffice?
 Str escape_html(Arena *a, Str str) {
     Str escaped = {0};
 
@@ -464,7 +465,7 @@ int main() {
 
     Str md = str_from_file(a, input_file);
 
-    StrBuilder html = sb_init();
+    StrBuilder html = {0};
     html_begin(&html);
     html_render_md(&html, md);
     html_end(&html);
