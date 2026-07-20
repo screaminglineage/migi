@@ -1,29 +1,31 @@
 // TODO: automatically rebuild this file if it is newer than build/build
-// TODO: add support for msvc
 // TODO: add support for choosing the compiler (clang/gcc on linux for the time being)
+
+// TODO: add support for both forward and backslashes on windows somehow
+// TODO: this file cannot replace the old exe when compiled on windows, deal with that somehow
 
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "migi.h"
 #include "cli_parse.h"
 #include "process.h"
+#include "filesystem.h"
 
 #if OS_LINUX
     #define COMPILER S("gcc")
 #elif OS_WINDOWS
     #define COMPILER S("cl")
+    #define VCVARS_PATH S("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat")
 #else
     #error "Unsupported OS"
 #endif
 
 #define BUILD_FOLDER S("./build")
+
 
 void command_to_args(Arena *arena, char **command_args, StrList *command) {
     StrNode *arg = command->head;
@@ -33,6 +35,7 @@ void command_to_args(Arena *arena, char **command_args, StrList *command) {
 }
 
 static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str filename, Str output_path) {
+    unused(sanitizers);
     Cmd command = {0};
     cmd_push(&command, compiler);
 
@@ -59,16 +62,26 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
     }
 
 #elif OS_WINDOWS
-    cmd_push(&command, filename);
-    // TODO: find out how to specify output directory in msvc
-    // If that works then there will be no need to `cd` into `build`
-    // The only problem would be setting the exact output path using the `-o` flag to `build`
-    // cmd_push(&command, S("-o"));
-    // cmd_push(&command, output_path);
+    // Resolves the absolute path of filename instead of using a relative path here
+    char *input_absolute_path = arena_push_nonzero(command.arena, char, MAX_PATH);
+    if (!GetFullPathNameA(str_to_cstr(command.arena, filename),
+                          MAX_PATH, input_absolute_path, NULL)) {
+        migi_log(Log_Error, "Failed to resolve absolute path of input file: %.*s",
+                SArg(str_last_error(command.arena)));
+        return (Cmd){0};
+    }
+    Str input_absolute_path_str = str_from_cstr(input_absolute_path);
+    cmd_push(&command, input_absolute_path_str);
+
+    // Getting the basename since it sets the CWD to the build directory on windows
+    Str exe_path = strf(command.arena, "/Fe%.*s", SArg(path_basename(output_path, S("\\"))));
+    cmd_push(&command, exe_path);
 
     cmd_push(&command, S("/nologo"));
 
     cmd_push(&command, S("/I../src"));
+
+    // TODO: explain all the warnings which have been turned off
     cmd_push(&command, S("/W4"));
     cmd_push(&command, S("/wd4200"));
     cmd_push(&command, S("/wd4146"));
@@ -78,7 +91,6 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
     cmd_push(&command, S("/wd4189"));
 
     cmd_push(&command, S("/std:c11"));
-    cmd_push(&command, S("/link"), S("/INCREMENTAL:NO"));
 
 
     if (optimize) {
@@ -89,6 +101,7 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
         cmd_push(&command, S("/DMIGI_DEBUG_LOGS"));
         // if (sanitizers) cmd_push(&command, S("/fsanitize=address")); // TODO: seems to not work?
     }
+    cmd_push_many(&command, S("/link"), S("/INCREMENTAL:NO"));
 
 #else
 #error "Unsupported OS"
@@ -107,10 +120,19 @@ Str filename_to_output_path(Arena *arena, Str filename, Str build_folder) {
     }
     output_name = str_take(output_name, output_name.length - extension.length);
 
-    int64_t basename_start = str_find_ex(output_name, S("/"), Find_Reverse);
+#if OS_WINDOWS
+    Str path_separator = S("\\");
+#else
+    Str path_separator = S("/");
+#endif
+    int64_t basename_start = str_find_ex(output_name, path_separator, Find_Reverse);
     output_name = str_skip(output_name, basename_start + 1);
 
+#if OS_WINDOWS
+    return strf(arena,"%.*s\\%.*s", SArg(build_folder), SArg(output_name));
+#else
     return strf(arena,"%.*s/%.*s", SArg(build_folder), SArg(output_name));
+#endif
 }
 
 int main(int argc, char **argv) {
@@ -154,6 +176,7 @@ int main(int argc, char **argv) {
     }
 
     Str filename = cli_pos_args().head->string;
+    // TODO: if `run_old` is set then print "Running previous executable"
     if (!*run_old) {
         migi_log(Log_Info, "Compiling%s: '%.*s'", run? " and Running": "", SArg(filename));
     } else if (*run || *run_old) {
@@ -170,34 +193,68 @@ int main(int argc, char **argv) {
             migi_log(Log_Info, "Compiling (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
             cmd_reset(&command);
         } else {
-            if (cmd_run(&command).code != 0) {
+
+#if OS_WINDOWS
+            bool cl_found = true;
+            char *cl_path = arena_push(command.arena, char, MAX_PATH);
+            if (SearchPathA(NULL, "cl", ".exe", MAX_PATH, cl_path, NULL) == 0) {
+                if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+                    cl_found = false;
+                }
+            }
+            StrList args = {0};
+            if (!cl_found) {
+                migi_log(Log_Info, "Could not find 'cl.exe' in PATH, running vcvars.bat");
+                strlist_push(command.arena, &args, VCVARS_PATH);
+                strlist_push(command.arena, &args, S(">nul"));
+                strlist_push(command.arena, &args, S("2>nul"));
+                strlist_push(command.arena, &args, S("&&"));
+            }
+
+            // migi_log(Log_Info, "Running: %.*s", command);
+            command.args = strlist_extend(&args, &command.args);
+            // cmd_push(&command, S("\""));
+
+            Str prev_cwd = get_cwd(arena);
+            if (!set_cwd(S("./build"))) return 1;
+            CmdResult result = cmd_run(&command, .shell=true, /*.no_log_cmd=true*/);
+            if (!set_cwd(prev_cwd)) return 1;
+
+#else
+            CmdResult result = cmd_run(&command);
+#endif
+
+            if (result.error || result.code != 0) {
                 return 1;
             }
         }
     }
 
     if (*debug || *run || *run_old) {
-#if OS_LINUX
         Cmd command = {0};
+#if OS_LINUX
         if (*debug) cmd_push(&command, S("gf2"));
         cmd_push(&command, executable_path);
 
         // Arguments passed to GDB
         if (*debug) {
             // Start running the program immediately
-            cmd_push(&command, S("-ex"), S("start"));
+            cmd_push_many(&command, S("-ex"), S("start"));
             if (cli_meta_args().length > 0) {
                 // This ensures that the meta args are handled correctly
                 cmd_push(&command, S("--args"));
                 cmd_push(&command, executable_path);
             }
         }
-        strlist_extend(&command.args, &cli_meta_args());
 #elif OS_WINDOWS
-        incomplete();
+        if (*debug) cmd_push(&command, S("raddbg"));
+        cmd_push(&command, executable_path);
 #else
 #error "Unsupported OS"
 #endif
+        // Pass meta args to the program being ran
+        strlist_extend(&command.args, &cli_meta_args());
+
         if (*dry_run) {
             migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
             cmd_reset(&command);

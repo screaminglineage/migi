@@ -2,6 +2,7 @@
 #define MIGI_FILESYSTEM_H
 
 #include "migi_string.h"
+#include "file.h"
 
 // TODO: add file_info() for basic file info (size/times/etc.)
 
@@ -158,13 +159,13 @@ static bool file_move_opt(Str from, Str to, FileOpt opt) {
 }
 
 static bool file__delete(const char *filepath) {
-    incomplete();
+    return DeleteFileA(filepath);
 }
 
 static bool file_delete(Str filepath) {
     bool result = true;
     Temp tmp = arena_temp();
-    if (!DeleteFileA(str_to_cstr(tmp.arena, filepath))) {
+    if (!file__delete(str_to_cstr(tmp.arena, filepath))) {
         Str err_str = str_last_error(tmp.arena);
         migi_log(Log_Error, "Failed to delete file: '%.*s': %.*s", SArg(filepath), SArg(err_str));
         result = false;
@@ -225,157 +226,7 @@ end:
 }
 
 static bool dir__delete_empty(const char *dirpath) {
-    incomplete();
-}
-
-typedef struct FS__PathNode FS__PathNode;
-struct FS__PathNode {
-    Str path;
-    uint32_t depth;
-    FS__PathNode *next;
-};
-
-static bool dir_move(Str from, Str to) {
-    bool result = false;
-    Temp tmp = arena_temp();
-
-    FS__PathNode *dirs_to_delete = NULL;
-    FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-    node->path = from;
-    node->depth = 1;
-    stack_push(dirs_to_delete, node);
-
-    // TODO: maybe reset the temp arena some time in the loop
-    DirWalker walker = walker_init(from);
-
-    if (!dir_make_if_not_exists(to)) goto end;
-
-    bool error = false;
-    uint32_t prev_depth = 0;
-    dir_foreach(tmp.arena, &walker, file) {
-        if (file.error) {
-            migi_log(Log_Error, "Failed to move file: '%.*s': ", SArg(file.path));
-            error = true;
-        }
-        if (file.depth < prev_depth) {
-            FS__PathNode *prev = dirs_to_delete;
-            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
-                if (dir->depth >= file.depth) continue;
-                if (!RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path))) {
-                    Str err_str = str_last_error(tmp.arena);
-                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
-                    goto end;
-                }
-                prev->next = dir->next;
-                dir = prev;
-            }
-        }
-        prev_depth = file.depth;
-
-        Str sub_file_path = str_skip(file.path, from.length);
-        if (file.is_dir) {
-            // TODO: rename `dir` to `node` to make it equivalent to linux
-            FS__PathNode *dir = arena_new(tmp.arena, FS__PathNode);
-            dir->path = strf(tmp.arena, "./%.*s", SArg(file.path));
-            dir->depth = file.depth;
-            stack_push(dirs_to_delete, dir);
-
-            Str dest = strf(tmp.arena, "%.*s/%.*s", SArg(to), SArg(sub_file_path));
-            if (!dir_make_if_not_exists(dest)) goto end;
-        } else {
-            Str source = strf(tmp.arena, "%.*s", SArg(file.path));
-            Str dest = strf(tmp.arena, "%.*s/%.*s", SArg(to), SArg(sub_file_path));
-            file_move_opt(source, dest, (FileOpt){.replace_existing=true});
-        }
-    }
-
-    list_foreach(dirs_to_delete, dir) {
-        if (!RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path))) {
-            Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
-            goto end;
-        }
-    }
-
-    result = !error;
-end:
-    walker_free(&walker);
-    arena_temp_release(tmp);
-    return result;
-}
-
-static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
-    bool result = false;
-    Temp tmp = arena_temp();
-
-    if (!opt.recursive) {
-        if (RemoveDirectoryA(str_to_cstr(tmp.arena, root_path))) {
-            result = true;
-        } else {
-            Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(root_path), SArg(err_str));
-        }
-        arena_temp_release(tmp);
-        return result;
-    }
-
-    FS__PathNode *dirs_to_delete = NULL;
-    FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-    node->path = root_path;
-    node->depth = 1;
-    stack_push(dirs_to_delete, node);
-
-    // TODO: maybe reset the temp arena some time in the loop
-    DirWalker walker = walker_init(root_path);
-    uint32_t prev_depth = 0;
-    dir_foreach(tmp.arena, &walker, file) {
-        if (file.error) {
-            migi_log(Log_Error, "Failed to delete file: '%.*s': ", SArg(file.path));
-            goto end;
-        }
-        if (file.depth < prev_depth) {
-            FS__PathNode *prev = dirs_to_delete;
-            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
-                if (dir->depth >= file.depth) continue;
-                if (RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path)) == -1) {
-                    Str err_str = str_last_error(tmp.arena);
-                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
-                    goto end;
-                }
-                prev->next = dir->next;
-                dir = prev;
-            }
-        }
-        prev_depth = file.depth;
-
-        if (file.is_dir) {
-            // TODO: rename `dir` to `node` to make it equivalent to linux
-            FS__PathNode *dir = arena_new(tmp.arena, FS__PathNode);
-            dir->path = strf(tmp.arena, "./%.*s", SArg(file.path));
-            dir->depth = file.depth;
-            stack_push(dirs_to_delete, dir);
-        } else {
-            if (!DeleteFileA(str_to_cstr(tmp.arena, file.path))) {
-                Str err_str = str_last_error(tmp.arena);
-                migi_log(Log_Error, "Failed to delete file: '%.*s': %.*s", SArg(file.path), SArg(err_str));
-                goto end;
-            }
-        }
-    }
-
-    list_foreach(dirs_to_delete, dir) {
-        if (!RemoveDirectoryA(str_to_cstr(tmp.arena, dir->path))) {
-            Str err_str = str_last_error(tmp.arena);
-            migi_log(Log_Error, "Failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
-            goto end;
-        }
-    }
-
-    result = true;
-end:
-    walker_free(&walker);
-    arena_temp_release(tmp);
-    return result;
+    return RemoveDirectoryA(dirpath);
 }
 
 static Str get_cwd(Arena *a) {
@@ -702,148 +553,6 @@ static bool dir__delete_empty(const char *dirpath) {
     return rmdir(dirpath) == 0;
 }
 
-typedef struct FS__PathNode FS__PathNode; 
-struct FS__PathNode {
-    Str path;
-    uint32_t depth;
-    FS__PathNode *next;
-};
-
-static bool dir_move(Str from, Str to) {
-    bool result = false;
-    Temp tmp = arena_temp();
-
-    FS__PathNode *dirs_to_delete = NULL;
-    FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-    node->path = from;
-    node->depth = 1;
-    stack_push(dirs_to_delete, node);
-
-    // TODO: maybe reset the temp arena some time in the loop
-    DirWalker walker = walker_init(from);
-
-    if (!dir_make_if_not_exists(to)) goto end;
-
-    bool error = false;
-    uint32_t prev_depth = 0;
-    dir_foreach(tmp.arena, &walker, file) {
-        if (file.error) {
-            migi_log(Log_Error, "Failed to move file: '%.*s': ", SArg(file.path));
-            error = true;
-        }
-        if (file.depth < prev_depth) {
-            FS__PathNode *prev = dirs_to_delete;
-            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
-                if (dir->depth >= file.depth) continue;
-                if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
-                    goto end;
-                }
-                prev->next = dir->next;
-                dir = prev;
-            }
-        }
-        prev_depth = file.depth;
-
-        Str sub_file_path = str_skip(file.path, from.length);
-        if (file.is_dir) {
-            FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-            node->path = strf(tmp.arena, "./%.*s", SArg(file.path));
-            node->depth = file.depth;
-            stack_push(dirs_to_delete, node);
-
-            Str dest = strf(tmp.arena, "%.*s/%.*s", SArg(to), SArg(sub_file_path));
-            if (!dir_make_if_not_exists(dest)) goto end;
-        } else {
-            Str source = strf(tmp.arena, "%.*s", SArg(file.path));
-            Str dest = strf(tmp.arena, "%.*s/%.*s", SArg(to), SArg(sub_file_path));
-            file_move_opt(source, dest, (FileOpt){.replace_existing=true});
-        }
-    }
-
-    list_foreach(dirs_to_delete, dir) {
-        if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-            migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
-            goto end;
-        }
-    }
-
-    result = !error;
-end:
-    walker_free(&walker);
-    arena_temp_release(tmp);
-    return result;
-}
-
-static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
-    bool result = false;
-    Temp tmp = arena_temp();
-
-    if (!opt.recursive) {
-        if (dir__delete_empty(str_to_cstr(tmp.arena, root_path))) {
-            result = true;
-        } else {
-            migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(root_path), strerror(errno));
-        }
-        arena_temp_release(tmp);
-        return result;
-    }
-
-    FS__PathNode *dirs_to_delete = NULL;
-    FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-    node->path = root_path;
-    node->depth = 1;
-    stack_push(dirs_to_delete, node);
-
-    // TODO: maybe reset the temp arena some time in the loop
-    DirWalker walker = walker_init(root_path);
-    uint32_t prev_depth = 0;
-    dir_foreach(tmp.arena, &walker, file) {
-        if (file.error) {
-            migi_log(Log_Error, "Failed to delete file: '%.*s': ", SArg(file.path));
-            goto end;
-        }
-        if (file.depth < prev_depth) {
-            FS__PathNode *prev = dirs_to_delete;
-            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
-                if (dir->depth >= file.depth) continue;
-                if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-                    migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
-                    goto end;
-                }
-                prev->next = dir->next;
-                dir = prev;
-            }
-        }
-        prev_depth = file.depth;
-
-        if (file.is_dir) {
-            FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-            node->path = strf(tmp.arena, "./%.*s", SArg(file.path));
-            node->depth = file.depth;
-            stack_push(dirs_to_delete, node);
-        } else {
-            if (!file__delete(str_to_cstr(tmp.arena, file.path))) {
-                migi_log(Log_Error, "Failed to delete file: '%.*s': %s", SArg(file.path), strerror(errno));
-                goto end;
-            }
-        }
-    }
-
-    list_foreach(dirs_to_delete, dir) {
-        if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-            migi_log(Log_Error, "Failed to delete directory: '%.*s': %s", SArg(dir->path), strerror(errno));
-            goto end;
-        }
-    }
-
-    result = true;
-end:
-    walker_free(&walker);
-    arena_temp_release(tmp);
-    return result;
-}
-
 
 static Str get_cwd(Arena *a) {
     size_t size = PATH_MAX;
@@ -923,6 +632,158 @@ static Str get_cwd_executable(Arena *a) {
 #else
     #error Unsupported OS
 #endif // if OS_WINDOWS
+
+
+typedef struct FS__PathNode FS__PathNode;
+struct FS__PathNode {
+    Str path;
+    uint32_t depth;
+    FS__PathNode *next;
+};
+
+static bool dir_move(Str from, Str to) {
+    bool result = false;
+    Temp tmp = arena_temp();
+
+    FS__PathNode *dirs_to_delete = NULL;
+    {
+        FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
+        node->path = from;
+        node->depth = 1;
+        stack_push(dirs_to_delete, node);
+    }
+
+    DirWalker walker = walker_init(from);
+
+    if (!dir_make_if_not_exists(to)) goto end;
+
+    bool error = false;
+    uint32_t prev_depth = 0;
+    dir_foreach(tmp.arena, &walker, file) {
+        if (file.error) {
+            migi_log(Log_Error, "failed to move file: '%.*s': ", SArg(file.path));
+            error = true;
+        }
+        if (file.depth < prev_depth) {
+            FS__PathNode *prev = dirs_to_delete;
+            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
+                if (dir->depth >= file.depth) continue;
+                if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
+                    Str err_str = str_last_error(tmp.arena);
+                    migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+                    goto end;
+                }
+                prev->next = dir->next;
+                dir = prev;
+            }
+        }
+        prev_depth = file.depth;
+
+        Str sub_file_path = str_skip(file.path, from.length);
+        if (file.is_dir) {
+            FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
+            node->path = strf(tmp.arena, "./%.*s", SArg(file.path));
+            node->depth = file.depth;
+            stack_push(dirs_to_delete, node);
+
+            Str dest = strf(tmp.arena, "%.*s/%.*s", SArg(to), SArg(sub_file_path));
+            if (!dir_make_if_not_exists(dest)) goto end;
+        } else {
+            Str source = strf(tmp.arena, "%.*s", SArg(file.path));
+            Str dest = strf(tmp.arena, "%.*s/%.*s", SArg(to), SArg(sub_file_path));
+            file_move_opt(source, dest, (FileOpt){.replace_existing=true});
+        }
+    }
+
+    list_foreach(dirs_to_delete, dir) {
+        if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
+            Str err_str = str_last_error(tmp.arena);
+            migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+            goto end;
+        }
+    }
+
+    result = !error;
+end:
+    walker_free(&walker);
+    arena_temp_release(tmp);
+    return result;
+}
+
+
+static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
+    bool result = false;
+    Temp tmp = arena_temp();
+
+    if (!opt.recursive) {
+        if (dir__delete_empty(str_to_cstr(tmp.arena, root_path))) {
+            result = true;
+        } else {
+            Str err_str = str_last_error(tmp.arena);
+            migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(root_path), SArg(err_str));
+        }
+        arena_temp_release(tmp);
+        return result;
+    }
+
+    FS__PathNode *dirs_to_delete = NULL;
+    {
+        FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
+        node->path = root_path;
+        node->depth = 1;
+        stack_push(dirs_to_delete, node);
+    }
+
+    DirWalker walker = walker_init(root_path);
+    uint32_t prev_depth = 0;
+    dir_foreach(tmp.arena, &walker, file) {
+        if (file.error) {
+            migi_log(Log_Error, "failed to delete file: '%.*s': ", SArg(file.path));
+            goto end;
+        }
+        if (file.depth < prev_depth) {
+            FS__PathNode *prev = dirs_to_delete;
+            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
+                if (dir->depth >= file.depth) continue;
+                if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
+                    Str err_str = str_last_error(tmp.arena);
+                    migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+                    goto end;
+                }
+                prev->next = dir->next;
+                dir = prev;
+            }
+        }
+        prev_depth = file.depth;
+
+        if (file.is_dir) {
+            FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
+            node->path = strf(tmp.arena, "./%.*s", SArg(file.path));
+            node->depth = file.depth;
+            stack_push(dirs_to_delete, node);
+        } else {
+            if (!file__delete(str_to_cstr(tmp.arena, file.path))) {
+                Str err_str = str_last_error(tmp.arena);
+                migi_log(Log_Error, "failed to delete file: '%.*s': %.*s", SArg(file.path), SArg(err_str));
+                goto end;
+            }
+        }
+    }
+
+    list_foreach(dirs_to_delete, dir) {
+        if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
+            Str err_str = str_last_error(tmp.arena);
+            migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
+            goto end;
+        }
+    }
+
+    result = true;
+end:
+    walker_free(&walker);
+    arena_temp_release(tmp);
+    return result;
+}
 
 
 
