@@ -3,8 +3,9 @@
 
 #include <inttypes.h>
 #include "migi_core.h"
-#include "migi_string.h"
+#include "arena.h"
 #include "migi_list.h"
+#include "string_builder.h"
 
 // Maximum number of options supported
 // Can be changed by #defining the constant before including the header
@@ -699,96 +700,100 @@ static Str cli_arg_type_to_str(CliArgType type) {
     migi_unreachable();
 }
 
+
 static Str cli_options_list_opt(Arena *arena, CliOpt opt) {
     Temp tmp = arena_temp_excl(arena);
     StrList options = {0};
     size_t max_option_length = 0;
+    StrBuilder options_sb = {.arena=tmp.arena};
     clic_foreach(opt.cli, arg) {
-        Str options_str = {0};
         array_foreach(&arg->aliases, alias) {
-            options_str = str_catf(tmp.arena, options_str, "-%.*s, ", SArg(*alias));
+            sb_pushf(&options_sb, "-%.*s, ", SArg(*alias));
         }
 
         if (arg->nargs == 0) {
-            options_str = str_catf(tmp.arena, options_str, "-%.*s", SArg(arg->name));
+            sb_pushf(&options_sb, "-%.*s", SArg(arg->name));
         } else if (arg->nargs == 1) {
-            options_str = str_catf(tmp.arena, options_str, "-%.*s <%.*s>",
+            sb_pushf(&options_sb, "-%.*s <%.*s>",
                     SArg(arg->name), SArg(cli_arg_type_to_str(arg->type)));
         } else if (arg->nargs > 1) {
-            options_str = str_catf(tmp.arena, options_str, "-%.*s <str[%d]>", SArg(arg->name), arg->nargs);
+            sb_pushf(&options_sb, "-%.*s <str[%d]>", SArg(arg->name), arg->nargs);
         } else if (arg->nargs == CLI_NARGS_INF) {
-            options_str = str_catf(tmp.arena, options_str, "-%.*s <str[..]>", SArg(arg->name));
+            sb_pushf(&options_sb, "-%.*s <str[..]>", SArg(arg->name));
         }
 
         if (arg->required) {
-            options_str = str_cat(tmp.arena, options_str, S(" (required)"));
+            sb_push(&options_sb, S(" (required)"));
         }
 
-        max_option_length = max_of(options_str.length, max_option_length);
-        strlist_push(tmp.arena, &options, options_str);
+        max_option_length = max_of(options_sb.length, (int64_t)max_option_length);
+        Str option = sb_to_str(&options_sb);
+        strlist_push(tmp.arena, &options, option);
     }
 
     size_t i = 0;
-    Str options_list = {0};
+    StrBuilder options_list = {.arena=arena};
     strlist_foreach(&options, option) {
         CliArg arg = opt.cli->args[i++];
-        options_list = str_cat(arena, options_list, S("  "));
-        options_list = str_cat(arena, options_list, option->string);
+        sb_push(&options_list, S("  "));
+        sb_push(&options_list, option->string);
 
         int min_space_count = 5;
         size_t space_count = min_space_count + max_option_length - option->string.length;
-        options_list = str_catf(arena, options_list, "%*.s%.*s", (int)space_count, " ", SArg(arg.help));
+        sb_pushf(&options_list, "%*.s%.*s", (int)space_count, " ", SArg(arg.help));
 
         switch (arg.type) {
             case CliArg_Str: {
                 if (arg.default_str.length) {
-                    options_list = str_catf(arena, options_list, " [default: %.*s]", SArg(arg.default_str));
+                    sb_pushf(&options_list, " [default: %.*s]", SArg(arg.default_str));
                 }
             } break;
             case CliArg_Int:  {
                 if (arg.default_int) {
-                    options_list = str_catf(arena, options_list, " [default: %"PRId64"]", arg.default_int);
+                    sb_pushf(&options_list, " [default: %"PRId64"]", arg.default_int);
                 }
             } break;
             case CliArg_Bool:  {
                 if (arg.default_bool) {
-                    options_list = str_catf(arena, options_list, " [default: %s]", bool_to_cstr(arg.default_bool));
+                    sb_pushf(&options_list, " [default: %s]", bool_to_cstr(arg.default_bool));
                 }
             } break;
             case CliArg_Double: {
                 if (arg.default_double) {
-                    options_list = str_catf(arena, options_list, " [default: %.3f]", arg.default_double);
+                    sb_pushf(&options_list, " [default: %.3f]", arg.default_double);
                 }
             } break;
 
             case CliArg_List:  /* no default value for lists */ break;
             case CliArg_None:   migi_unreachable();
         }
-        options_list = str_cat(arena, options_list, S("\n"));
+        sb_push_char(&options_list, '\n');
     }
     arena_temp_release(tmp);
 
-    return options_list;
+    return sb_to_str(&options_list);
 }
 
 static Str cli_help_text_opt(Arena *arena, CliOpt opt) {
     Temp tmp = arena_temp_excl(arena);
     Cli *cli = opt.cli;
-    Str help_text = {0};
+    StrBuilder help_text = {.arena=arena};
 
-    help_text = str_catf(arena, help_text, "usage: %.*s [OPTIONS]\n", SArg(cli->executable));
+    sb_pushf(&help_text, "usage: %.*s [OPTIONS]\n", SArg(cli->executable));
     if (cli->help.length != 0) {
-        help_text = str_catf(arena, help_text, "\n%.*s\n\n", SArg(cli->help));
+        sb_pushf(&help_text, "\n%.*s\n\n", SArg(cli->help));
     }
 
     if (cli->args_length > 0) {
-        help_text = str_cat(arena, help_text, S("Options:\n"));
+        sb_push(&help_text, S("Options:\n"));
+        // Since the same arena that is backing `help_text` is passed into `cli_options_list_opt`,
+        // the `StrBuilder`'s can simply be increased by the length of the pushed string
         help_text.length += cli_options_list_opt(arena, opt).length;
     }
 
-    help_text = str_cat(arena, help_text, S("\n"));
+    sb_push_char(&help_text, '\n');
     arena_temp_release(tmp);
-    return help_text;
+    return sb_to_str(&help_text);
 }
 
 #endif // MIGI_CLI_PARSE_NEW_H

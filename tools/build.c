@@ -4,6 +4,10 @@
 // TODO: add support for both forward and backslashes on windows somehow
 // TODO: this file cannot replace the old exe when compiled on windows, deal with that somehow
 
+// TODO: It is often the case that a recompilation is done during debugging. It would be nice
+// if it didnt launch a new debugger if it detects the debugger already running, with the `-d`
+// flag
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,7 +17,10 @@
 #include "migi.h"
 #include "cli_parse.h"
 #include "process.h"
-#include "filesystem.h"
+
+#if OS_WINDOWS
+    #include "filesystem.h"
+#endif
 
 #if OS_LINUX
     #define COMPILER S("gcc")

@@ -2,7 +2,6 @@
 #define MIGI_FILE_H
 
 #include "migi_core.h"
-#include "migi_string.h"
 #include "migi_list.h"
 
 #if OS_WINDOWS
@@ -58,6 +57,16 @@ static bool file_write_all(File file, Str str);
 static Str str_from_file(Arena *arena, Str filepath);
 static bool str_to_file(Str string, Str filepath);
 static bool strlist_to_file(StrList list, Str filepath);
+
+// Only defined if string_builder was also included
+#ifdef MIGI_STRING_BUILDER_H
+
+static void sb_push_file(StrBuilder *sb, Str filename);
+static bool sb_to_file_opt(StrBuilder *sb, Str filename, StrBuilderOpt opt);
+#define sb_to_file(sb, filename, ...) sb_to_file_opt((sb), (filename), (StrBuilderOpt){__VA_ARGS__})
+
+#endif
+
 
 
 
@@ -367,5 +376,18 @@ static bool strlist_to_file(StrList list, Str filepath) {
     file_close(file);
     return ok;
 }
+
+
+#ifdef MIGI_STRING_BUILDER_H
+
+static void sb_push_file(StrBuilder *sb, Str filename) {
+    str_from_file(sb->arena, filename);
+}
+
+static bool sb_to_file_opt(StrBuilder *sb, Str filename, StrBuilderOpt opt) {
+    return str_to_file(sb_to_str_opt(sb, opt), filename);
+}
+
+#endif
 
 #endif // ifndef MIGI_FILE_H

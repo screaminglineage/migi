@@ -23,18 +23,12 @@ typedef struct {
         };                 \
     }
 
-int migi_log2(int64_t n) {
-    int result = 0;
-    while (n >>= 1) result++;
-    return result;
-}
-
 // EXARRAY_FIRST_BLOCK_SIZE * (2**n - 1)
 #define exarr__block_size(n) (EXARRAY_FIRST_BLOCK_SIZE * ((1 << (n)) - 1))
 
 void exarr__index(size_t index, int32_t *n1, int32_t *n2) {
     // 2**n = (1 << n)
-    *n1 = migi_log2(index/EXARRAY_FIRST_BLOCK_SIZE + 1);
+    *n1 = log2_64(index/EXARRAY_FIRST_BLOCK_SIZE + 1);
     *n2 = (uint32_t)(index - exarr__block_size(*n1));
 }
 
@@ -57,14 +51,6 @@ void **exarr__reserve(ExArrayHeader *h, void **arrays, size_t elem_size, size_t 
 void **exarr__push(ExArrayHeader *h, void **arrays, size_t elem_size, size_t elem_align) {
     return exarr__reserve(h, arrays, elem_size, elem_align, h->length++);
 }
-
-// Array with a single element that decays to a pointer
-// Needed for calls like `hashmap_put(&h, 1, foo)`, since `&1` is invalid
-// NOTE: type_of(x) cannot be used here since if x is a c-string,
-// then type_of(x) returns `char[1][LEN(cstr)]` instead of `char**`
-// TODO: since hashmap, exponential_array, and search all use this, this should be moved into migi_core
-#define exarr__addr_of(T, x) ((type_of(T)[1]){x})
-
 
 #define exarr_push(arr, elem)                                                         \
     (void)(                                                                           \
