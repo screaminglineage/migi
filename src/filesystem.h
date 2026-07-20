@@ -32,8 +32,6 @@ typedef struct {
 static bool dir_make_if_not_exists(Str dirpath);
 static bool dir_copy(Str from, Str to);
 
-// TODO: For move (like delete), iterate over the directories and move/delete them
-// at the end instead of interrupting the loop
 static bool dir_move(Str from, Str to);
 static bool dir_delete_opt(Str filepath, DirDeleteOpt opt);
 #define dir_delete(filepath, ...) dir_delete_opt((filepath), (DirDeleteOpt){__VA_ARGS__})
@@ -658,31 +656,16 @@ static bool dir_move(Str from, Str to) {
     if (!dir_make_if_not_exists(to)) goto end;
 
     bool error = false;
-    uint32_t prev_depth = 0;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
             migi_log(Log_Error, "failed to move file: '%.*s': ", SArg(file.path));
             error = true;
         }
-        if (file.depth < prev_depth) {
-            FS__PathNode *prev = dirs_to_delete;
-            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
-                if (dir->depth >= file.depth) continue;
-                if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-                    Str err_str = str_last_error(tmp.arena);
-                    migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
-                    goto end;
-                }
-                prev->next = dir->next;
-                dir = prev;
-            }
-        }
-        prev_depth = file.depth;
 
         Str sub_file_path = str_skip(file.path, from.length);
         if (file.is_dir) {
             FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-            node->path = strf(tmp.arena, "./%.*s", SArg(file.path));
+            node->path = strf(tmp.arena, "%.*s", SArg(file.path));
             node->depth = file.depth;
             stack_push(dirs_to_delete, node);
 
@@ -695,6 +678,8 @@ static bool dir_move(Str from, Str to) {
         }
     }
 
+    // Since `dirs_to_delete` is a stack, it can simply be traversed top to bottom
+    // and the directories are deleted in the descending order of their depth
     list_foreach(dirs_to_delete, dir) {
         if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
             Str err_str = str_last_error(tmp.arena);
@@ -755,6 +740,8 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
         }
     }
 
+    // Since `dirs_to_delete` is a stack, it can simply be traversed top to bottom
+    // and the directories are deleted in the descending order of their depth
     list_foreach(dirs_to_delete, dir) {
         if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
             Str err_str = str_last_error(tmp.arena);
