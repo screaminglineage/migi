@@ -32,7 +32,7 @@ typedef struct {
 static bool dir_make_if_not_exists(Str dirpath);
 static bool dir_copy(Str from, Str to);
 
-// TODO: For move and delete, iterate over the directories and move/delete them
+// TODO: For move (like delete), iterate over the directories and move/delete them
 // at the end instead of interrupting the loop
 static bool dir_move(Str from, Str to);
 static bool dir_delete_opt(Str filepath, DirDeleteOpt opt);
@@ -735,30 +735,15 @@ static bool dir_delete_opt(Str root_path, DirDeleteOpt opt) {
     }
 
     DirWalker walker = walker_init(root_path);
-    uint32_t prev_depth = 0;
     dir_foreach(tmp.arena, &walker, file) {
         if (file.error) {
             migi_log(Log_Error, "failed to delete file: '%.*s': ", SArg(file.path));
             goto end;
         }
-        if (file.depth < prev_depth) {
-            FS__PathNode *prev = dirs_to_delete;
-            for (FS__PathNode *dir = dirs_to_delete; dir; prev = dir, dir = dir->next) {
-                if (dir->depth >= file.depth) continue;
-                if (!dir__delete_empty(str_to_cstr(tmp.arena, dir->path))) {
-                    Str err_str = str_last_error(tmp.arena);
-                    migi_log(Log_Error, "failed to delete directory: '%.*s': %.*s", SArg(dir->path), SArg(err_str));
-                    goto end;
-                }
-                prev->next = dir->next;
-                dir = prev;
-            }
-        }
-        prev_depth = file.depth;
 
         if (file.is_dir) {
             FS__PathNode *node = arena_new(tmp.arena, FS__PathNode);
-            node->path = strf(tmp.arena, "./%.*s", SArg(file.path));
+            node->path = strf(tmp.arena, "%.*s", SArg(file.path));
             node->depth = file.depth;
             stack_push(dirs_to_delete, node);
         } else {

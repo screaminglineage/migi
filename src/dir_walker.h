@@ -407,6 +407,15 @@ static void walker_free(DirWalker *w) {
     migi_log(Log_Debug, "Current Directory Allocated: %zu bytes", w->current_dir.capacity);
 
     list_foreach(w->dir_handles, dir_handle) {
+        // TODO: for some reason, the w->dir is closed again after this loop, but it causes a double-free
+        // Debug the entire execution to see if the walker__close_dir outside this loop is actually needed
+        //
+        // Since `walker__update` pushes the current w->dir onto the w->dir_handles stack, it appears that
+        // some memory would be leaked without this walker__close_dir outside the loop if walker__update
+        // was not called (possibly for an empty directory?)
+        if (w->dir == dir_handle->dir) {
+            w->dir = DIRECTORY_INVALID;
+        }
         walker__close_dir(dir_handle->dir);
     }
     walker__close_dir(w->dir);
