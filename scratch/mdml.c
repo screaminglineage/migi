@@ -168,7 +168,7 @@ void html_push_text(StrBuilder *html, Str str) {
         }
 
 
-        int64_t markup_end = str_find_ex(str, S("\\*_`[!"), Find_Any);
+        int64_t markup_end = str_find_opt(str, S("\\*_`[!"), Find_Any);
         sb_push(html, str_take(str, markup_end));
         str = str_skip(str, markup_end);
     }
@@ -250,7 +250,7 @@ void html_render_md(StrBuilder *html, Str md) {
     // <body> already is at level 1
     int html_indent = 2;
 
-    strcut_foreach(md, S("\n"), 0, cut) {
+    strcut_foreach(md, S("\n"), cut) {
         arena_rewind(tmp);
 
         bool parse_as_plain_text = false;

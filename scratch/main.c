@@ -482,7 +482,7 @@ void test_str_split_and_join() {
         },
         {
             .expected = str_span(S("Mary"), S("had"), S("a"), S("little"), S("lamb")),
-            .actual =  str_split_ex(a, S(" Mary    had   a   little   lamb "), S(" "), Split_SkipEmpty)
+            .actual =  str_split_opt(a, S(" Mary    had   a   little   lamb "), S(" "), Split_SkipEmpty)
         },
         {
             .expected = str_span(S(""), S("Mary"), S(""), S(""), S(""), S("had"), S(""), S(""), 
@@ -507,15 +507,15 @@ void test_str_split_and_join() {
         },
         {
             .expected = str_span(S("2020"), S("11"), S("03"), S("23"), S("59"), S("")),
-            .actual = str_split_ex(a, S("2020-11-03 23:59@"), S("- :@"), Split_Any)
+            .actual = str_split_opt(a, S("2020-11-03 23:59@"), S("- :@"), Split_Any)
         },
         {
             .expected = str_span(S("2020"), S("11"), S("03"), S("23"), S("59")),
-            .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_SkipEmpty|Split_Any)
+            .actual = str_split_opt(a, S("2020-11--03 23:59@"), S("- :@"), Split_SkipEmpty|Split_Any)
         },
         {
             .expected = str_span(S("2020"), S("11"), S(""), S("03"), S("23"), S("59"), S("")),
-            .actual = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any)
+            .actual = str_split_opt(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any)
         },
     };
 
@@ -523,7 +523,7 @@ void test_str_split_and_join() {
         assert_str_split(splits[i]);
     }
 
-    StrList list = str_split_ex(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any|Split_SkipEmpty);
+    StrList list = str_split_opt(a, S("2020-11--03 23:59@"), S("- :@"), Split_Any|Split_SkipEmpty);
     Str expected = strlist_join(a, &list, S("-"));
     assert_str_eq(expected, S("2020-11-03-23-59"));
 
@@ -703,8 +703,8 @@ void test_string() {
         assert_str_eq(str_take(S("hello"), 0), str_take(S("world"), 0));
         assert_str_eq(str_slice(S("hello"), 2, 2), str_slice(S("world"), 2, 2));
 
-        assert(str_eq_ex(S("STRING"), S("sTRinG"), Eq_IgnoreCase));
-        assert(!str_eq_ex(S("foo"),   S("bar"),    Eq_IgnoreCase));
+        assert(str_eq_opt(S("STRING"), S("sTRinG"), Eq_IgnoreCase));
+        assert(!str_eq_opt(S("foo"),   S("bar"),    Eq_IgnoreCase));
         assert(str_eq_cstr(S(""),     "",           Eq_IgnoreCase));
         assert(str_eq_cstr(S("abcd"), "ABCD",       Eq_IgnoreCase));
     }
@@ -786,36 +786,36 @@ void test_string() {
 
     // str_find (reverse)
     {
-        assert(str_find_ex(S("hello"),  S("he"),  Find_Reverse) == 0);
-        assert(str_find_ex(S("hello"),  S("llo"), Find_Reverse) == 2);
-        assert(str_find_ex(S("hello"),  S("o"),   Find_Reverse) == 4);
-        assert(str_find_ex(S("hello"),  S("world"),  Find_Reverse) == -1);
-        assert(str_find_ex(S("short"),  S("longer"), Find_Reverse) == -1);
-        assert(str_find_ex(S("abc"),    S("abcd"),   Find_Reverse) == -1);
-        assert(str_find_ex(S("abc"),    S("z"),      Find_Reverse) == -1);
-        assert(str_find_ex(S(""),       S(""),  Find_Reverse) == 0);
-        assert(str_find_ex(S("abc"),    S(""),  Find_Reverse) == 3);
-        assert(str_find_ex(S(""),       S("a"), Find_Reverse) == -1);
-        assert(str_find_ex(S("aaaaa"),  S("aa"), Find_Reverse) == 3);
+        assert(str_find_opt(S("hello"),  S("he"),  Find_Reverse) == 0);
+        assert(str_find_opt(S("hello"),  S("llo"), Find_Reverse) == 2);
+        assert(str_find_opt(S("hello"),  S("o"),   Find_Reverse) == 4);
+        assert(str_find_opt(S("hello"),  S("world"),  Find_Reverse) == -1);
+        assert(str_find_opt(S("short"),  S("longer"), Find_Reverse) == -1);
+        assert(str_find_opt(S("abc"),    S("abcd"),   Find_Reverse) == -1);
+        assert(str_find_opt(S("abc"),    S("z"),      Find_Reverse) == -1);
+        assert(str_find_opt(S(""),       S(""),  Find_Reverse) == 0);
+        assert(str_find_opt(S("abc"),    S(""),  Find_Reverse) == 3);
+        assert(str_find_opt(S(""),       S("a"), Find_Reverse) == -1);
+        assert(str_find_opt(S("aaaaa"),  S("aa"), Find_Reverse) == 3);
     }
 
     // str_find (ignore case)
     {
-        assert(str_find_ex(S("hello"),  S("HE"), Find_IgnoreCase)     == 0);
-        assert(str_find_ex(S("HELlo"),  S("llo"), Find_IgnoreCase)    == 2);
-        assert(str_find_ex(S("aBCAbc"), S("Cab"), Find_IgnoreCase)    == 2);
-        assert(str_find_ex(S("aBCAbc"), S("Cab"), 0)                  == 6);
-        assert(str_find_ex(S(""),       S(""), Find_IgnoreCase)       == 0);
-        assert(str_find_ex(S("abc"),    S(""), Find_IgnoreCase)       == 0);
-        assert(str_find_ex(S(""),       S("a"), Find_IgnoreCase)      == 0);
+        assert(str_find_opt(S("hello"),  S("HE"), Find_IgnoreCase)     == 0);
+        assert(str_find_opt(S("HELlo"),  S("llo"), Find_IgnoreCase)    == 2);
+        assert(str_find_opt(S("aBCAbc"), S("Cab"), Find_IgnoreCase)    == 2);
+        assert(str_find_opt(S("aBCAbc"), S("Cab"), 0)                  == 6);
+        assert(str_find_opt(S(""),       S(""), Find_IgnoreCase)       == 0);
+        assert(str_find_opt(S("abc"),    S(""), Find_IgnoreCase)       == 0);
+        assert(str_find_opt(S(""),       S("a"), Find_IgnoreCase)      == 0);
     }
 
     // str_find (reverse|ignore case)
     {
-        assert(str_find_ex(S("HEllo"),  S("he"),  Find_Reverse|Find_IgnoreCase) == 0);
-        assert(str_find_ex(S("hellO"),  S("LLo"), Find_Reverse|Find_IgnoreCase) == 2);
-        assert(str_find_ex(S("ABCabc"),  S("ABC"), Find_Reverse|Find_IgnoreCase) == 3);
-        assert(str_find_ex(S("ABCabc"),  S("ABC"), Find_IgnoreCase) == 0);
+        assert(str_find_opt(S("HEllo"),  S("he"),  Find_Reverse|Find_IgnoreCase) == 0);
+        assert(str_find_opt(S("hellO"),  S("LLo"), Find_Reverse|Find_IgnoreCase) == 2);
+        assert(str_find_opt(S("ABCabc"),  S("ABC"), Find_Reverse|Find_IgnoreCase) == 3);
+        assert(str_find_opt(S("ABCabc"),  S("ABC"), Find_IgnoreCase) == 0);
     }
 
     // str_starts_with
@@ -891,19 +891,19 @@ void test_string() {
 
     // str_find_rev
     {
-        assert(str_find_ex(S("hello"),  S("he"),     Find_Reverse) == 0);
-        assert(str_find_ex(S("hello"),  S("llo"),    Find_Reverse) == 2);
-        assert(str_find_ex(S("hello"),  S("o"),      Find_Reverse) == 4);
-        assert(str_find_ex(S("banana"), S("ana"),    Find_Reverse) == 3);
-        assert(str_find_ex(S("abcabc"), S("cab"),    Find_Reverse) == 2);
-        assert(str_find_ex(S("hello"),  S("world"),  Find_Reverse) == -1);
-        assert(str_find_ex(S("short"),  S("longer"), Find_Reverse) == -1);
-        assert(str_find_ex(S("abc"),    S("abcd"),   Find_Reverse) == -1);
-        assert(str_find_ex(S("abc"),    S("z"),      Find_Reverse) == -1);
-        assert(str_find_ex(S(""),       S(""),       Find_Reverse) == 0);
-        assert(str_find_ex(S("abc"),    S(""),       Find_Reverse) == 3);
-        assert(str_find_ex(S(""),       S("a"),      Find_Reverse) == -1);
-        assert(str_find_ex(S("aaaaa"),  S("aa"),     Find_Reverse) == 3);
+        assert(str_find_opt(S("hello"),  S("he"),     Find_Reverse) == 0);
+        assert(str_find_opt(S("hello"),  S("llo"),    Find_Reverse) == 2);
+        assert(str_find_opt(S("hello"),  S("o"),      Find_Reverse) == 4);
+        assert(str_find_opt(S("banana"), S("ana"),    Find_Reverse) == 3);
+        assert(str_find_opt(S("abcabc"), S("cab"),    Find_Reverse) == 2);
+        assert(str_find_opt(S("hello"),  S("world"),  Find_Reverse) == -1);
+        assert(str_find_opt(S("short"),  S("longer"), Find_Reverse) == -1);
+        assert(str_find_opt(S("abc"),    S("abcd"),   Find_Reverse) == -1);
+        assert(str_find_opt(S("abc"),    S("z"),      Find_Reverse) == -1);
+        assert(str_find_opt(S(""),       S(""),       Find_Reverse) == 0);
+        assert(str_find_opt(S("abc"),    S(""),       Find_Reverse) == 3);
+        assert(str_find_opt(S(""),       S("a"),      Find_Reverse) == -1);
+        assert(str_find_opt(S("aaaaa"),  S("aa"),     Find_Reverse) == 3);
     }
 
     // str_reverse
@@ -998,13 +998,13 @@ void test_string() {
         {
 
             Str str1 = S("2020-11--03 23:59@");
-            strcut_foreach(str1, S("- :@"), Cut_Any, it) {
+            strcut_foreach_opt(str1, S("- :@"), Cut_Any, it) {
                 printf("=> `%.*s`\n", SArg(it.split));
             }
             assertf(str_eq(str1, S("2020-11--03 23:59@")), "original string remains intact");
 
             Str str2 = S("a,b,c,");
-            strcut_foreach(str2, S(","), 0, it) {
+            strcut_foreach(str2, S(","), it) {
                 printf("=> `%.*s`\n", SArg(it.split));
             }
             assertf(str_eq(str2, S("a,b,c,")), "original string remains intact");
@@ -1012,15 +1012,15 @@ void test_string() {
             {
                 Str c = S("a+-b");
                 Str delims = S("-+");
-                StrCut cut = str_cut_ex(c, delims, Cut_Any);
+                StrCut cut = str_cut_opt(c, delims, Cut_Any);
                 assert(cut.found);
                 assert_str_eq(cut.head, S("a"));
 
-                cut = str_cut_ex(cut.tail, delims, Cut_Any);
+                cut = str_cut_opt(cut.tail, delims, Cut_Any);
                 assert(cut.found);
                 assert_str_eq(cut.head, S(""));
 
-                cut = str_cut_ex(cut.tail, delims, Cut_Any);
+                cut = str_cut_opt(cut.tail, delims, Cut_Any);
                 assert(!cut.found);
                 assert_str_eq(cut.head, S("b"));
             }

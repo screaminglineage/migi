@@ -94,7 +94,7 @@ static Str str_style__camel_like(Arena *arena, Str str, bool first_caps) {
     // TODO: this currently skips trailing underscores
     // Is it worth it to use a custom parser instead of strcut_foreach just
     // to support that edge case?
-    strcut_foreach(str, S("_"), 0, cut) {
+    strcut_foreach(str, S("_"), cut) {
         if (cut.split.length == 0) continue;
         Str rest = str_to_lower(tmp.arena, str_skip(cut.split, 1));
         strlist_pushf(tmp.arena, &sb, "%c%.*s", char_to_upper(cut.split.data[0]), SArg(rest));

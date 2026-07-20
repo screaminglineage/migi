@@ -178,11 +178,11 @@ typedef enum {
 } SplitOpt;
 
 // Splits a string by delimiter, pushing each chunk onto a StrList
-static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags);
-#define str_split(arena, str, delim) str_split_ex((arena), (str), (delim), 0)
+static StrList str_split_opt(Arena *a, Str str, Str delimiter, SplitOpt flags);
+#define str_split(arena, str, delim) str_split_opt((arena), (str), (delim), 0)
 
-static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt flags);
-#define strlist_split(arena, strlist, delim) strlist_split_ex((arena), (strlist), (delim), 0)
+static StrList strlist_split_opt(Arena *a, StrList *list, Str delimiter, SplitOpt flags);
+#define strlist_split(arena, strlist, delim) strlist_split_opt((arena), (strlist), (delim), 0)
 
 
 // ArrayList (Chunked Linked List)
@@ -341,7 +341,7 @@ static Str strlist_join(Arena *a, StrList *list, Str join_with) {
 }
 
 
-static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
+static StrList str_split_opt(Arena *a, Str str, Str delimiter, SplitOpt flags) {
     StrList strings = {0};
     if (delimiter.length == 0) {
         for (size_t i = 0; i < str.length; i++) {
@@ -351,7 +351,7 @@ static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
     }
 
     StrCutOpt cut_flags = (flags & Split_Any)? Cut_Any: 0;
-    strcut_foreach(str, delimiter, cut_flags, cut) {
+    strcut_foreach_opt(str, delimiter, cut_flags, cut) {
         if (cut.split.length != 0 || !(flags & Split_SkipEmpty)) {
             strlist_push(a, &strings, cut.split);
         }
@@ -360,12 +360,12 @@ static StrList str_split_ex(Arena *a, Str str, Str delimiter, SplitOpt flags) {
 }
 
 // TODO: implement special parsing for empty delimiter like `str_split`
-static StrList strlist_split_ex(Arena *a, StrList *list, Str delimiter, SplitOpt flags) {
+static StrList strlist_split_opt(Arena *a, StrList *list, Str delimiter, SplitOpt flags) {
     StrList strings = {0};
     if (delimiter.length == 0) return strings;
 
     strlist_foreach(list, node) {
-        StrList splits = str_split_ex(a, node->string, delimiter, flags);
+        StrList splits = str_split_opt(a, node->string, delimiter, flags);
         strlist_extend(&strings, &splits);
     }
     return strings;

@@ -82,7 +82,7 @@ Str win32_quote_command_line(Arena *arena, StrList *cmd) {
 
         // TODO: does the following need to be ASCII_WHITESPACES instead?
         // Check for more info: https://learn.microsoft.com/en-gb/archive/blogs/twistylittlepassagesallalike/everyone-quotes-command-line-arguments-the-wrong-way
-        if (str_find_ex(arg->string, S(" \t\n\v\""), Find_Any) == (int64_t)arg->string.length) {
+        if (str_find_opt(arg->string, S(" \t\n\v\""), Find_Any) == (int64_t)arg->string.length) {
             // no need to quote
             quoted = str_cat(arena, quoted, arg->string);
         } else {

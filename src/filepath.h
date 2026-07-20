@@ -11,12 +11,12 @@ static Str path_push(Arena *a, Str path, Str dir_sep, Str new_elem);
 static Str path_cannonicalize(Arena *arena, Str path, Str dir_sep);
 
 static Str path_basename(Str path, Str dir_sep) {
-    StrCut cut = str_cut_ex(path, dir_sep, Cut_Any|Cut_Reverse);
+    StrCut cut = str_cut_opt(path, dir_sep, Cut_Any|Cut_Reverse);
     return cut.head;
 }
 
 static Str path_dirname(Str path, Str dir_sep) {
-    StrCut cut = str_cut_ex(path, dir_sep, Cut_Any|Cut_Reverse);
+    StrCut cut = str_cut_opt(path, dir_sep, Cut_Any|Cut_Reverse);
     return cut.found? cut.tail: S("/");
 }
 
@@ -57,7 +57,7 @@ static Str path_cannonicalize(Arena *a, Str path, Str dir_sep) {
     Temp tmp = arena_temp_excl(a);
 
     StrNodeDll *head = NULL, *tail = NULL;
-    strcut_foreach(path, dir_sep, 0, comp) {
+    strcut_foreach(path, dir_sep, comp) {
         if (comp.split.length == 0 || str_eq(comp.split, S("."))) continue;
 
         if (str_eq(comp.split, S(".."))) {

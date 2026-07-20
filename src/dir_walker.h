@@ -365,7 +365,7 @@ static DirIter walker_next_opt(Arena *arena, DirWalker *w, WalkerNextOpt opt) {
                     w->depth -= 1;
 
                     // Remove the last directory from current_dir
-                    int64_t parent_end = str_find_ex(w->current_dir.as_string, DIRECTORY_SEPARATOR, Find_Reverse);
+                    int64_t parent_end = str_find_opt(w->current_dir.as_string, DIRECTORY_SEPARATOR, Find_Reverse);
                     assertf(parent_end != -1, "there must be atleast one directory separator");
                     w->current_dir.as_string = str_take(w->current_dir.as_string, parent_end);
 
@@ -443,7 +443,7 @@ static DirIterNode *dir_get_all_children(Arena *arena, Str dir_path) {
         node->entry = entry;
         node->entry.path = str_copy(arena, node->entry.path);
         node->entry.name = str_skip(node->entry.path,
-            str_find_ex(node->entry.path, DIRECTORY_SEPARATOR, Find_Reverse) + 1);
+            str_find_opt(node->entry.path, DIRECTORY_SEPARATOR, Find_Reverse) + 1);
         stack_push(head, node);
     }
 

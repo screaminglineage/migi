@@ -60,8 +60,8 @@ typedef enum {
     Eq_IgnoreCase = bit(0),
 } StrEqOpt;
 
-static bool str_eq_ex(Str a, Str b, StrEqOpt flags);
-#define str_eq(a, b) str_eq_ex((a), (b), 0)
+static bool str_eq_opt(Str a, Str b, StrEqOpt flags);
+#define str_eq(a, b) str_eq_opt((a), (b), 0)
 static bool str_eq_cstr(Str a, const char *b, StrEqOpt flags);
 
 // Returns a negative number if a < b, a positive number if a > b, and 0 if equal
@@ -115,8 +115,8 @@ typedef enum {
 // NOTE: Failure to find returns 1 past the last index searched
 // For forwards it is `haystack.length`
 // For reverse it is `-1`
-static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags);
-#define str_find(haystack, needle) str_find_ex((haystack), (needle), 0)
+static int64_t str_find_opt(Str haystack, Str needle, StrFindOpt flags);
+#define str_find(haystack, needle) str_find_opt((haystack), (needle), 0)
 
 // Returns index of `suffix` in `str`, -1 if not found
 static int64_t str_find_suffix(Str str, Str suffix);
@@ -183,22 +183,22 @@ typedef enum {
 // Cuts string into `head` and `tail` by splitting at the first occurence of `cut_at`
 // If both `str` and `cut_at` are empty, then cut is still considered as `found`
 // `head` contains `str` when no split is `found`
-static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags);
-#define str_cut(str, delim) str_cut_ex((str), (delim), 0)
+static StrCut str_cut_opt(Str str, Str cut_at, StrCutOpt flags);
+#define str_cut(str, delim) str_cut_opt((str), (delim), 0)
 
 
 // Loop through each split, (accessed by `cut.split`) of repeated `str_cut`s
 // until there are no more matches
 // TODO: rename split to str
-// TODO: rename this version to strcut_foreach_ex and add another one which passes `flags` as 0
-#define strcut_foreach(str, delim, flags, cut)                      \
-    for (struct { StrCut _cut; int _count; Str split; }             \
-        cut = {str_cut_ex((str), (delim), (flags)), 0, {0}};        \
-        cut.split = cut._cut.head, cut._count < 1;                  \
-        cut._cut.found                                              \
-            ? cut._cut = str_cut_ex(cut._cut.tail, delim, flags), 0 \
+#define strcut_foreach_opt(str, delim, flags, cut)                   \
+    for (struct { StrCut _cut; int _count; Str split; }              \
+        cut = {str_cut_opt((str), (delim), (flags)), 0, {0}};        \
+        cut.split = cut._cut.head, cut._count < 1;                   \
+        cut._cut.found                                               \
+            ? cut._cut = str_cut_opt(cut._cut.tail, delim, flags), 0 \
             : cut._count++)
 
+#define strcut_foreach(str, delim, cut) strcut_foreach_opt((str), (delim), 0, (cut))
 
 static uint64_t str_hash_fnv(Str string, uint64_t seed);
 static uint64_t str_hash(Str string);
@@ -281,7 +281,7 @@ char char_to_lower(char ch) {
     return ch;
 }
 
-static bool str_eq_ex(Str a, Str b, StrEqOpt flags) {
+static bool str_eq_opt(Str a, Str b, StrEqOpt flags) {
     if (a.length != b.length) return false;
 
     // Prevents using memcmp with potentially NULL pointers
@@ -331,7 +331,7 @@ static int str_cmp(Str a, Str b, StrEqOpt flags) {
 }
 
 static bool str_eq_cstr(Str a, const char *b, StrEqOpt flags) {
-    return str_eq_ex(a, str_from_cstr(b), flags);
+    return str_eq_opt(a, str_from_cstr(b), flags);
 }
 
 bool str_eq_any_span(Str to_match, StrSpan matches) {
@@ -352,7 +352,7 @@ static bool str__eq_ignore_case(const char *a, const char *b, size_t length) {
     return true;
 }
 
-static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
+static int64_t str_find_opt(Str haystack, Str needle, StrFindOpt flags) {
     if (needle.length == 0 && haystack.length == 0) return 0;
 
     // TODO: can this be made faster?
@@ -362,7 +362,7 @@ static int64_t str_find_ex(Str haystack, Str needle, StrFindOpt flags) {
         int64_t last_match = INT64_MIN;
         for (size_t i = 0; i < needle.length; i++) {
             Str ch = str_from(&needle.data[i], 1);
-            int64_t index = str_find_ex(haystack, ch, flags & ~Find_Any);
+            int64_t index = str_find_opt(haystack, ch, flags & ~Find_Any);
             last_match = max_of(last_match, index);
             first_match = min_of(first_match, index);
         }
@@ -582,7 +582,7 @@ static Str str_replace(Arena *arena, Str str, Str find, Str replace_with) {
         replaced_at += replace_with.length;
     } else {
         while (true) {
-            size_t index = str_find(str, find);
+            size_t index = str_find_opt(str, find, 0);
             if (index == str.length) {
                 memcpy(replaced_at, str.data, str.length);
                 replaced_at += str.length;
@@ -604,7 +604,7 @@ static Str str_replace(Arena *arena, Str str, Str find, Str replace_with) {
 }
 
 
-static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags) {
+static StrCut str_cut_opt(Str str, Str cut_at, StrCutOpt flags) {
     StrCut cut = {0};
     StrFindOpt find_flags = (flags & Cut_Reverse)? Find_Reverse: 0;
 
@@ -612,10 +612,10 @@ static StrCut str_cut_ex(Str str, Str cut_at, StrCutOpt flags) {
     int64_t cut_length = 0;
 
     if (flags & Cut_Any) {
-        cut_index = str_find_ex(str, cut_at, find_flags|Find_Any);
+        cut_index = str_find_opt(str, cut_at, find_flags|Find_Any);
         cut_length = 1;
     } else {
-        cut_index = str_find_ex(str, cut_at, find_flags);
+        cut_index = str_find_opt(str, cut_at, find_flags);
         cut_length = cut_at.length;
     }
 

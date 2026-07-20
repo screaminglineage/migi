@@ -125,7 +125,7 @@ Str filename_to_output_path(Arena *arena, Str filename, Str build_folder) {
 #else
     Str path_separator = S("/");
 #endif
-    int64_t basename_start = str_find_ex(output_name, path_separator, Find_Reverse);
+    int64_t basename_start = str_find_opt(output_name, path_separator, Find_Reverse);
     output_name = str_skip(output_name, basename_start + 1);
 
 #if OS_WINDOWS

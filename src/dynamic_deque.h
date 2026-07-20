@@ -39,8 +39,8 @@ typedef struct {
 #endif // DEQUE_DECOMMIT_THRESHOLD
 
 
-#define deque_init() (deque_init_ex(DEQUE_DEFAULT_CAPACITY))
-static Deque deque_init_ex(size_t total);
+#define deque_init() (deque_init_sized(DEQUE_DEFAULT_CAPACITY))
+static Deque deque_init_sized(size_t total);
 static void deque_free(Deque *deque);
 
 #define deque_push_head(deque, type, length) \
@@ -60,7 +60,7 @@ static void deque_pop_head_bytes(Deque *deque, size_t size);
 static void *deque_push_tail_bytes(Deque *deque, size_t size, size_t align);
 static void deque_pop_tail_bytes(Deque *deque, size_t size);
 
-static Deque deque_init_ex(size_t total) {
+static Deque deque_init_sized(size_t total) {
     Deque deque = {0};
     deque.total = total;
     deque.data = memory_reserve(deque.total);

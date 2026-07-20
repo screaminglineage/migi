@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 
     for (size_t i = 0; i < array_len(files); i++) {
         Str str = str_from_file(a, files[i]);
-        strcut_foreach(str, S("\n"), 0, line) {
+        strcut_foreach(str, S("\n"), line) {
             // Skip local includes as all the needed files are simply included
             // TODO: improve the parsing to take multi-line comments into account
             if (str_starts_with(str_trim_left(line.split), S("#include \""))) {
