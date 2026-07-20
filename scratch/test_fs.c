@@ -4,17 +4,17 @@
 
 void test_dir_delete() {
     bool r = dir_delete(S("junk"), .recursive=true);
-    printf("%.*s\n", SArg(bool_to_str(r)));
+    printf("%s\n", bool_to_cstr(r));
 }
 
 void test_dir_copy() {
     bool r = dir_copy(S("src"), S("build"));
-    printf("%.*s\n", SArg(bool_to_str(r)));
+    printf("%s\n", bool_to_cstr(r));
 }
 
 void test_dir_move() {
     bool r = dir_move(S("build"), S("src"));
-    printf("%.*s\n", SArg(bool_to_str(r)));
+    printf("%s\n", bool_to_cstr(r));
 }
 
 void test_cwd() {

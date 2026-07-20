@@ -752,7 +752,7 @@ static Str cli_options_list_opt(Arena *arena, CliOpt opt) {
             } break;
             case CliArg_Bool:  {
                 if (arg.default_bool) {
-                    options_list = str_catf(arena, options_list, " [default: %.*s]", SArg(bool_to_str(arg.default_bool)));
+                    options_list = str_catf(arena, options_list, " [default: %s]", bool_to_cstr(arg.default_bool));
                 }
             } break;
             case CliArg_Double: {

@@ -130,7 +130,8 @@ typedef uint8_t byte;
 
 #define align_of(type) _Alignof(type)
 #define type_of(type) __typeof__(type)
-#define bool_to_str(boolean) ((boolean)? S("true"): S("false"))
+#define bool_to_str(cond) ((cond)? S("true"): S("false"))
+#define bool_to_cstr(cond) ((cond)? "true": "false")
 
 // Obtains a pointer to the parent struct from a pointer to a member element
 #define parent_of(T, member_name, elem) (T *)((uintptr_t)(elem) - offsetof(T, member_name))

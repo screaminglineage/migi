@@ -13,7 +13,7 @@ void print_arg(CliArg *arg) {
             printf("%"PRId64"", arg->as_int);
         } break;
         case CliArg_Bool: {
-            printf("%.*s", SArg(bool_to_str(arg->as_bool)));
+            printf("%s", bool_to_cstr(arg->as_bool));
         } break;
         case CliArg_Double: {
             printf("%f", arg->as_double);
@@ -60,12 +60,12 @@ int main(int argc, char **argv) {
     printf("\n");
 
     printf("Is Set:\n");
-    printf("-str:   %.*s\n",  SArg(bool_to_str(cli_var_was_set(str))));
-    printf("-num:   %.*s\n",  SArg(bool_to_str(cli_var_was_set(num))));
-    printf("-flag:  %.*s\n",  SArg(bool_to_str(cli_var_was_set(flag))));
-    printf("-real:  %.*s\n",  SArg(bool_to_str(cli_var_was_set(real))));
-    printf("-list:  %.*s\n",  SArg(bool_to_str(cli_var_was_set(list))));
-    printf("-check: %.*s\n",  SArg(bool_to_str(cli_var_was_set(check))));
+    printf("-str:   %s\n",  bool_to_cstr(cli_var_was_set(str)));
+    printf("-num:   %s\n",  bool_to_cstr(cli_var_was_set(num)));
+    printf("-flag:  %s\n",  bool_to_cstr(cli_var_was_set(flag)));
+    printf("-real:  %s\n",  bool_to_cstr(cli_var_was_set(real)));
+    printf("-list:  %s\n",  bool_to_cstr(cli_var_was_set(list)));
+    printf("-check: %s\n",  bool_to_cstr(cli_var_was_set(check)));
     printf("\n\n");
 
     printf("Positional Arguments: \n");
