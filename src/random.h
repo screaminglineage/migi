@@ -257,7 +257,7 @@ static void rand_fill_bytes_opt(void *buf, size_t size, RandOpt opt) {
 
 static void rand_shuffle_bytes(byte *buf, size_t elem_size, size_t size, RandOpt opt) {
     Temp tmp = arena_temp();
-    byte *temp_buf = arena_push_nonzero(tmp.arena, byte, elem_size);
+    byte *temp_buf = arena_push(tmp.arena, byte, elem_size, .zeroed=false);
 
     // Fisher-Yates Shuffle
     for (size_t i = 0; i < size - 2; i++) {

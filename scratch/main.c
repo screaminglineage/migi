@@ -101,7 +101,7 @@ void test_linear_arena_regular(Arena *arena) {
     int *a = arena_push(arena, int, count);
     rand_fill(a, int, count);
 
-    byte *x = arena_push_bytes(arena, memory_page_size(), 1, true);
+    byte *x = arena_push_bytes(arena, memory_page_size(), 1);
     unused(x);
     int *c = arena_realloc(arena, int, a, count, 2 * count);
 
@@ -121,7 +121,7 @@ void test_linear_arena_rewind() {
     Arena *arena1 = arena_init(.type = Arena_Linear);
     size_t size = memory_page_size() * 4;
 
-    byte *mem = arena_push_bytes(arena1, size, 1, false);
+    byte *mem = arena_push_bytes(arena1, size, 1, .zeroed=false);
     rand_fill_bytes(mem, size);
 
     Arena *arena2 = arena_init(.type = Arena_Linear);
@@ -129,7 +129,7 @@ void test_linear_arena_rewind() {
     Temp checkpoint = arena_save(arena1);
     uint64_t old_capacity = arena1->current->reserved;
 
-    mem = arena_push_bytes(arena1, size, 1, true);
+    mem = arena_push_bytes(arena1, size, 1);
     rand_fill_bytes(mem, size);
     arena_rewind(checkpoint);
     assertf(old_capacity == arena1->current->reserved &&
@@ -310,18 +310,20 @@ void test_string_builder() {
 
     StrBuilder sb = {0};
     defer_block(sb_reset(&sb)) {
+        char space = ' ';
+
         sb_push(&sb, S("foo-bar-baz"));
-        sb_push(&sb, " ");
+        sb_push(&sb, space);
         sb_push(&sb, -1234);
-        sb_push(&sb, " ");
+        sb_push(&sb, space);
         sb_push(&sb, bit_fill(62));
-        sb_push(&sb, " ");
+        sb_push(&sb, space);
         sb_push(&sb, -1.234567);
-        sb_push(&sb, " ");
+        sb_push(&sb, space);
         sb_push(&sb, 1e99);
-        sb_push(&sb, " ");
+        sb_push(&sb, space);
         sb_push(&sb, false);
-        sb_push(&sb, " ");
+        sb_push(&sb, space);
         sb_push(&sb, &sb);
         sb_push(&sb, str_span(S(" some"), S(" more"), S(" stuff")));
 
@@ -338,8 +340,8 @@ void test_random() {
     Temp tmp = arena_temp();
     Arena *arena = tmp.arena;
     time_t seed = time(NULL);
-    byte *buf1 = arena_push_nonzero(arena, byte, size);
-    byte *buf2 = arena_push_nonzero(arena, byte, size);
+    byte *buf1 = arena_push(arena, byte, size, .zeroed=false);
+    byte *buf2 = arena_push(arena, byte, size, .zeroed=false);
 
     rand_rng_seed(seed);
     rand_fill_bytes(buf1, size);
@@ -357,7 +359,7 @@ void test_random() {
 
         Rng old_rng = rand_rng_set_global(rng);
 
-        byte *buf = arena_push_nonzero(arena, byte, size);
+        byte *buf = arena_push(arena, byte, size, .zeroed=false);
         rand_fill_bytes(buf, size);
 
         assertf(mem_eq_array(buf1, buf, size),
@@ -595,7 +597,7 @@ void linear_arena_stress_test() {
         arenas[i] = arena_init();
     }
     for (size_t i = 0; i < 100; i++) {
-        arena_push_bytes(arenas[i], 10 * MB, 1, true);
+        arena_push_bytes(arenas[i], 10 * MB, 1);
     }
 }
 
@@ -1528,9 +1530,8 @@ void test_ring_buffer() {
 
 
 
-int main() {
+int main(int argc, char **argv) {
     Arena *a = arena_init();
-
     arena_free(a);
     printf("\nExiting Successfully\n");
     return 0;

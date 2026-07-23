@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "migi_core.h"
+#include "migi_math.h"
 
 typedef struct {
     union {

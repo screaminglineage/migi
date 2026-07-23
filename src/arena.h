@@ -8,6 +8,11 @@
 #include "migi_core.h"
 #include "migi_math.h"
 
+// TODO: Add memory_poison/unpoison to catch out of bounds accesses
+// TODO: Add a memory debugger mode which puts blocks of poisoned regions between each allocation to catch overflows
+// The only issue is that it should be configurable on a per allocation basis, since certain functions (eg. sb_push)
+// expect the arena to allocate back to back regions
+
 // Use malloc/free instead of OS memory mapping
 // TODO: use max_align_t for arena__alignment
 #ifdef ARENA_USE_MALLOC
@@ -81,18 +86,23 @@ static Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size
 static void arena_free(Arena *arena);
 
 #define arena_new(arena, type) \
-    (type *)arena_push_bytes((arena), sizeof(type), align_of(type), true)
+    (type *)arena_push_bytes_opt((arena), sizeof(type), align_of(type), (ArenaPushOpt){ .zeroed=true })
 
-#define arena_push(arena, type, length) \
-    (type *)arena_push_bytes((arena), (length)*sizeof(type), align_of(type), true)
+#define arena_push(arena, type, length, ...) \
+    (type *)arena_push_bytes_opt((arena), (length)*sizeof(type), align_of(type), (ArenaPushOpt){ .zeroed=true, __VA_ARGS__})
 
-#define arena_push_nonzero(arena, type, length) \
-    (type *)arena_push_bytes((arena), (length)*sizeof(type), align_of(type), false)
+#define arena_push_bytes(arena, size, align, ...) \
+    arena_push_bytes_opt((arena), (size), (align), (ArenaPushOpt){ .zeroed=true, __VA_ARGS__})
 
 #define arena_pop(arena, type, length) \
     arena_pop_bytes((arena), (length)*sizeof(type));
 
-static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clear_mem);
+
+typedef struct {
+    bool zeroed;
+} ArenaPushOpt;
+
+static void *arena_push_bytes_opt(Arena *arena, size_t size, size_t align, ArenaPushOpt opt);
 static void arena_pop_bytes(Arena *arena, size_t size);
 
 #define arena_realloc(arena, type, old, old_length, new_length) \
@@ -188,7 +198,7 @@ static Arena *arena_init_static(void *backing_buffer, size_t backing_buffer_size
     return arena__init((ArenaOptions){.type = Arena_Static}, backing_buffer, backing_buffer_size);
 }
 
-static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clear_mem) {
+static void *arena_push_bytes_opt(Arena *arena, size_t size, size_t align, ArenaPushOpt opt) {
     Arena *current = arena->current;
     size_t alloc_start = align_up_pow2(current->position, align);
     size_t alloc_end = alloc_start + size;
@@ -232,7 +242,7 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
 #ifndef ARENA_USE_MALLOC
     // If memory was just committed the OS has already cleared it,
     // so there is no need to clear it again
-    if (clear_mem && !committed) mem_clear_array(mem, size);
+    if (opt.zeroed && !committed) mem_clear_array(mem, size);
 #else
     // Commit operation in malloc mode doesnt do anything,
     // so the memory must always be cleared in this case
@@ -245,9 +255,9 @@ static void *arena_push_bytes(Arena *arena, size_t size, size_t align, bool clea
 
 static void *arena_copy_bytes(Arena *arena, void *mem, size_t size, size_t align) {
     if (!mem) {
-        return arena_push_bytes(arena, size, align, true);
+        return arena_push_bytes_opt(arena, size, align, (ArenaPushOpt){0});
     }
-    return memcpy(arena_push_bytes(arena, size, align, false), mem, size);
+    return memcpy(arena_push_bytes_opt(arena, size, align, (ArenaPushOpt){.zeroed=false}), mem, size);
 }
 
 // TODO: try adding a arena_pop_to_bytes which pops to a certain index
@@ -280,7 +290,7 @@ static void arena_pop_bytes(Arena *arena, size_t size) {
 
 static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_t new_size, size_t align) {
     // behave like arena_push_bytes if old doesnt exist
-    if (old == NULL || old_size == 0) return arena_push_bytes(arena, new_size, align, true);
+    if (old == NULL || old_size == 0) return arena_push_bytes_opt(arena, new_size, align, (ArenaPushOpt){0});
     if (new_size <= old_size) return old;
 
     Arena *current = arena->current;
@@ -300,7 +310,7 @@ static void *arena_realloc_bytes(Arena *arena, void *old, size_t old_size, size_
             return old;
         }
     }
-    return memcpy(arena_push_bytes(arena, new_size, align, false), old, old_size);
+    return memcpy(arena_push_bytes_opt(arena, new_size, align, (ArenaPushOpt){.zeroed=false}), old, old_size);
 }
 
 static void arena_reset(Arena *arena) {

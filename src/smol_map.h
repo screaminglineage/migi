@@ -44,8 +44,8 @@ static uint64_t smol_lookup(Arena *arena, SmolMap *smol, uint64_t key_hash, uint
 
 static void smol_put(Arena *arena, SmolMap *hashmap, uint64_t key_hash, uint64_t value, bool replace) {
     if (hashmap->length == 0) {
-        hashmap->hashes = arena_push_bytes(arena, SMOL_MAP_DEFAULT_SIZE, align_of(uint64_t), false);
-        hashmap->values = arena_push_bytes(arena, SMOL_MAP_DEFAULT_SIZE, align_of(uint64_t), false);
+        hashmap->hashes = arena_push_bytes(arena, SMOL_MAP_DEFAULT_SIZE, align_of(uint64_t), .zeroed=false);
+        hashmap->values = arena_push_bytes(arena, SMOL_MAP_DEFAULT_SIZE, align_of(uint64_t), .zeroed=false);
         hashmap->length = SMOL_MAP_DEFAULT_SIZE;
 
         memset(hashmap->hashes, 0xff, hashmap->length * sizeof(uint64_t));

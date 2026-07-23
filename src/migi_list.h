@@ -197,13 +197,13 @@ struct {                 \
     size_t total_length; \
 }
 
-#define arrlist_init_capacity(arena, list, cap)                              \
-do {                                                                         \
-    type_of((list)->head) next = arena_new((arena), type_of(*(list)->head)); \
-    next->data = arena_push_bytes((arena), sizeof(next->data[0])*(cap),      \
-                                 ARRAYLIST_ALIGN, true);                     \
-    next->capacity = (cap);                                                  \
-    queue_push((list)->head, (list)->tail, next);                            \
+#define arrlist_init_capacity(arena, list, cap)                                   \
+do {                                                                              \
+    type_of((list)->head) next = arena_new((arena), type_of(*(list)->head));      \
+    next->data = arena_push_bytes_opt((arena), sizeof(next->data[0])*(cap),       \
+                                 ARRAYLIST_ALIGN, (ArenaPushOpt){.zeroed=true} ); \
+    next->capacity = (cap);                                                       \
+    queue_push((list)->head, (list)->tail, next);                                 \
 } while(0)
 
 
@@ -273,7 +273,7 @@ static Str strlist_pushf(Arena *a, StrList *list, const char *fmt, ...) {
 
 // TODO: reset the strlist afterwards
 static Str strlist_to_str(Arena *a, StrList *list) {
-    char *mem = arena_push_nonzero(a, char, list->total_size);
+    char *mem = arena_push(a, char, list->total_size, .zeroed=false);
     char *dest = mem;
     for (StrNode *node = list->head; node != NULL; node = node->next) {
         memcpy(dest, node->string.data, node->string.length);
@@ -283,7 +283,7 @@ static Str strlist_to_str(Arena *a, StrList *list) {
 }
 
 static StrSpan strlist_to_span(Arena *a, StrList *list) {
-    Str *slice = arena_push_nonzero(a, Str, list->length);
+    Str *slice = arena_push(a, Str, list->length, .zeroed=false);
 
     size_t i = 0;
     strlist_foreach(list, node) {
@@ -325,7 +325,7 @@ static Str strlist_pop(StrList *list) {
 static Str strlist_join(Arena *a, StrList *list, Str join_with) {
     if (list->length == 0) return str_zero();
     size_t total_size = list->total_size + (list->length - 1) * join_with.length;
-    char *mem = arena_push_nonzero(a, char, total_size);
+    char *mem = arena_push(a, char, total_size, .zeroed=false);
 
     char *dest = mem;
     StrNode *node = list->head;
