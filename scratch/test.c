@@ -162,7 +162,7 @@ RackNode rack__load_node(Arena *arena, Str *rack_str, Str filepath) {
                 return node;
             }
 
-            char *data = arena_push_nonzero(arena, char, length);
+            char *data = arena_push(arena, char, length, .zeroed=false);
             memcpy(data, rack_str->data, length);
             node.type = RackNode_String;
             node.as.string = str_from(data, length);

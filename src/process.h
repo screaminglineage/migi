@@ -4,6 +4,7 @@
 #include "migi_core.h"
 #include "arena.h"
 #include "migi_list.h"
+#include "string_builder.h"
 #include "file.h"
 
 typedef struct {
@@ -13,8 +14,8 @@ typedef struct {
 } Cmd;
 
 typedef struct {
-    int code;
-    bool error;
+    int code;               // exit code of the program that was ran
+    bool error;             // true if there was an error in running the command (TODO: never set for linux)
     StrList cmd_stdout;
     StrList cmd_stderr;
 } CmdResult;
@@ -39,7 +40,7 @@ typedef struct {
     bool capture_stdout;
     bool capture_stderr;
 
-    bool shell;             // run through the shell (TODO: seems to be not needed on windows)
+    bool shell;             // run through the shell
     bool background;        // run in background (only possible when running through shell)
     bool no_reset;          // dont reset after running the command, the internal arena is reset only if it wasn't passed from the outside
     bool no_log_cmd;        // dont log the command being executed
@@ -74,23 +75,22 @@ static void cmd__push_many(Cmd *cmd, StrSpan args) {
 #if OS_WINDOWS
 
 // Taken and adapted from: https://github.com/tsoding/nob.h/
-Str win32_quote_command_line(Arena *arena, StrList *cmd) {
-    Str quoted = {0};
+void win32_push_quoted_cmdline(StrBuilder *quoted, StrList *cmd) {
     size_t i = 0;
     for (StrNode *arg = cmd->head; arg; i++, arg = arg->next) {
-        if (i > 0) quoted = str_cat(arena, quoted, S(" "));
+        if (i > 0) sb_push_char(quoted, ' ');
 
         // TODO: does the following need to be ASCII_WHITESPACES instead?
         // Check for more info: https://learn.microsoft.com/en-gb/archive/blogs/twistylittlepassagesallalike/everyone-quotes-command-line-arguments-the-wrong-way
         if (str_find_opt(arg->string, S(" \t\n\v\""), Find_Any) == (int64_t)arg->string.length) {
             // no need to quote
-            quoted = str_cat(arena, quoted, arg->string);
+            sb_push(quoted, arg->string);
         } else {
             // we need to escape:
             // 1. double quotes in the original arg
             // 2. consequent backslashes before a double quote
             size_t backslashes = 0;
-            quoted = str_cat(arena, quoted, S("\""));
+            sb_push_char(quoted, '"');
             for (size_t j = 0; j < arg->string.length; ++j) {
                 char x = arg->string.data[j];
 
@@ -100,22 +100,20 @@ Str win32_quote_command_line(Arena *arena, StrList *cmd) {
                     if (x == '\"') {
                         // escape backslashes (if any) and the double quote
                         for (size_t k = 0; k < 1+backslashes; ++k) {
-                            quoted = str_cat(arena, quoted, S("\\"));
+                            sb_push(quoted, '\\');
                         }
                     }
                     backslashes = 0;
                 }
-                Str ch = str_from(&x, 1);
-                quoted = str_cat(arena, quoted, ch);
+                sb_push(quoted, x);
             }
             // escape backslashes (if any)
             for (size_t k = 0; k < backslashes; ++k) {
-                quoted = str_cat(arena, quoted, S("\\"));
+                sb_push_char(quoted, '\\');
             }
-            quoted = str_cat(arena, quoted, S("\""));
+            sb_push_char(quoted, '"');
         }
     }
-    return quoted;
 }
 
 
@@ -130,26 +128,20 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
 
     Temp tmp = arena_save(cmd->arena);
 
+    StrBuilder command_line = {.arena=cmd->arena};
+    if (opt.shell) {
+        sb_push(&command_line, S("cmd /c "));
+        if (opt.background) sb_push(&command_line, S("start /B "));
+    }
 
-    Str command_line = win32_quote_command_line(cmd->arena, &cmd->args);
-    command_line     = str_cat(cmd->arena, command_line, S("\0"));
-
-    // if (opt.shell) {
-    //     command_line = str_cat(cmd->arena, command_line, S("cmd "));
-    //     command_line = str_cat(cmd->arena, command_line, S("/s /c \""));
-    //     if (opt.background) command_line = str_cat(cmd->arena, command_line, S("start "));
-    //     command_line.length += strlist_join(cmd->arena, &cmd->args, S(" ")).length;
-    //     command_line = str_cat(cmd->arena, command_line, S("\""));
-    // } else {
-    //     command_line = strlist_join(cmd->arena, &cmd->args, S(" "));
-    // }
-    // command_line = str_cat(cmd->arena, command_line, S("\0"));
+    win32_push_quoted_cmdline(&command_line, &cmd->args);
 
     migi_log(Log_Info, "Running: '%s'", command_line.data);
 
     STARTUPINFO info = { .cb = sizeof(info) };
     PROCESS_INFORMATION process_info;
-    if (!CreateProcessA(NULL, command_line.data, NULL, NULL, true, 0, NULL, NULL, &info, &process_info)) {
+    char *command_line_cstr = (char *)sb_to_cstr(&command_line);
+    if (!CreateProcessA(NULL, command_line_cstr, NULL, NULL, true, 0, NULL, NULL, &info, &process_info)) {
         migi_log(Log_Error, "Failed to run `%.*s`: %.*s",
                 SArg(cmd->args.head->string), SArg(str_last_error(tmp.arena)));
         result.error = true;

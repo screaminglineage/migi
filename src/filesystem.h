@@ -35,6 +35,7 @@ static bool dir_move(Str from, Str to);
 static bool dir_delete_opt(Str filepath, DirDeleteOpt opt);
 #define dir_delete(filepath, ...) dir_delete_opt((filepath), (DirDeleteOpt){__VA_ARGS__})
 
+// TODO: Rename these to cwd_*
 static Str get_cwd(Arena *arena);
 static bool set_cwd(Str cwd);
 static Str get_cwd_executable(Arena *arena);
@@ -181,7 +182,7 @@ static bool dir_make_if_not_exists(Str dirpath) {
             migi_log(Log_Error, "Failed to create directory: '%.*s': %.*s", SArg(dirpath), SArg(err_str));
             result = false;
         } else {
-            Migi_log(Log_Info, "Directory: '%.*s' already exists", SArg(dirpath));
+            migi_log(Log_Info, "Directory: '%.*s' already exists", SArg(dirpath));
         }
     }
 

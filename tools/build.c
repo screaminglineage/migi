@@ -8,6 +8,10 @@
 // if it didnt launch a new debugger if it detects the debugger already running, with the `-d`
 // flag
 
+// TODO: ASAN on windows requires vcvars to be available at runtime as it dynamically links
+// against the DLL for it. Is there a way to make this work? 
+// Only this path is actually needed: 'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64'
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,7 +30,7 @@
     #define COMPILER S("gcc")
 #elif OS_WINDOWS
     #define COMPILER S("cl")
-    #define VCVARS_PATH S("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat")
+    #define VCVARS_PATH S("C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat")
 #else
     #error "Unsupported OS"
 #endif
@@ -65,12 +69,15 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
     } else {
         cmd_push(&command, S("-ggdb"));
         cmd_push(&command, S("-DMIGI_DEBUG_LOGS"));
-        if (sanitizers) cmd_push(&command, S("-fsanitize=undefined,address"));
+        if (sanitizers) {
+            cmd_push(&command, S("-DMIGI_ENABLE_SANITIZERS"));
+            cmd_push(&command, S("-fsanitize=undefined,address"));
+        }
     }
 
 #elif OS_WINDOWS
     // Resolves the absolute path of filename instead of using a relative path here
-    char *input_absolute_path = arena_push_nonzero(command.arena, char, MAX_PATH);
+    char *input_absolute_path = arena_push(command.arena, char, MAX_PATH, .zeroed=false);
     if (!GetFullPathNameA(str_to_cstr(command.arena, filename),
                           MAX_PATH, input_absolute_path, NULL)) {
         migi_log(Log_Error, "Failed to resolve absolute path of input file: %.*s",
@@ -106,7 +113,10 @@ static Cmd prepare_compiler(Str compiler, bool optimize, bool sanitizers, Str fi
     } else {
         cmd_push(&command, S("/Zi"));
         cmd_push(&command, S("/DMIGI_DEBUG_LOGS"));
-        // if (sanitizers) cmd_push(&command, S("/fsanitize=address")); // TODO: seems to not work?
+        if (sanitizers) {
+            cmd_push(&command, S("/DMIGI_ENABLE_SANITIZERS"));
+            cmd_push(&command, S("/fsanitize=address"));
+        }
     }
     cmd_push_many(&command, S("/link"), S("/INCREMENTAL:NO"));
 
@@ -224,7 +234,7 @@ int main(int argc, char **argv) {
 
             Str prev_cwd = get_cwd(arena);
             if (!set_cwd(S("./build"))) return 1;
-            CmdResult result = cmd_run(&command, .shell=true, /*.no_log_cmd=true*/);
+            CmdResult result = cmd_run(&command, /*.no_log_cmd=true*/);
             if (!set_cwd(prev_cwd)) return 1;
 
 #else
@@ -266,7 +276,11 @@ int main(int argc, char **argv) {
             migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
             cmd_reset(&command);
         } else {
+#if OS_WINDOWS
+            CmdResult res = cmd_run(&command);
+#else
             CmdResult res = cmd_run(&command, .shell=*debug, .background=*debug);
+#endif
 
             if (res.code != 0) {
                 migi_log(Log_Error, "Program: `%.*s` exited with code: %d", SArg(executable_path), res.code);

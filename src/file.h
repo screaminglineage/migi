@@ -290,7 +290,7 @@ static Str str_last_error(Arena *arena) {
     DWORD err = GetLastError();
 
     DWORD max_length = 64*KB - 1;
-    char *buf = arena_push_nonzero(arena, char, max_length);
+    char *buf = arena_push(arena, char, max_length, .zeroed=false);
     DWORD len = FormatMessageA(
         FORMAT_MESSAGE_FROM_SYSTEM|FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),

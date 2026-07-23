@@ -43,7 +43,7 @@ void **exarr__reserve(ExArrayHeader *h, void **arrays, size_t elem_size, size_t 
 
     for (int i = h->_tmp[0]; !arrays[i] && i >= 0; i--) {
         size_t block_size = EXARRAY_FIRST_BLOCK_SIZE + exarr__block_size(i);
-        arrays[i] = arena_push_bytes(h->arena, elem_size*block_size, elem_align, true);
+        arrays[i] = arena_push_bytes(h->arena, elem_size*block_size, elem_align);
     }
     return arrays;
 }

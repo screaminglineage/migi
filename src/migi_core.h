@@ -8,6 +8,11 @@
 #include <string.h>    // needed for mem_* functions
 
 
+#ifdef MIGI_ENABLE_SANITIZERS
+    #include <sanitizer/asan_interface.h>
+#endif
+
+
 // Determining OS, compiler, and architecture
 // Taken from: https://github.com/EpicGames/raddebugger/blob/master/src/base/base_context_cracking.h
 //
@@ -216,12 +221,39 @@ typedef uint8_t byte;
 #define unused(a) ((void)a)
 
 #if COMPILER_GCC_OR_CLANG
+    #define no_optimize_begin()     \
+        _Pragma("GCC push_options") \
+        _Pragma("GCC optimize(\"O0\")")
+
+    #define no_optimize_end() _Pragma("GCC pop options")
+
+#elif COMPILER_MSVC
+    #define no_optimize_begin() __pragma(optimize("", off))
+    #define no_optimize_end()   __pragma(optimize("", on))
+#endif
+
+
+#if COMPILER_GCC_OR_CLANG
     #define breakpoint() asm("int3")
 #elif COMPILER_MSVC
     #define breakpoint() __debugbreak()
 #else
     #error "breakpoint() not supported for this compiler"
 #endif
+
+
+// NOTE: memory_first_poisoned() returns a pointer to the first poisoned byte
+// in the region, or NULL if the region was not poisoned
+#ifdef MIGI_ENABLE_SANITIZERS
+    #define memory_poison(mem, size)         __asan_poison_memory_region((mem), (size))
+    #define memory_unpoison(mem, size)       __asan_unpoison_memory_region((mem), (size))
+    #define memory_first_poisoned(mem, size) __asan_region_is_poisoned((mem), (size))
+#else
+    #define memory_poison(mem, size)         (unused(mem), unused(size))
+    #define memory_unpoison(mem, size)       (unused(mem), unused(size))
+    #define memory_first_poisoned(mem, size) NULL
+#endif
+
 
 // Useful for defining bit flags or selecting a particular bit
 #define bit(n) (1ULL << (n))
@@ -236,18 +268,27 @@ typedef struct {
     size_t length;
 } Str;
 
+// TODO: find what other basic string functions should instead be here
+#define S(str_lit)  ((Str){(str_lit), sizeof((str_lit)) - 1})
+#define SArg(sv) (int)(sv).length, (sv).data
+#define str_zero() ((Str){0})
+
+static Str str_from(char *data, size_t length) {
+    return (Str){
+        .data   = data,
+        .length = length
+    };
+}
+
+
 typedef struct {
     Str *data;
     size_t length;
 } StrSpan;
-
-// TODO: find what other basic string functions should instead be here
 #define str_span(...) span(Str, StrSpan, __VA_ARGS__)
 #define str_span_new(arena, ...) span_new((arena), Str, StrSpan, __VA_ARGS__)
 
-#define S(str_lit)  ((Str){(str_lit), sizeof((str_lit)) - 1})
-#define SArg(sv) (int)(sv).length, (sv).data
-#define str_zero() ((Str){0})
+
 
 
 typedef enum {
@@ -433,6 +474,7 @@ static_assert(array_len(global_log_level_names) == Log_Count, "the number of log
     threadvar LogLevel MIGI_GLOBAL_LOG_LEVEL = Log_Info;
 #endif
 
+// TODO: check if running in a tty, and use ansi colour escape codes in that case
 // `context` is usually the name of the function (passed in as __func__) calling migi_log
 // If it's NULL then it is not printed
 migi_printf_format(5, 6)

@@ -523,7 +523,7 @@ static bool cli__parse_value(Arena *arena, CliArg *cli_arg, Str key, Str value, 
                 strlist_extend(&cli_arg->as_list, &items);
                 cli_arg->was_set = true;
             }
-            cli_arg->found_args += items.length;
+            cli_arg->found_args += (int32_t)items.length;
         } break;
         default:
             migi_unreachable();

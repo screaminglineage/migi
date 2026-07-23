@@ -60,7 +60,7 @@ static void *pool__alloc(Arena *arena, size_t elem_size, size_t *capacity,
         if (*capacity == 0) {
             *capacity = POOL_ALLOC_DEFAULT_CAP;
         }
-        *data = arena_push_bytes(arena, pool__item_size(elem_size) * *capacity, align_of(PoolItem), false);
+        *data = arena_push_bytes(arena, pool__item_size(elem_size) * *capacity, align_of(PoolItem), .zeroed=false);
     }
 
     assertf(*length < *capacity, "pool_alloc_bytes: pool out of capacity");

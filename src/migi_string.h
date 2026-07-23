@@ -12,13 +12,8 @@
 #include "migi_core.h"
 #include "arena.h"
 
-// TODO: check for other whitespace characters
-// https://stackoverflow.com/a/46637343
-// Cannot use S macro here since compound literals are apparently not constants on MSVC
+// NOTE: Cannot use S macro here since compound literals are apparently not constants on MSVC
 const Str ASCII_WHITESPACES = {.data = " \n\r\t\v\f", .length = 6};
-
-
-static Str str_from(char *data, size_t length);
 
 // The range is end exclusive
 static Str str_from_range(char *start, char *end);
@@ -188,12 +183,7 @@ migi_printf_format(2, 3) static Str strf(Arena *arena, const char *fmt, ...);
 static Str str__format(Arena *arena, const char *fmt, va_list args);
 
 
-static Str str_from(char *data, size_t length) {
-    return (Str){
-        .data   = data,
-        .length = length
-    };
-}
+
 
 static Str str_from_range(char *start, char *end) {
     return str_from(start, end - start);
@@ -205,7 +195,7 @@ static Str str_from_cstr(const char *cstr) {
 }
 
 static char *str_to_cstr(Arena *arena, Str str) {
-    char *cstr = arena_push_nonzero(arena, char, str.length + 1);
+    char *cstr = arena_push(arena, char, str.length + 1, .zeroed=false);
     if (str.data) {
         memcpy(cstr, str.data, str.length);
     }
@@ -467,7 +457,7 @@ static bool str_is_upper(Str str) {
 }
 
 static Str str_to_lower(Arena *arena, Str str) {
-    char *lower = arena_push_nonzero(arena, char, str.length);
+    char *lower = arena_push(arena, char, str.length, .zeroed=false);
     for (size_t i = 0; i < str.length; i++) {
         if (between(str.data[i], 'A', 'Z')) {
             lower[i] = str.data[i] + 32;
@@ -479,7 +469,7 @@ static Str str_to_lower(Arena *arena, Str str) {
 }
 
 static Str str_to_upper(Arena *arena, Str str) {
-    char *upper = arena_push_nonzero(arena, char, str.length);
+    char *upper = arena_push(arena, char, str.length, .zeroed=false);
     for (size_t i = 0; i < str.length; i++) {
         if (between(str.data[i], 'a', 'z')) {
             upper[i] = str.data[i] - 32;
@@ -514,7 +504,7 @@ static Str str_to_upper_inplace(Str *str) {
 
 
 static Str str_reverse(Arena *arena, Str str) {
-    char *reversed = arena_push_nonzero(arena, char, str.length);
+    char *reversed = arena_push(arena, char, str.length, .zeroed=false);
     for (size_t i = 0; i < str.length; i++) {
         reversed[str.length - i - 1] = str.data[i];
     }
@@ -524,7 +514,7 @@ static Str str_reverse(Arena *arena, Str str) {
 
 static Str str_replace(Arena *arena, Str str, Str find, Str replace_with) {
     size_t max_length = replace_with.length * (str.length + 2);
-    char *replaced = arena_push_nonzero(arena, char, max_length);
+    char *replaced = arena_push(arena, char, max_length, .zeroed=false);
     char *replaced_at = replaced;
 
     if (find.length == 0) {
@@ -607,7 +597,7 @@ static Str str__format(Arena *arena, const char *fmt, va_list args) {
     va_copy(args_saved, args);
 
     int reserved = 1024;
-    char *mem = arena_push_nonzero(arena, char, reserved);
+    char *mem = arena_push(arena, char, reserved, .zeroed=false);
     int actual = vsnprintf(mem, reserved, fmt, args);
     // vsnprintf doesnt count the null terminator
     actual += 1;
