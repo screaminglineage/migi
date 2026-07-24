@@ -1,6 +1,8 @@
 // #define HASHMAP_INIT_CAP 4
 // #define HASHMAP_LOAD_FACTOR 0.25
 // #define HASHMAP_COLLECT_STATS
+#include <inttypes.h>
+
 #include "hashmap.h"
 #include "migi.h"
 #include "random.h"
@@ -70,6 +72,7 @@ void test_basic() {
     assert(str_eq(hm.pairs[1].key, S("foo")));    assert(mem_eq(&hm.pairs[1].value, &((Point){10, 20})));
     assert(str_eq(hm.pairs[2].key, S("bla")));    assert(mem_eq(&hm.pairs[2].value, &((Point){7, 8})));
     assert(str_eq(hm.pairs[3].key, S("baz")));    assert(mem_eq(&hm.pairs[3].value, &((Point){5, 6})));
+    arena_free(a);
 }
 
 void test_default_values() {
@@ -97,6 +100,7 @@ void test_default_values() {
 
     Point p3 = hashmap_get(&hm, S("aaaaa"));
     assert(p3.x == 100 && p3.y == 100);
+    arena_free(a);
 }
 
 typedef struct {
@@ -141,8 +145,8 @@ void frequency_analysis() {
 #ifdef ENABLE_PROFILING
     printf("\n\nDeleting items:\n");
     begin_profiling();
-    for (size_t i = 0; i <= map.size; i++) {
-        KVStrInt *pair = entries + i;
+    for (size_t j = 0; j <= map.size; j++) {
+        KVStrInt *pair = entries + j;
         hashmap_del(&map, pair->key);
     }
     end_profiling_and_print_stats();
@@ -150,7 +154,7 @@ void frequency_analysis() {
     printf("Words sorted in descending order:\n");
     for (size_t i = 0; i < map.size; i++) {
         KVStrInt *pair = entries + i;
-        printf("%.*s => %ld\n", SArg(pair->key), pair->value);
+        printf("%.*s => %"PRId64"\n", SArg(pair->key), pair->value);
     }
 #endif
 #ifdef HASHMAP_COLLECT_STATS
@@ -158,6 +162,13 @@ void frequency_analysis() {
     printf("Total Collisions %d\n", map.stats.total_collisions);
 #endif
 }
+
+#define assert_int_eq(left, right)                                    \
+    (((left) != (right))                                              \
+        ? crash_with_message("assertion `left == right` failed: "     \
+            "left: '%"PRId64"', right: '%"PRId64"'", (left), (right)) \
+        : (void)0)
+
 
 // Define the following before #including hashmap for this to actually test something
 // #define HASHMAP_INIT_CAP 4
@@ -168,10 +179,10 @@ void test_small_hashmap_collision() {
     *hashmap_entry(a, &hm, S("abcd")) = 12;
     *hashmap_entry(a, &hm, S("efgh")) = 13;
 
-    assert(hashmap_del(&hm, S("abcd")) == 12);
-    assert(hashmap_get(&hm, S("efgh")) == 13);
-    assert(hashmap_get(&hm, S("efg")) == 0);
-    assert(hashmap_get(&hm, S("abcd")) == 0);
+    assert_int_eq(hashmap_del(&hm, S("abcd")), 12L);
+    assert_int_eq(hashmap_get(&hm, S("efgh")), 13L);
+    assert_int_eq(hashmap_get(&hm, S("efg")), 0L);
+    assert_int_eq(hashmap_get(&hm, S("abcd")), 0L);
 
     // Deleting last value in table
     *hashmap_entry(a, &hm, S("abcd")) = 10;
@@ -189,6 +200,7 @@ void test_small_hashmap_collision() {
     assert(hashmap_del(&map, S("a")) == 1);
     assert(hashmap_del(&map, S("b")) == 2);
     assert(hashmap_del(&map, S("c")) == 3);
+    arena_free(a);
 }
 
 
@@ -242,14 +254,15 @@ void test_type_safety() {
     assert(str_eq(map2.pairs[1].key, S("abcd")));  assert(mem_eq(&map2.pairs[1].value, &((Point){1, 2})));
     assert(str_eq(map2.pairs[2].key, S("efgh")));  assert(mem_eq(&map2.pairs[2].value, &((Point){3, 4})));
 
-    hashmap_foreach(&map, pair) {
-        printf("%.*s: %ld", SArg(pair->key), pair->value);
+    hashmap_foreach(&map, it) {
+        printf("%.*s: %"PRId64"", SArg(it->key), it->value);
     }
     printf("\n");
-    hashmap_foreach(&map2, pair) {
-        printf("%.*s: (Point){%d, %d}\n", SArg(pair->key), pair->value.x, pair->value.y);
+    hashmap_foreach(&map2, it) {
+        printf("%.*s: (Point){%d, %d}\n", SArg(it->key), it->value.x, it->value.y);
     }
     printf("\n");
+    arena_free(a);
 }
 
 Str random_string(Arena *a, size_t length) {
@@ -371,6 +384,7 @@ void test_basic_struct_key() {
     assert(mem_eq(&hm.pairs[1].key, &((Foo){1, 2, 1.0f})));    assert(mem_eq(&hm.pairs[1].value, &((Point){10, 20})));
     assert(mem_eq(&hm.pairs[2].key, &((Foo){7, 8, 4.0f})));    assert(mem_eq(&hm.pairs[2].value, &((Point){7, 8})));
     assert(mem_eq(&hm.pairs[3].key, &((Foo){5, 6, 3.0f})));    assert(mem_eq(&hm.pairs[3].value, &((Point){5, 6})));
+    arena_free(a);
 }
 
 
@@ -438,6 +452,7 @@ void test_basic_primitive_key() {
     assert(mem_eq(&hm.pairs[1].key, &(int){1}));   assert(mem_eq(&hm.pairs[1].value, &((Point){10, 20})));
     assert(mem_eq(&hm.pairs[2].key, &(int){4}));   assert(mem_eq(&hm.pairs[2].value, &((Point){7, 8})));
     assert(mem_eq(&hm.pairs[3].key, &(int){3}));   assert(mem_eq(&hm.pairs[3].value, &((Point){5, 6})));
+    arena_free(a);
 }
 
 
@@ -651,6 +666,8 @@ void test_custom_hash() {
     assert(mem_eq(&map.pairs[2].key, &((Point){10, 45}))); assert(str_eq(map.pairs[2].value, S("10, 45")));
     assert(mem_eq(&map.pairs[3].key, &((Point){50, 32}))); assert(str_eq(map.pairs[3].value, S("50, 32")));
     assert(mem_eq(&map.pairs[4].key, &((Point){5, 13})));  assert(str_eq(map.pairs[4].value, S("5, 13")));
+
+    arena_free(a);
 }
 
 void test_cstr_key() {
@@ -667,6 +684,7 @@ void test_cstr_key() {
     assert(str_eq_cstr(S("bar"),  map.pairs[2].key, 0)); assert(map.pairs[2].value == 149);
     assert(str_eq_cstr(S("baz"),  map.pairs[3].key, 0)); assert(map.pairs[3].value == -49);
     assert(str_eq_cstr(S("buzz"), map.pairs[4].key, 0)); assert(map.pairs[4].value == 0);
+    arena_free(a);
 }
 
 int main() {

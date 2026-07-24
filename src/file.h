@@ -7,6 +7,8 @@
 #if OS_WINDOWS
 #include <windows.h>
 #else
+#include <errno.h>
+#include <unistd.h>
 #include <fcntl.h>
 #endif
 

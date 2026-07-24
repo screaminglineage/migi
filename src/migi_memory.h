@@ -63,7 +63,7 @@ static void memory_decommit(void *mem, size_t size) {
 
 static void *memory_alloc(size_t size) {
     TIME_FUNCTION;
-    void *mem = VirtualAlloc(NULL, size, MEM_RESERVE|MEM_COMMIT, 0);
+    void *mem = VirtualAlloc(NULL, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
     assertf(mem != NULL, "%s: failed to allocate memory: %ld", __func__, GetLastError());
     return mem;
 }

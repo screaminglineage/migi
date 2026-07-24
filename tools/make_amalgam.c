@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
         S("src/migi_memory.h"),
         S("src/arena.h"),
         S("src/migi_string.h"),
+        S("src/string_builder.h"),
         S("src/migi_list.h"),
         S("src/hashmap.h"),
         S("src/file.h"),

@@ -1,5 +1,3 @@
-#include "migi.h"
-
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -21,6 +19,15 @@
 
 // #define ENABLE_PROFILING
 #include "profiler.h"
+
+#include "migi_core.h"
+#include "migi_math.h"
+
+// #define ARENA_USE_MALLOC
+#include "arena.h"
+
+#include "migi_string.h"
+#include "migi_list.h"
 
 // #define MIGI_DONT_AUTO_SEED_RNG
 #include "random.h"
@@ -71,11 +78,11 @@ int *return_array(Arena *arena, size_t *size) {
     return arena_copy(arena, int, a, *size);
 }
 
-char *return_string(Arena *arena, size_t *size) {
+char *return_string(Arena *arena) {
     const char *s = "This is a string that will be returned from the function "
                     "by an arena.\n";
-    *size = strlen(s);
-    return arena_copy(arena, char, s, *size);
+    size_t size = strlen(s);
+    return arena_copy(arena, char, s, size + 1);  // the NULL terminator also needs to be copied
 }
 
 void test_linear_arena_dup() {
@@ -83,8 +90,9 @@ void test_linear_arena_dup() {
     size_t size = 0;
     int *a = return_array(arena, &size);
     array_print(a, size, "%d");
-    char *s = return_string(arena, &size);
+    char *s = return_string(arena);
     printf("%s", s);
+    arena_free(arena);
 }
 
 void test_linear_arena_regular(Arena *arena) {
@@ -135,6 +143,9 @@ void test_linear_arena_rewind() {
     assertf(old_capacity == arena1->current->reserved &&
                 mem_eq_array(arena1->current->data, arena2->current->data, arena1->current->position - sizeof(Arena)),
             "rewinded arena is equivalent to old one");
+
+    arena_free(arena1);
+    arena_free(arena2);
 }
 
 void test_linear_arena() {
@@ -1530,7 +1541,7 @@ void test_ring_buffer() {
 
 
 
-int main(int argc, char **argv) {
+int main() {
     Arena *a = arena_init();
     arena_free(a);
     printf("\nExiting Successfully\n");
