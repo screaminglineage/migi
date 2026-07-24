@@ -8,19 +8,23 @@
 #include "migi_core.h"
 #include "migi_math.h"
 
-// TODO: Add memory_poison/unpoison to catch out of bounds accesses
 // TODO: Add a memory debugger mode which puts blocks of poisoned regions between each allocation to catch overflows
 // The only issue is that it should be configurable on a per allocation basis, since certain functions (eg. sb_push)
 // expect the arena to allocate back to back regions
 
 // Use malloc/free instead of OS memory mapping
-// TODO: use max_align_t for arena__alignment
 #ifdef ARENA_USE_MALLOC
     #define arena__reserve(size)        (malloc((size)))
     #define arena__commit(mem, size)    (void)(size), (mem)
     #define arena__decommit(mem, size)  ((void)(mem), (void)(size))
     #define arena__release(mem, size)   ((void)(size), free((mem)))
-    #define arena__alignment()          (8)
+
+    // NOTE: On GCC/Clang, `align_of(max_align_t)` is 16 (probably due
+    // to `long double`), however MSVC doesnt define max_align_t, but the
+    // maximum possible alignment is 8 (due to `double`).
+    // 16 is a good default regardless as it supports everything, and
+    // malloc aligns to 16 bit boundaries as well.
+    #define arena__alignment() (16)
 #else
     #include "migi_memory.h"
     #define arena__reserve(size)        memory_reserve(size)
@@ -162,14 +166,16 @@ static Arena *arena__init(ArenaOptions opt, void *backing_buffer, size_t backing
 
     // backing buffer was not provided
     if (!mem) {
-        // always align to page size
-        reserve_size = align_up_pow2(opt.reserve_size, arena__alignment());
+        // align to page size or max_align_t if using malloc
+        size_t align = arena__alignment();
+        reserve_size = align_up_pow2(opt.reserve_size, align);
         // commit_size must not be greater than reserve_size
-        commit_size = clamp_top(align_up_pow2(opt.commit_size, arena__alignment()), reserve_size);
+        commit_size = clamp_top(align_up_pow2(opt.commit_size, align), reserve_size);
 
         mem = arena__reserve(reserve_size);
         reserved = reserve_size;
         arena__commit(mem, commit_size);
+        memory_poison(mem + sizeof(Arena), commit_size);
         committed = commit_size;
     }
 
@@ -234,10 +240,12 @@ static void *arena_push_bytes_opt(Arena *arena, size_t size, size_t align, Arena
         arena__commit((byte *)current + current->committed, new_committed - current->committed);
         committed = true;
         current->committed = new_committed;
+        memory_poison((byte *)current + current->position, current->committed - current->position);
     }
     avow(alloc_end <= current->reserved, "%s: out of memory", __func__);
 
     byte *mem = (byte *)current + alloc_start;
+    memory_unpoison(mem, size);
 
 #ifndef ARENA_USE_MALLOC
     // If memory was just committed the OS has already cleared it,
@@ -246,7 +254,6 @@ static void *arena_push_bytes_opt(Arena *arena, size_t size, size_t align, Arena
 #else
     // Commit operation in malloc mode doesnt do anything,
     // so the memory must always be cleared in this case
-    if (clear_mem) mem_clear_array(mem, size);
 #endif
 
     current->position = alloc_end;
@@ -285,6 +292,7 @@ static void arena_pop_bytes(Arena *arena, size_t size) {
         arena__decommit((byte *)current + new_committed, current->committed - new_committed);
         current->committed = new_committed;
     }
+    memory_poison((byte *)current + new_position, current->position - new_position);
     current->position = new_position;
 }
 
@@ -328,11 +336,17 @@ static void arena_free(Arena *arena) {
     Arena *current = arena->current;
     // no need to free the static arena as the buffer was provided by the user
     if (current->type == Arena_Static) {
+        memory_unpoison((byte *)current, current->reserved);
         mem_clear_array((byte *)current, current->reserved);
     } else {
         while (current) {
             Arena *temp = current;
             current = current->prev;
+            // NOTE: If the memory is not unpoisoned before being released,
+            // then ASan still thinks it owns the memory, and if it is later
+            // mapped to some other process (most likely the C runtime itself
+            // during cleanup/shutdown), it will trip up ASan.
+            memory_unpoison(temp, temp->reserved);
             arena__release(temp, temp->reserved);
         }
     }

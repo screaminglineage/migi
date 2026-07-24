@@ -10,6 +10,7 @@ static void begin_profiling();
 static void end_profiling_and_print_stats();
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <string.h>
 
 #include "timing.h"
@@ -34,7 +35,11 @@ typedef struct {
 static Profiler global_profiler = {0};
 static uint64_t global_parent_index = 0;
 
-#ifdef ENABLE_PROFILING
+#if !COMPILER_GCC_OR_CLANG
+    #pragma message("profiler.h: This compiler is not supported as there is no __attribute__(cleanup)")
+#endif
+
+#if defined(ENABLE_PROFILING) && COMPILER_GCC_OR_CLANG
 
 typedef struct {
     uint64_t start_time;
@@ -87,12 +92,11 @@ static void end_block(ProfilerTimestampTemp *tp) {
 
 #define PROFILER_END static_assert(EVAL(DEFER(__COUNTER__)) < MAX_TIMESTAMPS, "More timestamps were added than allowed. Either increase MAX_TIMESTAMPS or reduce profile points")
 
-
 static void print_timestamps(uint64_t total, uint64_t cpu_freq) {
     for (size_t i = 1; i < MAX_TIMESTAMPS; i++) {
         ProfilerTimestamp ts = global_profiler.timestamps[i];
         if (ts.elapsed_inclusive) {
-            printf("%s [%lu]: %lu (%.2f%%",
+            printf("%s [%"PRIu64"]: %"PRIu64" (%.2f%%",
                    ts.name, ts.hits,
                    ts.elapsed_exclusive,
                    (double)ts.elapsed_exclusive/(double)total * 100);
@@ -111,6 +115,7 @@ static void print_timestamps(uint64_t total, uint64_t cpu_freq) {
         }
     }
 }
+
 
 #else
 

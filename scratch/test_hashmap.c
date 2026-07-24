@@ -1,6 +1,8 @@
 // #define HASHMAP_INIT_CAP 4
 // #define HASHMAP_LOAD_FACTOR 0.25
 // #define HASHMAP_COLLECT_STATS
+#include <inttypes.h>
+
 #include "hashmap.h"
 #include "migi.h"
 #include "random.h"
@@ -141,8 +143,8 @@ void frequency_analysis() {
 #ifdef ENABLE_PROFILING
     printf("\n\nDeleting items:\n");
     begin_profiling();
-    for (size_t i = 0; i <= map.size; i++) {
-        KVStrInt *pair = entries + i;
+    for (size_t j = 0; j <= map.size; j++) {
+        KVStrInt *pair = entries + j;
         hashmap_del(&map, pair->key);
     }
     end_profiling_and_print_stats();
@@ -150,7 +152,7 @@ void frequency_analysis() {
     printf("Words sorted in descending order:\n");
     for (size_t i = 0; i < map.size; i++) {
         KVStrInt *pair = entries + i;
-        printf("%.*s => %ld\n", SArg(pair->key), pair->value);
+        printf("%.*s => %"PRId64"\n", SArg(pair->key), pair->value);
     }
 #endif
 #ifdef HASHMAP_COLLECT_STATS
@@ -242,12 +244,12 @@ void test_type_safety() {
     assert(str_eq(map2.pairs[1].key, S("abcd")));  assert(mem_eq(&map2.pairs[1].value, &((Point){1, 2})));
     assert(str_eq(map2.pairs[2].key, S("efgh")));  assert(mem_eq(&map2.pairs[2].value, &((Point){3, 4})));
 
-    hashmap_foreach(&map, pair) {
-        printf("%.*s: %ld", SArg(pair->key), pair->value);
+    hashmap_foreach(&map, it) {
+        printf("%.*s: %"PRId64"", SArg(it->key), it->value);
     }
     printf("\n");
-    hashmap_foreach(&map2, pair) {
-        printf("%.*s: (Point){%d, %d}\n", SArg(pair->key), pair->value.x, pair->value.y);
+    hashmap_foreach(&map2, it) {
+        printf("%.*s: (Point){%d, %d}\n", SArg(it->key), it->value.x, it->value.y);
     }
     printf("\n");
 }

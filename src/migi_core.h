@@ -249,8 +249,8 @@ typedef uint8_t byte;
     #define memory_unpoison(mem, size)       __asan_unpoison_memory_region((mem), (size))
     #define memory_first_poisoned(mem, size) __asan_region_is_poisoned((mem), (size))
 #else
-    #define memory_poison(mem, size)         (unused(mem), unused(size))
-    #define memory_unpoison(mem, size)       (unused(mem), unused(size))
+    #define memory_poison(mem, size)
+    #define memory_unpoison(mem, size)
     #define memory_first_poisoned(mem, size) NULL
 #endif
 
