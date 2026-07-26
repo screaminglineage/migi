@@ -7,6 +7,11 @@
 #include "string_builder.h"
 #include "file.h"
 
+// TODO: will it be better to store a `Temp` here instead of an `Arena`
+// In that case, the temp can simply be reset even if it was passed in
+// from the outside. The one exception to this might be the case where
+// there are legitimate elements pushed into it in between cmd_push's,
+// which are needed after a cmd_run.
 typedef struct {
     Arena *arena;
     StrList args;
@@ -50,6 +55,10 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt);
 
 #define cmd_run(cmd, ...) \
     cmd_run_opt((cmd), (CmdOpt){__VA_ARGS__})
+
+// Returns true if there were no errors while trying to
+// perform cmd_run and the command exited with 0 exit code
+static bool cmd_ok(CmdResult res);
 
 static void cmd_reset(Cmd *cmd);
 static void cmd_free(Cmd *cmd);
@@ -268,6 +277,9 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
 
 #endif
 
+static bool cmd_ok(CmdResult res) {
+    return !res.error && res.code == 0;
+}
 
 static void cmd_reset(Cmd *cmd) {
     if (cmd->owns_arena) arena_reset(cmd->arena);

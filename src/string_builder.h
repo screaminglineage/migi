@@ -113,6 +113,7 @@ static void sb__push_no_match(StrBuilder *sb, void *elem) {
     crash_with_message("sb_push: no types matched");
 }
 
+// TODO: make this a public function that returns the new string builder
 static void sb__init(StrBuilder *sb) {
     if (!sb->data) {
         if (!sb->arena) {
@@ -287,6 +288,7 @@ static const char *sb_to_cstr_opt(StrBuilder *sb, StrBuilderOpt opt) {
     sb_push_char(sb, 0);
     const char *cstr = (const char *)sb->data;
     arena_pop(sb->arena, char, 1);
+    memory_unpoison(cstr, sb->length + 1);
     sb->length--;
     if (!opt.no_reset) sb_reset(sb);
     return cstr;

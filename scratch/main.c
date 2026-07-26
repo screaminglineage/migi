@@ -1540,8 +1540,8 @@ void test_ring_buffer() {
 }
 
 
-
-int main() {
+int main(int argc, char **argv) {
+    unused(argc); unused(argv);
     Arena *a = arena_init();
     arena_free(a);
     printf("\nExiting Successfully\n");

@@ -3,6 +3,7 @@
 
 #include "migi_core.h"
 #include "migi_list.h"
+#include "string_builder.h"
 
 #if OS_WINDOWS
 #include <windows.h>
@@ -51,7 +52,10 @@ static bool file_set_pos(File file, size_t new_pos);
 
 // NOTE: These are lower level functions that do not log the error
 // Either use `str_from/to_file` instead or manually call `str_last_error`
-static bool file_read(Arena *arena, File file, char *buffer, size_t length);
+
+// Returns `true` if reading is complete (either due to an error or consuming the entire file)
+static bool file_read(File file, char *buffer, size_t length, int64_t *actual_read);
+
 static StrResult file_read_all(Arena *arena, File file);
 static bool file_write_all(File file, Str str);
 
@@ -175,7 +179,7 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
 #endif
     }
     if (file == FILE_ERROR) {
-        migi_log(Log_Error, "failed to open file `%.*s`: %.*s",
+        migi_log(Log_Error, "Failed to open file '%.*s': %.*s",
                 SArg(filepath), SArg(str_last_error(tmp.arena)));
         file = FILE_ERROR;
     }
@@ -184,7 +188,7 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
 #if OS_WINDOWS
         DWORD res = SetFilePointer(file, 0, NULL, FILE_END);
         if (res == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
-            migi_log(Log_Error, "failed to open file `%.*s` in append mode: %.*s",
+            migi_log(Log_Error, "Failed to open file '%.*s' in append mode: %.*s",
                     SArg(filepath), SArg(str_last_error(tmp.arena)));
             CloseHandle(file);
             file = FILE_ERROR;
@@ -198,58 +202,57 @@ File file_open_opt(Str filepath, FileOpenOpt opt) {
     return file;
 }
 
-static bool file_read(Arena *arena, File file, char *buffer, size_t length) {
-    unused(arena);
-    unused(file);
-    unused(buffer);
-    unused(length);
-    todof("read length bytes from file");
+static bool file_read(File file, char *buffer, size_t length, int64_t *actual_read) {
+    char *buf_start = buffer;
+    char *buf_end   = buf_start + length;
+
+    bool complete = false;
+#if OS_WINDOWS
+    while (buffer < buf_end) {
+        DWORD n = 0;
+        // TODO: check if read is complete on windows
+        if (!ReadFile(file, buffer, (DWORD)length, &n, NULL)) {
+            complete = true;
+            goto end;
+        }
+        buffer += n;
+    }
+#else
+    while (buffer < buf_end) {
+        ssize_t n = read(file, buffer, length);
+        if (n <= 0) {
+            complete = true;
+            goto end;
+        }
+        buffer += n;
+    }
+#endif
+
+end:
+    *actual_read = buffer - buf_start;
+    return complete;
 }
 
 static StrResult file_read_all(Arena *arena, File file) {
     StrResult result = {0};
-#if OS_WINDOWS
-    // file position cannot be negative at this point
-    // TODO: check if GetFileSize can return an error which is negative
     int64_t length = file_length(file);
-    char *buf = arena_push(arena, char, length);
-
-    char *buf_start = buf;
-    char *buf_end = buf_start + length;
-    while (buf < buf_end) {
-        DWORD n = 0;
-        if (!ReadFile(file, buf, (DWORD)length, &n, NULL)) {
-            arena_pop(arena, char, length);
-            return result;
-        }
-        buf += n;
-    }
-#else
-    int64_t length = file_length(file);
-    if (length == -1) {
+    if (length < 0) {
         return result;
     }
-
     // file position cannot be negative at this point
     char *buf = arena_push(arena, char, length);
+    int64_t read_length = 0;
+    file_read(file, buf, length, &read_length);
+    bool ok = read_length == length;
 
-    char *buf_start = buf;
-    char *buf_end = buf_start + length;
-    while (buf < buf_end) {
-        ssize_t m = read(file, buf, length);
-        if (m == -1) {
-            arena_pop(arena, char, length);
-            return result;
-        }
-        buf += m;
+    if (!ok) {
+        arena_pop(arena, char, length);
     }
-#endif // #if OS_WINDOWS
-    result = (StrResult){
-        .string.data = buf_start,
-        .string.length = length,
-        .ok = true
+
+    return (StrResult){
+        .ok     = ok,
+        .string = str_from(buf, length),
     };
-    return result;
 }
 
 
@@ -328,7 +331,7 @@ static Str str_from_file(Arena *arena, Str filepath) {
 
     StrResult result = file_read_all(arena, file);
     if (!result.ok) {
-        migi_log(Log_Error, "failed to read from file `%.*s`: %.*s",
+        migi_log(Log_Error, "Failed to read from file '%.*s': %.*s",
                 SArg(filepath), SArg(str_last_error(tmp.arena)));
     }
     str = result.string;
@@ -349,7 +352,7 @@ static bool str_to_file(Str string, Str filepath) {
 
     bool ok = file_write_all(file, string);
     if (!ok) {
-        migi_log(Log_Error, "failed to write to file `%.*s`: %.*s", 
+        migi_log(Log_Error, "Failed to write to file '%.*s': %.*s", 
                 SArg(filepath), SArg(str_last_error(tmp.arena)));
     }
 
@@ -370,7 +373,7 @@ static bool strlist_to_file(StrList list, Str filepath) {
     }
     if (!ok) {
         Temp tmp = arena_temp();
-        migi_log(Log_Error, "failed to write to file `%.*s`: %.*s",
+        migi_log(Log_Error, "Failed to write to file '%.*s': %.*s",
                 SArg(filepath), SArg(str_last_error(tmp.arena)));
         arena_temp_release(tmp);
     }
@@ -379,11 +382,26 @@ static bool strlist_to_file(StrList list, Str filepath) {
     return ok;
 }
 
-
 #ifdef MIGI_STRING_BUILDER_H
 
 static void sb_push_file(StrBuilder *sb, Str filename) {
-    str_from_file(sb->arena, filename);
+    sb__init(sb);
+
+    File file = file_open(filename);
+    // TODO: perform `file_length(file)` and if it doesnt fail
+    // then allocate that as the amount upfront. Only fall back
+    // to the loop below if file_length doesnt work on this file
+
+    // Reading in chunks when the file size is unknown
+    int64_t size = 4096;
+    bool done = false;
+    while (!done) {
+        char *buf = arena_push(sb->arena, char, size);
+        int64_t read_length = 0;
+        done = file_read(file, buf, size, &read_length);
+        sb->length += read_length;
+        arena_pop(sb->arena, char, size - read_length);
+    }
 }
 
 static bool sb_to_file_opt(StrBuilder *sb, Str filename, StrBuilderOpt opt) {

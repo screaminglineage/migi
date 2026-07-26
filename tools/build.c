@@ -1,12 +1,12 @@
 // TODO: automatically rebuild this file if it is newer than build/build
+
+// TODO: this file cannot replace the old exe when compiled on windows, deal with that somehow
+// TODO: instead of overwriting the previous executable, first rename it to <NAME>.old
+// This will also fix the previous TODO
+
 // TODO: add support for choosing the compiler (clang/gcc on linux for the time being)
 
-// TODO: add support for both forward and backslashes on windows somehow
-// TODO: this file cannot replace the old exe when compiled on windows, deal with that somehow
-
-// TODO: It is often the case that a recompilation is done during debugging. It would be nice
-// if it didnt launch a new debugger if it detects the debugger already running, with the `-d`
-// flag
+// TODO: add support for both forward and backslashes on windows somehow (maybe just dont?)
 
 // TODO: ASAN on windows requires vcvars to be available at runtime as it dynamically links
 // against the DLL for it. Is there a way to make this work? 
@@ -23,7 +23,11 @@
 #include "process.h"
 
 #if OS_WINDOWS
+    #include <tlhelp32.h>
     #include "filesystem.h"
+#elif OS_LINUX
+    #include <ctype.h>
+    #include "dir_walker.h"
 #endif
 
 #if OS_LINUX
@@ -152,6 +156,52 @@ Str filename_to_output_path(Arena *arena, Str filename, Str build_folder) {
 #endif
 }
 
+#if OS_LINUX
+bool linux_process_running(Str process) {
+    Temp tmp = arena_temp();
+    DirIterNode *procs = dir_get_all_children(tmp.arena, S("/proc"));
+
+    bool found = false;
+    list_foreach(procs, proc) {
+        if (!isdigit(proc->entry.name.data[0])) continue;
+        Str proc_name_file = strf(tmp.arena, "/proc/%.*s/comm", SArg(proc->entry.name));
+
+        // cant use str_from_file here since you cannot get
+        // the length of files in the /proc/<pid> filesystem
+        StrBuilder sb = {0};
+        sb_push_file(&sb, proc_name_file);
+        Str str = str_trim(sb_to_str(&sb));
+        if (str_eq(str, process)) {
+            found = true;
+            break;
+        }
+    }
+    arena_temp_release(tmp);
+    return found;
+}
+#elif OS_WINDOWS
+bool win32_process_running(Str process_name) {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return false;
+
+    PROCESSENTRY32 process = {0};
+    process.dwSize = sizeof(process);
+
+    bool found = false;
+    if (Process32First(snapshot, &process)) {
+        do {
+            if (str_eq_cstr(process_name, process.szExeFile, 0)) {
+                found = true;
+                break;
+            }
+        } while (Process32Next(snapshot, &process));
+    }
+    CloseHandle(snapshot);
+    return found;
+}
+
+#endif
+
 int main(int argc, char **argv) {
     Arena *arena = arena_init();
 
@@ -204,16 +254,33 @@ int main(int argc, char **argv) {
         ? *output
         : filename_to_output_path(arena, filename, BUILD_FOLDER);
 
+#if OS_WINDOWS
+    // This needs to be done here on windows since the program
+    // being debugged needs to be killed before it can be replaced
+    // by the compilation command below
+    bool restart_debugger = false;
+    if (win32_process_running(S("raddbg.exe"))) {
+        log_info("Debugger already running, not launching a new instance");
+        Cmd raddbg_ipc = {.arena=arena};
+        cmd_push     (&raddbg_ipc, S("raddbg"));
+        cmd_push_many(&raddbg_ipc, S("--ipc"), S("kill_all"));
+        if (!cmd_ok(cmd_run(&raddbg_ipc, .no_log_cmd=true))) return 1;
+        restart_debugger = true;
+    }
+#endif
+
+    Cmd compile_cmd = {0};
     if (!*run_old) {
-        Cmd command = prepare_compiler(COMPILER, *optimize, *sanitizers, filename, executable_path);
+        compile_cmd = prepare_compiler(COMPILER, *optimize, *sanitizers, filename, executable_path);
         if (*dry_run) {
-            migi_log(Log_Info, "Compiling (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
-            cmd_reset(&command);
+            migi_log(Log_Info, "Compiling (Dry Run): %.*s", SArg(strlist_join(arena, &compile_cmd.args, S(" "))));
+            cmd_reset(&compile_cmd);
         } else {
 
 #if OS_WINDOWS
+            // Finding `cl.exe`
             bool cl_found = true;
-            char *cl_path = arena_push(command.arena, char, MAX_PATH);
+            char *cl_path = arena_push(compile_cmd.arena, char, MAX_PATH);
             if (SearchPathA(NULL, "cl", ".exe", MAX_PATH, cl_path, NULL) == 0) {
                 if (GetLastError() == ERROR_FILE_NOT_FOUND) {
                     cl_found = false;
@@ -222,64 +289,81 @@ int main(int argc, char **argv) {
             StrList args = {0};
             if (!cl_found) {
                 migi_log(Log_Info, "Could not find 'cl.exe' in PATH, running vcvars.bat");
-                strlist_push(command.arena, &args, VCVARS_PATH);
-                strlist_push(command.arena, &args, S(">nul"));
-                strlist_push(command.arena, &args, S("2>nul"));
-                strlist_push(command.arena, &args, S("&&"));
+                strlist_push(compile_cmd.arena, &args, VCVARS_PATH);
+                strlist_push(compile_cmd.arena, &args, S(">nul"));
+                strlist_push(compile_cmd.arena, &args, S("2>nul"));
+                strlist_push(compile_cmd.arena, &args, S("&&"));
             }
+            compile_cmd.args = strlist_extend(&args, &compile_cmd.args);
 
-            // migi_log(Log_Info, "Running: %.*s", command);
-            command.args = strlist_extend(&args, &command.args);
-            // cmd_push(&command, S("\""));
-
+            // CD to the build directory on windows instead of dealing with
+            // millions of compiler flags to set the output directory for each
+            // compilation object
             Str prev_cwd = get_cwd(arena);
             if (!set_cwd(S("./build"))) return 1;
-            CmdResult result = cmd_run(&command, /*.no_log_cmd=true*/);
+            CmdResult result = cmd_run(&compile_cmd /*, .no_log_cmd=true*/);
             if (!set_cwd(prev_cwd)) return 1;
 
 #else
-            CmdResult result = cmd_run(&command);
+            CmdResult result = cmd_run(&compile_cmd);
 #endif
 
-            if (result.error || result.code != 0) {
+            if (!cmd_ok(result)) {
                 return 1;
             }
         }
     }
 
     if (*debug || *run || *run_old) {
-        Cmd command = {0};
+        Cmd run_cmd = {0};
 #if OS_LINUX
-        if (*debug) cmd_push(&command, S("gf2"));
-        cmd_push(&command, executable_path);
+        if (*debug && linux_process_running(S("gf2"))) {
+            log_info("Debugger already running, not launching a new instance");
+            log_info("Restarting debugger");
+            if (!str_to_file(S("c start"), S("/tmp/gf2-control-pipe"))) return 1;
+            return 0;
+        }
+
+        if (*debug) cmd_push(&run_cmd, S("gf2"));
+        cmd_push(&run_cmd, executable_path);
 
         // Arguments passed to GDB
         if (*debug) {
             // Start running the program immediately
-            cmd_push_many(&command, S("-ex"), S("start"));
+            cmd_push_many(&run_cmd, S("-ex"), S("start"));
             if (cli_meta_args().length > 0) {
                 // This ensures that the meta args are handled correctly
-                cmd_push(&command, S("--args"));
-                cmd_push(&command, executable_path);
+                cmd_push(&run_cmd, S("--args"));
+                cmd_push(&run_cmd, executable_path);
             }
         }
 #elif OS_WINDOWS
-        if (*debug) cmd_push(&command, S("raddbg"));
-        cmd_push(&command, executable_path);
+        if (restart_debugger) {
+            log_info("Restarting debugger");
+            Cmd raddbg_ipc = {.arena=arena};
+            cmd_push     (&raddbg_ipc, S("raddbg"));
+            cmd_push_many(&raddbg_ipc, S("--ipc"), S("launch_and_step_into"));
+            if (!cmd_ok(cmd_run(&raddbg_ipc, .no_log_cmd=true))) return 1;
+            return 0;
+        }
+
+        if (*debug) cmd_push(&run_cmd, S("raddbg"));
+
+        cmd_push(&run_cmd, executable_path);
 #else
 #error "Unsupported OS"
 #endif
         // Pass meta args to the program being ran
-        strlist_extend(&command.args, &cli_meta_args());
+        strlist_extend(&run_cmd.args, &cli_meta_args());
 
         if (*dry_run) {
-            migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &command.args, S(" "))));
-            cmd_reset(&command);
+            migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &run_cmd.args, S(" "))));
+            cmd_reset(&run_cmd);
         } else {
 #if OS_WINDOWS
-            CmdResult res = cmd_run(&command);
+            CmdResult res = cmd_run(&run_cmd);
 #else
-            CmdResult res = cmd_run(&command, .shell=*debug, .background=*debug);
+            CmdResult res = cmd_run(&run_cmd, .shell=*debug, .background=*debug);
 #endif
 
             if (res.code != 0) {

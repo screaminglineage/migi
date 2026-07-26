@@ -1,3 +1,6 @@
+// TODO: rename to lists.h
+
+
 #ifndef MIGI_LISTS_H
 #define MIGI_LISTS_H
 
@@ -136,7 +139,6 @@
 
 
 // StrList (Linked List of Strings)
-// TODO: rename the member to simply `str`
 typedef struct StrNode StrNode;
 struct StrNode {
     Str string;
