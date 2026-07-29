@@ -1,6 +1,8 @@
 #include "migi.h"
 #include "file.h"
 
+// TODO: Use a variable length encoding for the serialized structs
+
 typedef enum {
     RackNode_None = 0,
 
@@ -37,6 +39,7 @@ struct RackPair {
 };
 
 typedef struct {
+    Arena *arena;
     RackPair *pairs;
     size_t length;
     enum {
@@ -47,8 +50,10 @@ typedef struct {
 } Rack;
 
 
-void rack_begin_pair(Arena *arena, Rack *rack) {
-    RackPair *pair = arena_new(arena, RackPair);
+void rack_begin_pair(Rack *rack) {
+    if (!rack->arena) rack->arena = arena_init();
+
+    RackPair *pair = arena_new(rack->arena, RackPair);
     stack_push(rack->pairs, pair);
     rack->fill = RackFill_Key;
 }
@@ -73,16 +78,22 @@ RackNode *rack__get_node_to_fill(Rack *rack) {
     return node;
 }
 
-void rack_write_string(Arena *arena, Rack *rack, Str string) {
+void rack_write_str(Rack *rack, Str string) {
     RackNode *node = rack__get_node_to_fill(rack);
     node->type = RackNode_String;
-    node->as.string = str_copy(arena, string);
+    node->as.string = str_copy(rack->arena, string);
 }
 
 void rack_write_i64(Rack *rack, int64_t num) {
     RackNode *node = rack__get_node_to_fill(rack);
     node->type = RackNode_I64;
     node->as.i64 = num;
+}
+
+void rack_write_u64(Rack *rack, uint64_t num) {
+    RackNode *node = rack__get_node_to_fill(rack);
+    node->type = RackNode_U64;
+    node->as.u64 = num;
 }
 
 void rack__dump_node(Arena *arena, StrList *list, RackNode node) {
@@ -114,7 +125,17 @@ void rack__dump_node(Arena *arena, StrList *list, RackNode node) {
             strlist_push_buffer(arena, list, num_as_bytes, sizeof(int64_t));
         } break;
 
-        case RackNode_U64:
+        case RackNode_U64: {
+            uint64_t num = node.as.u64;
+
+            // store number in little endian order
+            char num_as_bytes[sizeof(uint64_t)];
+            for (size_t i = 0; i < sizeof(uint64_t); i++) {
+                num_as_bytes[i] = num >> 8 * i;
+            }
+            strlist_push_buffer(arena, list, num_as_bytes, sizeof(uint64_t));
+        } break;
+
         case RackNode_F64:
             todof("implement dumping other types");
 
@@ -188,7 +209,24 @@ RackNode rack__load_node(Arena *arena, Str *rack_str, Str filepath) {
         } break;
 
 
-        case 'U':
+        case 'U': {
+            *rack_str = str_skip(*rack_str, 1);
+            if (rack_str->length < 4) {
+                fprintf(stderr, "%s: failed to load rack from `%.*s`: %s\n", __func__, SArg(filepath), "unexpected EOF");
+                return node;
+            }
+
+            uint64_t num = 0;
+            for (size_t i = 0; i < 8; i++) {
+                uint64_t tmp = rack_str->data[i];
+                num |= tmp << (8 * i);
+            }
+
+            node.type = RackNode_U64;
+            node.as.u64 = num;
+            *rack_str = str_skip(*rack_str, sizeof(uint64_t));
+        } break;
+
         case 'D':
             todof("implement loading other types");
         case 'N':
@@ -197,8 +235,8 @@ RackNode rack__load_node(Arena *arena, Str *rack_str, Str filepath) {
     return node;
 }
 
-bool rack_load(Arena *arena, Rack *rack, Str filepath) {
-    Temp tmp = arena_temp_excl(arena);
+bool rack_load(Rack *rack, Str filepath) {
+    Temp tmp = arena_temp_excl(rack->arena);
     Str rack_str = str_from_file(tmp.arena, filepath);
     if (rack_str.length == 0) {
         arena_temp_release(tmp);
@@ -206,9 +244,9 @@ bool rack_load(Arena *arena, Rack *rack, Str filepath) {
     }
 
     while (rack_str.length != 0) {
-        RackPair *pair = arena_new(arena, RackPair);
-        pair->key = rack__load_node(arena, &rack_str, filepath);
-        pair->value = rack__load_node(arena, &rack_str, filepath);
+        RackPair *pair = arena_new(rack->arena, RackPair);
+        pair->key = rack__load_node(rack->arena, &rack_str, filepath);
+        pair->value = rack__load_node(rack->arena, &rack_str, filepath);
         stack_push(rack->pairs, pair);
     }
     arena_temp_release(tmp);
@@ -240,23 +278,26 @@ int main() {
     Str filepath = S("data.rack");
     Temp tmp = arena_temp();
 
-    Rack rack = {0};
-    rack_begin_pair(tmp.arena, &rack);
-    rack_write_string(tmp.arena, &rack, S("Steel Ball Run"));
-    rack_write_string(tmp.arena, &rack, S("Johnny Joestar"));
+    Rack rack = {.arena=tmp.arena};
+    rack_begin_pair(&rack); {
+        rack_write_str(&rack, S("Steel Ball Run"));
+        rack_write_str(&rack, S("Johnny Joestar"));
+    }
 
-    rack_begin_pair(tmp.arena, &rack);
-    rack_write_string(tmp.arena, &rack, S("Jojolion"));
-    rack_write_i64(&rack, 8);
+    rack_begin_pair(&rack); {
+        rack_write_str(&rack, S("Jojolion"));
+        rack_write_i64(&rack, INT64_MIN);
+    }
 
-    rack_begin_pair(tmp.arena, &rack);
-    rack_write_string(tmp.arena, &rack, S("Jojolands"));
-    rack_write_i64(&rack, 9);
+    rack_begin_pair(&rack); {
+        rack_write_str(&rack, S("Jojolands"));
+        rack_write_u64(&rack, UINT64_MAX);
+    }
 
     rack_dump(&rack, filepath);
 
-    Rack rack1 = {0};
-    rack_load(tmp.arena, &rack1, filepath);
+    Rack rack1 = {.arena=tmp.arena};
+    rack_load(&rack1, filepath);
     list_foreach(rack1.pairs, pair) {
         rack__print_node(pair->key);
         printf(": ");

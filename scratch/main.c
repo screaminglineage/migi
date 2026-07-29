@@ -277,12 +277,34 @@ void test_string_builder() {
         sb_push(&sb, "foo");
         Str foo = sb_to_str(&sb);
 
+        // It's fine to allocate on the arena as long as the StrBuilder
+        // has been reset (`sb_to_str` resets it by default).
+        int *junk, junk_size = 100; {
+            junk = arena_push(sb.arena, int, junk_size);
+            for (int i = 0; i < junk_size; i++) junk[i] = i;
+        }
+
         sb_push(&sb, "bar");
         Str bar = sb_to_str(&sb);
 
         assertf(str_eq(foo, S("foo")), "old values persist in the arena after sb_reset");
         assertf(str_eq(bar, S("bar")), "old values persist in the arena after sb_reset");
         assertf(sb.arena->position > sizeof(Arena), "arena was not reset");
+
+        /* The `junk` allocation still exists */ {
+            assertf((intptr_t)junk == (intptr_t)(foo.data + foo.length + 1), "junk is a separate allocation");
+            assertf((intptr_t)(junk + junk_size) == (intptr_t)bar.data,      "junk is a separate allocation");
+            for (int i = 0; i < junk_size; i++) assert(junk[i] == i);
+        }
+
+        {
+            // The following is illegal since the string being
+            // built will no longer be contiguous. The arena_push
+            // will trip an assert if uncommented.
+            sb_push(&sb, S("baz"));
+            // arena_push(sb.arena, float, 100);
+            sb_push(&sb, S("qux"));
+        }
     }
 
     // sb_to_str: Arena is reset if it is owned by the StrBuilder

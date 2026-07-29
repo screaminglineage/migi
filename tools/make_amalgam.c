@@ -21,26 +21,33 @@ int main(int argc, char **argv) {
     if (!cli_parse_args(argc, argv, .help=S("Generate a single amalgamated header "
                                            "containing all the main headers in migi"))) return 1;
 
-    Str files[] = {
-        S("src/migi_core.h"),
-        S("src/migi_math.h"),
-        S("src/timing.h"),
-        S("src/profiler.h"),
-        S("src/migi_memory.h"),
-        S("src/arena.h"),
-        S("src/migi_string.h"),
-        S("src/string_builder.h"),
-        S("src/migi_list.h"),
-        S("src/hashmap.h"),
-        S("src/file.h"),
-        S("src/cli_parse.h"),
-        S("src/random.h"),
+    struct {
+        Str name;
+        Str include_macro;
+    }files[] = {
+        { .name=S("src/migi_core.h"),        },
+        { .name=S("src/migi_math.h"),        },
+        { .name=S("src/timing.h"),           },
+        { .name=S("src/profiler.h"),         },
+        { .name=S("src/migi_memory.h"),      },
+        { .name=S("src/arena.h"),            },
+        { .name=S("src/migi_string.h"),      },
+        { .name=S("src/string_builder.h"),   },
+        { .name=S("src/migi_list.h"),        },
+        { .name=S("src/hashmap.h"),          },
+        { .name=S("src/file.h"),             },
+        { .name=S("src/cli_parse.h"),        },
+        { .name=S("src/random.h"),          .include_macro=S("MIGI_INCLUDE_RANDOM")     },
+        { .name=S("src/filepath.h"),        .include_macro=S("MIGI_INCLUDE_FILESYSTEM") },
+        { .name=S("src/dynamic_string.h"),  .include_macro=S("MIGI_INCLUDE_FILESYSTEM") },
+        { .name=S("src/dir_walker.h"),      .include_macro=S("MIGI_INCLUDE_FILESYSTEM") },
+        { .name=S("src/filesystem.h"),      .include_macro=S("MIGI_INCLUDE_FILESYSTEM") },
     };
 
     if (*show_headers) {
         printf("Included Headers:\n");
         for (size_t i = 0; i < array_len(files); i++) {
-            Str header = str_skip(files[i], S("src/").length);
+            Str header = str_skip(files[i].name, S("src/").length);
             printf("  %.*s\n", SArg(header));
         }
     }
@@ -57,7 +64,11 @@ int main(int argc, char **argv) {
     strlist_push(a, &amalgam, no_crt_warnings);
 
     for (size_t i = 0; i < array_len(files); i++) {
-        Str str = str_from_file(a, files[i]);
+        Str str = str_from_file(a, files[i].name);
+
+        if (files[i].include_macro.length != 0) {
+            strlist_pushf(a, &amalgam, "#ifdef %.*s\n\n", SArg(files[i].include_macro));
+        }
         strcut_foreach(str, S("\n"), line) {
             // Skip local includes as all the needed files are simply included
             // TODO: improve the parsing to take multi-line comments into account
@@ -66,6 +77,9 @@ int main(int argc, char **argv) {
             }
             strlist_push(a, &amalgam, line.split);
             strlist_push(a, &amalgam, S("\n"));
+        }
+        if (files[i].include_macro.length != 0) {
+            strlist_pushf(a, &amalgam, "#endif // #ifdef %.*s\n\n", SArg(files[i].include_macro));
         }
     }
     strlist_push(a, &amalgam, S("#endif // #ifndef MIGI_AMALGAM_H\n"));

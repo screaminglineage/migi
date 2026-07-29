@@ -9,9 +9,6 @@
 #include "migi_string.h"
 #include "arena.h"
 
-// TODO: should it initially store the data on a buffer on the stack?
-// TODO: If the above is implemented, then it also needs to copy the
-// string over to another block to be returned.
 typedef struct {
     Arena *arena;
     char *data;
@@ -115,7 +112,7 @@ static void sb__push_no_match(StrBuilder *sb, void *elem) {
 
 // TODO: make this a public function that returns the new string builder
 static void sb__init(StrBuilder *sb) {
-    if (!sb->data) {
+    if (!sb->data || sb->length == 0) {
         if (!sb->arena) {
             sb->arena      = arena_init(.type=Arena_Linear);
             sb->owns_arena = true;
@@ -123,6 +120,8 @@ static void sb__init(StrBuilder *sb) {
         assertf(sb->arena->type != Arena_Chained, "StrBuilder cannot work on chained arenas");
         sb->data = (char *)((byte *)sb->arena + sb->arena->position);
     }
+    assertf(sb->arena->data + sb->arena->position - sizeof(*sb->arena) == (byte *)(sb->data + sb->length),
+            "Arena was used to allocate in between pushes to StrBuilder");
 }
 
 

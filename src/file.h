@@ -13,9 +13,7 @@
 #include <fcntl.h>
 #endif
 
-// TODO: Divide the functions with separate implementations (like filesystem.h)
-// rather than using #if's inside the functions
-// TODO: complete the parts with todo()'s;
+// TODO: Divide the functions like filesystem.h rather than using #if's inside the functions
 
 #if OS_WINDOWS
     typedef HANDLE File;

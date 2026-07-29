@@ -17,6 +17,7 @@
 #include "migi_math.h"
 #include "arena.h"
 #include "migi_string.h"
+#include "string_builder.h"
 #include "migi_list.h"
 // IWYU pragma: end_exports
 
