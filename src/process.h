@@ -137,13 +137,14 @@ static CmdResult cmd_run_opt(Cmd *cmd, CmdOpt opt) {
 
     Temp tmp = arena_save(cmd->arena);
 
-    StrBuilder command_line = {.arena=cmd->arena};
+    StrBuilder command_line = {.arena=tmp.arena};
     if (opt.shell) {
         sb_push(&command_line, S("cmd /c "));
         if (opt.background) sb_push(&command_line, S("start /B "));
     }
 
     win32_push_quoted_cmdline(&command_line, &cmd->args);
+    sb_push_null(&command_line);
 
     migi_log(Log_Info, "Running: '%s'", command_line.data);
 

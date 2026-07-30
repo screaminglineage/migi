@@ -20,7 +20,7 @@ if "%InputFile:~0,1%" == "-" (
 
 set "BuildFolder=build"
 set "Debug=1"
-REM set "Sanitizer=/fsanitize=address"
+set "Sanitizer=/DMIGI_ENABLE_SANITIZERS /fsanitize=address"
 
 REM TODO: explain all the warnings which have been turned off
 set "CFlags=/nologo /W4 /wd4200 /wd4146 /wd4127 /wd4034 /wd4201 /wd4189 /I../src /std:c11"

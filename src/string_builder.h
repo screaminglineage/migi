@@ -210,6 +210,11 @@ static void sb_push_char(StrBuilder *sb, char to_push) {
     sb_push_buffer(sb, &to_push, 1);
 }
 
+static void sb_push_null(StrBuilder *sb) {
+    char null = '\0';
+    sb_push_buffer(sb, &null, 1);
+}
+
 static void sb_push_str(StrBuilder *sb, Str string) {
     sb_push_buffer(sb, string.data, string.length);
 }

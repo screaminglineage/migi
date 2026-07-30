@@ -1,9 +1,5 @@
 // TODO: automatically rebuild this file if it is newer than build/build
 
-// TODO: this file cannot replace the old exe when compiled on windows, deal with that somehow
-// TODO: instead of overwriting the previous executable, first rename it to <NAME>.old
-// This will also fix the previous TODO
-
 // TODO: add support for choosing the compiler (clang/gcc on linux for the time being)
 
 // TODO: add support for both forward and backslashes on windows somehow (maybe just dont?)
@@ -21,10 +17,10 @@
 #include "migi.h"
 #include "cli_parse.h"
 #include "process.h"
+#include "filesystem.h"
 
 #if OS_WINDOWS
     #include <tlhelp32.h>
-    #include "filesystem.h"
 #elif OS_LINUX
     #include <ctype.h>
     #include "dir_walker.h"
@@ -202,6 +198,20 @@ bool win32_process_running(Str process_name) {
 
 #endif
 
+
+bool rename_old_executable(Arena *arena, Str exe_path) {
+#if OS_WINDOWS
+    exe_path = strf(arena, "%.*s.exe", SArg(exe_path));
+#endif
+    if (file_exists(exe_path)) {
+        Str old_executable = strf(arena, "%.*s.old", SArg(exe_path));
+        log_info("Moving %.*s to %.*s", SArg(exe_path), SArg(old_executable));
+        if (!file_move(exe_path, old_executable, .replace_existing=true)) return false;
+    }
+    return true;
+}
+
+
 int main(int argc, char **argv) {
     Arena *arena = arena_init();
 
@@ -271,6 +281,7 @@ int main(int argc, char **argv) {
 
     Cmd compile_cmd = {0};
     if (!*run_old) {
+        if (!rename_old_executable(arena, executable_path)) return 1;
         compile_cmd = prepare_compiler(COMPILER, *optimize, *sanitizers, filename, executable_path);
         if (*dry_run) {
             migi_log(Log_Info, "Compiling (Dry Run): %.*s", SArg(strlist_join(arena, &compile_cmd.args, S(" "))));
@@ -344,6 +355,10 @@ int main(int argc, char **argv) {
             cmd_push     (&raddbg_ipc, S("raddbg"));
             cmd_push_many(&raddbg_ipc, S("--ipc"), S("launch_and_step_into"));
             if (!cmd_ok(cmd_run(&raddbg_ipc, .no_log_cmd=true))) return 1;
+
+            cmd_push     (&raddbg_ipc, S("raddbg"));
+            cmd_push_many(&raddbg_ipc, S("--ipc"), S("bring_to_front"));
+            if (!cmd_ok(cmd_run(&raddbg_ipc, .no_log_cmd=true))) return 1;
             return 0;
         }
 
@@ -360,12 +375,7 @@ int main(int argc, char **argv) {
             migi_log(Log_Info, "Running (Dry Run): %.*s", SArg(strlist_join(arena, &run_cmd.args, S(" "))));
             cmd_reset(&run_cmd);
         } else {
-#if OS_WINDOWS
-            CmdResult res = cmd_run(&run_cmd);
-#else
-            CmdResult res = cmd_run(&run_cmd, .shell=*debug, .background=*debug);
-#endif
-
+            CmdResult res = cmd_run(&run_cmd, .shell=!OS_WINDOWS && *debug, .background=!OS_WINDOWS && *debug);
             if (res.code != 0) {
                 migi_log(Log_Error, "Program: `%.*s` exited with code: %d", SArg(executable_path), res.code);
                 return 1;

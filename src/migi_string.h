@@ -513,7 +513,9 @@ static Str str_reverse(Arena *arena, Str str) {
 
 
 static Str str_replace(Arena *arena, Str str, Str find, Str replace_with) {
-    size_t max_length = replace_with.length * (str.length + 2);
+    size_t max_length = (replace_with.length != 0)
+        ? replace_with.length * (str.length + 2)
+        : str.length;
     char *replaced = arena_push(arena, char, max_length, .zeroed=false);
     char *replaced_at = replaced;
 
@@ -530,7 +532,7 @@ static Str str_replace(Arena *arena, Str str, Str find, Str replace_with) {
         while (true) {
             size_t index = str_find_opt(str, find, 0);
             if (index == str.length) {
-                memcpy(replaced_at, str.data, str.length);
+                memcpy(replaced_at, str.data, str.length); // TODO: use-after-poison on this memcpy
                 replaced_at += str.length;
                 break;
             }
